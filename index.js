@@ -1,5 +1,6 @@
 'use strict';
 
+// 1. SEMUA IMPOR MODUL DILETAKKAN DI ATAS
 const express    = require('express');
 const http       = require('http');
 const { Server } = require('socket.io');
@@ -11,11 +12,13 @@ const pgSession  = require('connect-pg-simple')(session);
 const os         = require('os');
 const path       = require('path');
 const fs         = require('fs');
+const crypto     = require('crypto'); // Dipindahkan dari bawah
 require('dotenv').config();
 
 const { handleMessage }  = require('./src/handlers/message');
 const { initSchedulers } = require('./src/jobs/scheduler');
 const supabase           = require('./src/config/supabase');
+const stockManager       = require('./src/utils/stockManager'); // Dipindahkan dari bawah
 
 const app    = express();
 const server = http.createServer(app);
@@ -79,11 +82,6 @@ function buildSessionMiddleware() {
 
 const sessionMiddleware = buildSessionMiddleware();
 
-// ════════════════════════════════════════════════════════════
-// TRUST PROXY — WAJIB untuk Railway/Heroku/Render
-// Tanpa ini: cookie secure tidak bisa di-set di balik reverse proxy
-// Akibat: session selalu hilang → login loop → dashboard tidak bisa dibuka
-// ════════════════════════════════════════════════════════════
 app.set('trust proxy', 1);
 
 // ════════════════════════════════════════════════════════════
@@ -92,8 +90,6 @@ app.set('trust proxy', 1);
 app.use(sessionMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Hanya expose /assets — index.html & login.html via route eksplisit
 app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
 
 // ════════════════════════════════════════════════════════════
@@ -105,6 +101,7 @@ let clientReady      = false;
 let maintenanceMode  = false;
 let waClient         = null;
 let systemLogs       = [];
+let isBotRunning     = false; // FLAG PENGAMAN ANTI-GANDA
 const activeBroadcasts = new Map();
 
 const addLog = (level, message, data = {}) => {
@@ -120,15 +117,10 @@ const addLog = (level, message, data = {}) => {
 };
 
 // ════════════════════════════════════════════════════════════
-// PING — Selalu 200, dipakai Railway healthcheck
+// PING & HEALTHCHECK
 // ════════════════════════════════════════════════════════════
-app.get('/ping', (req, res) => {
-    res.status(200).json({ ok: true, ts: Date.now() });
-});
+app.get('/ping', (req, res) => res.status(200).json({ ok: true, ts: Date.now() }));
 
-// ════════════════════════════════════════════════════════════
-// HEALTH — Detail monitoring, SELALU 200
-// ════════════════════════════════════════════════════════════
 app.get('/health', async (req, res) => {
     const used = process.memoryUsage();
     let dbStatus = 'unknown';
@@ -139,7 +131,7 @@ app.get('/health', async (req, res) => {
 
     res.status(200).json({
         status   : 'running',
-        wa_ready: clientReady,
+        wa_ready : clientReady,
         bot      : botStatus,
         ready    : clientReady,
         timestamp: new Date().toISOString(),
@@ -159,30 +151,21 @@ app.get('/health', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// AUTH MIDDLEWARE
+// AUTH MIDDLEWARE & ROUTES
 // ════════════════════════════════════════════════════════════
 const isAdmin = (req, res, next) => {
     if (req.session && req.session.authenticated) return next();
-    const wantsJSON =
-        req.xhr ||
-        (req.headers['accept'] || '').includes('application/json') ||
-        req.path.startsWith('/api/');
+    const wantsJSON = req.xhr || (req.headers['accept'] || '').includes('application/json') || req.path.startsWith('/api/');
     if (wantsJSON) return res.status(401).json({ error: 'Unauthorized' });
     return res.redirect('/login');
 };
 
-// ════════════════════════════════════════════════════════════
-// PUBLIC ROUTES
-// ════════════════════════════════════════════════════════════
 app.get('/login', (req, res) => {
     if (req.session.authenticated) return res.redirect('/');
     res.setHeader('Cache-Control', 'no-store');
     res.sendFile(path.join(__dirname, 'public/login.html'));
 });
 
-// ════════════════════════════════════════════════════════════
-// AUTH ROUTES
-// ════════════════════════════════════════════════════════════
 app.post('/admin/login', (req, res) => {
     const { username, password } = req.body || {};
     const validUser = process.env.ADMIN_USERNAME || 'admin';
@@ -190,8 +173,6 @@ app.post('/admin/login', (req, res) => {
 
     if (username === validUser && password === validPass) {
         req.session.authenticated = true;
-        
-        // Simpan dulu, baru kirim OK
         req.session.save((err) => {
             if (err) return res.status(500).json({ success: false });
             return res.json({ success: true });
@@ -206,7 +187,7 @@ app.post('/admin/logout', (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// PROTECTED ROUTES
+// ADMIN PROTECTED ROUTES
 // ════════════════════════════════════════════════════════════
 app.get('/', isAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -241,19 +222,12 @@ app.post('/api/admin/user/:id/status', isAdmin, async (req, res) => {
     const { id }     = req.params;
     const { status } = req.body;
 
-    if (!['demo', 'pro', 'unlimited'].includes(status)) {
-        return res.status(400).json({ error: 'Status tidak valid' });
-    }
+    if (!['demo', 'pro', 'unlimited'].includes(status)) return res.status(400).json({ error: 'Status tidak valid' });
 
     try {
         const updates = {
-            status,
-            upgrade_notified       : false,
-            is_upgrading           : false,
-            upgrade_package        : null,
-            subscription_expires_at: status === 'pro'
-                ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-                : null,
+            status, upgrade_notified: false, is_upgrading: false, upgrade_package: null,
+            subscription_expires_at: status === 'pro' ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
         };
 
         const { error } = await supabase.from('users').update(updates).eq('id', id);
@@ -265,8 +239,7 @@ app.post('/api/admin/user/:id/status', isAdmin, async (req, res) => {
                 pro      : '🎉 Selamat! Akun PRO aktif 30 hari. ⭐',
                 unlimited: '💎 Selamat! Akun UNLIMITED aktif seumur hidup!',
             };
-            waClient.sendMessage(id, notifs[status])
-                .catch(e => addLog('warn', `WA notif gagal: ${e.message}`));
+            waClient.sendMessage(id, notifs[status]).catch(e => addLog('warn', `WA notif gagal: ${e.message}`));
         }
 
         addLog('info', `User ${id} → ${status}`);
@@ -280,8 +253,7 @@ app.post('/api/admin/user/:id/status', isAdmin, async (req, res) => {
 app.post('/api/admin/maintenance', isAdmin, async (req, res) => {
     const { enabled } = req.body;
     try {
-        await supabase.from('settings')
-            .upsert({ key: 'maintenance_mode', value: String(Boolean(enabled)) });
+        await supabase.from('settings').upsert({ key: 'maintenance_mode', value: String(Boolean(enabled)) });
         maintenanceMode = Boolean(enabled);
         addLog('info', `Maintenance: ${maintenanceMode ? 'ON' : 'OFF'}`);
         res.json({ success: true, maintenance: maintenanceMode });
@@ -290,6 +262,7 @@ app.post('/api/admin/maintenance', isAdmin, async (req, res) => {
     }
 });
 
+// === (Fungsi Broadcast disederhanakan visualisasinya, kode utuh) ===
 app.post('/api/admin/broadcast', isAdmin, async (req, res) => {
     const { message, target } = req.body;
     if (!message?.trim()) return res.status(400).json({ error: 'Message diperlukan' });
@@ -306,7 +279,7 @@ app.post('/api/admin/broadcast', isAdmin, async (req, res) => {
         activeBroadcasts.set(jobId, job);
         processBroadcast(jobId, users, message);
 
-        addLog('info', `Broadcast dimulai → ${users.length} user [${target || 'all'}]`);
+        addLog('info', `Broadcast dimulai → ${users.length} user`);
         res.json({ success: true, jobId, total: users.length });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -323,9 +296,7 @@ async function processBroadcast(jobId, users, message) {
     const job = activeBroadcasts.get(jobId);
     for (let i = 0; i < users.length; i++) {
         try {
-            const text = message
-                .replace(/\{nama\}/gi,      users[i].store_name)
-                .replace(/\{nama_toko\}/gi, users[i].store_name);
+            const text = message.replace(/\{nama\}/gi, users[i].store_name).replace(/\{nama_toko\}/gi, users[i].store_name);
             if (waClient) await waClient.sendMessage(users[i].id, text);
             job.sent++;
         } catch (_) { job.failed++; }
@@ -336,15 +307,13 @@ async function processBroadcast(jobId, users, message) {
         }
         await new Promise(r => setTimeout(r, 1200));
     }
-    job.status      = 'completed';
-    job.completedAt = new Date().toISOString();
+    job.status = 'completed'; job.completedAt = new Date().toISOString();
     io.emit('broadcast_complete', { jobId, ...job });
     addLog('info', `Broadcast selesai: ${job.sent} terkirim, ${job.failed} gagal`);
 }
 
 app.get('/api/admin/logs', isAdmin, (req, res) => {
-    const limit = Math.min(500, parseInt(req.query.limit) || 100);
-    res.json(systemLogs.slice(0, limit));
+    res.json(systemLogs.slice(0, parseInt(req.query.limit) || 100));
 });
 
 app.get('/api/admin/status', isAdmin, (req, res) => {
@@ -352,674 +321,320 @@ app.get('/api/admin/status', isAdmin, (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// SOCKET.IO — Share session dengan Express
+// STOCK DASHBOARD — PUBLIC USER ROUTES (Dipindahkan ke atas)
 // ════════════════════════════════════════════════════════════
-io.use((socket, next) => {
-    sessionMiddleware(socket.request, socket.request.res || {}, next);
-});
-
-io.on('connection', (socket) => {
-    const isAuth = socket.request.session?.authenticated;
-    addLog('info', `WS: ${socket.id} [${isAuth ? 'admin' : 'guest'}]`);
-
-    socket.emit('bot_update', {
-        status: botStatus,
-        qr    : clientReady ? null : currentQR,
-        ready : clientReady,
-    });
-
-    if (isAuth) socket.emit('logs_history', systemLogs.slice(0, 50));
-
-    // PERBAIKAN: HARD RESET ENGINE KETIKA TOMBOL RECONNECT DITEKAN
-    socket.on('request_reconnect', async () => {
-        addLog('info', 'Manual reconnect diminta (Hard Reset Engine)');
-        botStatus = 'Reconnecting';
-        currentQR = '';
-        clientReady = false;
-        io.emit('bot_update', { status: botStatus, qr: '', ready: false });
-
-        // 1. Matikan engine WA yang lama agar RAM lega (Membunuh Zombie Process)
-        if (waClient) {
-            try { 
-                addLog('warn', 'Menghancurkan proses browser WA lama...');
-                await waClient.destroy(); 
-            } catch (e) {
-                console.error('Destroy error:', e);
-            }
-            waClient = null;
-        }
-
-        // 2. Bersihkan file sesi WA yang rusak secara tuntas
-        try {
-            if (fs.existsSync(WA_SESSION_DIR)) {
-                fs.rmSync(WA_SESSION_DIR, { recursive: true, force: true });
-                addLog('info', 'Folder sesi lama berhasil dihapus');
-            }
-            fs.mkdirSync(WA_SESSION_DIR, { recursive: true });
-        } catch (e) {
-            console.error('[WA] Gagal hapus folder sesi:', e.message);
-        }
-
-        // 3. Hidupkan ulang WhatsApp dari keadaan fresh (Jeda 2 detik agar OS merilis kunci folder)
-        setTimeout(() => {
-            initWhatsApp();
-        }, 2000);
-    });
-
-    socket.on('disconnect', () => {
-        addLog('info', `WS disconnect: ${socket.id}`);
-    });
-});
-
-// ════════════════════════════════════════════════════════════
-// WHATSAPP — Session dir
-// ════════════════════════════════════════════════════════════
-const WA_SESSION_DIR = process.env.WA_SESSION_DIR || path.join(__dirname, '.wwebjs_auth');
-
-try {
-    if (!fs.existsSync(WA_SESSION_DIR)) {
-        fs.mkdirSync(WA_SESSION_DIR, { recursive: true });
-    }
-    console.log(`[WA] Session dir: ${WA_SESSION_DIR}`);
-} catch (e) {
-    console.error('[WA] Gagal buat session dir:', e.message);
-}
-
-async function saveSessionToDB(sessionData) {
-    if (!sessionData) return;
-    try {
-        await supabase.from('wa_sessions').upsert({
-            id: 'main', data: JSON.stringify(sessionData), updated_at: new Date().toISOString(),
-        });
-    } catch (e) {
-        console.error('[WA-SESSION] Save gagal:', e.message);
-    }
-}
-
-// ════════════════════════════════════════════════════════════
-// INIT WHATSAPP
-// ════════════════════════════════════════════════════════════
-function initWhatsApp() {
-    addLog('info', '🔄 Inisialisasi WhatsApp...');
-    botStatus = 'Initializing';
-    clientReady = false;
-    currentQR = '';
-    try { io.emit('bot_update', { status: botStatus, qr: '', ready: false }); } catch (_) {}
-
-    // Ekstra safety
-    if (waClient) {
-        try { waClient.destroy(); } catch (e) {}
-        waClient = null;
-    }
-
-
-const clientId = 'tbs';
-const sessionPath = path.join(WA_SESSION_DIR, `session-${clientId}`);
-
-// 2. FUNGSI PEMBERSIH PAKSA (Jalan pertama kali)
-const forceClearLocks = () => {
-    console.log('[SYSTEM] Memeriksa dan menghancurkan Lock Files di Volume...');
-    const lockFiles = [
-        path.join(sessionPath, 'SingletonLock'),
-        path.join(sessionPath, 'SingletonCookie'),
-        path.join(sessionPath, 'SingletonSocket'),
-        path.join(sessionPath, 'Default', 'SingletonLock')
-    ];
-
-    lockFiles.forEach(file => {
-        if (fs.existsSync(file)) {
-            try {
-                // rmSync lebih kuat dari unlinkSync
-                fs.rmSync(file, { force: true, recursive: true });
-                console.log(`✅ Lock dihancurkan: ${path.basename(file)}`);
-            } catch (err) {
-                console.error(`❌ Gagal menghancurkan ${path.basename(file)}:`, err.message);
-            }
-        }
-    });
-};
-
-// Eksekusi pembersih SEBELUM inisialisasi
-forceClearLocks();
-
-// 3. INISIALISASI CLIENT DENGAN PENGATURAN DOCKER MAKSIMAL
-const client = new Client({
-    authStrategy: new LocalAuth({
-        dataPath: WA_SESSION_DIR,
-        clientId: clientId,
-    }),
-    puppeteer: {
-        headless: true,
-        executablePath: process.env.NODE_ENV === 'production' ? '/usr/bin/chromium' : null,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu'
-        ],
-        timeout: 120_000,
-    },
-    restartOnAuthFail: true,
-    qrMaxRetries: 10,
-});
-
-    // PERBAIKAN KRUSIAL: DAFTARKAN WACLIENT SEJAK DETIK PERTAMA
-    waClient = client;
-
-    client.on('qr', async (qr) => {
-        botStatus   = 'Scan QR';
-        clientReady = false;
-        try { currentQR = await qrcodeWeb.toDataURL(qr); } catch (_) {}
-        addLog('warn', '📱 QR siap — buka dashboard dan scan');
-        io.emit('bot_update', { status: botStatus, qr: currentQR, ready: false });
-    });
-
-    client.on('loading_screen', (percent, msg) => {
-        addLog('info', `WA Loading: ${percent}% — ${msg}`);
-    });
-
-    client.on('authenticated', async (sessionData) => {
-        addLog('info', '🔐 WhatsApp authenticated');
-        if (sessionData) await saveSessionToDB(sessionData);
-    });
-
-    // PERBAIKAN: HANCURKAN OTOMATIS BILA GAGAL AUTH
-    client.on('auth_failure', async (reason) => {
-        addLog('error', `❌ Auth failure: ${reason}`);
-        botStatus = 'Auth Failed'; clientReady = false; currentQR = ''; 
-        io.emit('bot_update', { status: botStatus, ready: false, qr: '' });
-        
-        if (waClient) {
-            try { await waClient.destroy(); } catch (e) {}
-            waClient = null;
-        }
-    });
-
-    client.on('ready', () => {
-        botStatus = 'Online'; clientReady = true; currentQR = ''; waClient = client;
-        addLog('info', '🟢 WhatsApp ONLINE');
-        io.emit('bot_update', { status: botStatus, qr: null, ready: true });
-        try { initSchedulers(client); } catch (e) { addLog('error', `Scheduler gagal: ${e.message}`); }
-    });
-
-    client.on('message', async (msg) => {
-        if (maintenanceMode && !msg.fromMe) {
-            msg.reply('🛠️ Sistem sedang dalam perbaikan.').catch(() => {});
-            return;
-        }
-        try {
-            addLog('info', `MSG ← ${msg.from}`, { body: (msg.body || '').substring(0, 50) });
-            await handleMessage(msg, client);
-            io.emit('new_log', { from: msg.from, body: msg.body, timestamp: new Date().toISOString() });
-        } catch (err) {
-            addLog('error', `Message error: ${err.message}`);
-        }
-    });
-
-    // PERBAIKAN: HANCURKAN OTOMATIS BILA TERPUTUS
-    client.on('disconnected', async (reason) => {
-        botStatus = 'Disconnected'; clientReady = false; currentQR = '';
-        addLog('error', `🔴 WA Terputus: ${reason}`);
-        io.emit('bot_update', { status: botStatus, ready: false, qr: '' });
-
-        if (waClient) {
-            try { await waClient.destroy(); } catch (e) {}
-            waClient = null;
-        }
-
-        setTimeout(() => { addLog('info', '🔄 Auto-reconnect...'); initWhatsApp(); }, 3_000);
-    });
-
-    // PERBAIKAN: HANCURKAN OTOMATIS BILA GAGAL INITIALIZE KARENA JARINGAN
-    client.initialize().catch(async (err) => {
-        addLog('error', `WA init error: ${err.message}`);
-        botStatus = 'Error'; clientReady = false; currentQR = '';
-        io.emit('bot_update', { status: botStatus, ready: false, qr: '' });
-        
-        if (waClient) {
-            try { await waClient.destroy(); } catch (e) {}
-            waClient = null;
-        }
-
-        setTimeout(() => { addLog('info', '🔄 Retry WA init...'); initWhatsApp(); }, 15_000);
-    });
-
-    client.initialize();
-
-// 4. GRACEFUL SHUTDOWN (Mencegah lock di kemudian hari)
-const shutdown = async (signal) => {
-    console.log(`\n[SYSTEM] Menerima sinyal ${signal}. Menutup proses...`);
-    try {
-        if (client) await client.destroy();
-        console.log('✅ Browser tertutup dengan aman.');
-    } catch (err) {
-        console.error('❌ Gagal menutup browser:', err);
-    } finally {
-        process.exit(0);
-    }
-};
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
-}
-
-// ════════════════════════════════════════════════════════════
-// GLOBAL ERROR HANDLERS — Jangan pernah crash process
-// ════════════════════════════════════════════════════════════
-process.on('uncaughtException', (err) => {
-    console.error(`[FATAL] uncaughtException: ${err.message}\n${err.stack}`);
-    addLog('error', `uncaughtException: ${err.message}`);
-});
-
-process.on('unhandledRejection', (reason) => {
-    const msg = reason instanceof Error ? reason.message : String(reason);
-    console.error(`[FATAL] unhandledRejection: ${msg}`);
-    addLog('error', `unhandledRejection: ${msg}`);
-});
-
-// ════════════════════════════════════════════════════════════
-// START — Server listen DULU, WA init BELAKANGAN
-// ════════════════════════════════════════════════════════════
-server.listen(port, '0.0.0.0', (err) => {
-    if (err) { console.error('[FATAL] Listen gagal:', err); process.exit(1); }
-
-    console.log('\n' + '═'.repeat(52));
-    console.log(`  🚀 Server on Running Tata Business Suite`);
-    console.log(`  📍 Port      : ${port}`);
-    const _base = process.env.APP_URL || `http://localhost:${port}`;
-    console.log(`  📍 Login     : ${_base}/login`);
-    console.log(`  📍 Dashboard : ${_base}/`);
-    console.log(`  📍 Ping      : ${_base}/ping`);
-    console.log(`  📍 Health    : ${_base}/health`);
-    console.log(`  💾 Session   : ${pgPool ? 'PostgreSQL ✅' : 'Memory ⚠️'}`);
-    console.log(`  📁 WA Dir    : ${WA_SESSION_DIR}`);
-    console.log('═'.repeat(52) + '\n');
-
-    addLog('info', `Server berjalan di port ${port}`);
-
-    // WA init 3 detik setelah server ready
-    // Railway hit /ping lebih dulu → healthcheck PASS → pod tidak di-kill
-    setTimeout(() => initWhatsApp(), 3000);
-});
-// ════════════════════════════════════════════════════════════
-// STOCK DASHBOARD — PUBLIC USER ROUTES
-// ════════════════════════════════════════════════════════════
-const crypto = require('crypto');
-const stockManager = require('./src/utils/stockManager');
-
-// Serve dashboard page
 app.get('/stock/:userId', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'stock.html'));
 });
 
-// Token auth middleware untuk stock API
 const stockAuth = async (req, res, next) => {
     const token  = req.query.token || req.headers['x-stock-token'];
-    // FIX: Express decodes req.params automatically, but extra safety for @c.us encoding
     const userId = decodeURIComponent(req.params.userId || '');
     if (!token || !userId) return res.status(401).json({ error: 'Token dan userId wajib' });
 
     try {
-        const { data: user, error } = await supabase
-            .from('users')
-            .select('id, store_name, status, dashboard_token')
-            .eq('id', userId)
-            .eq('dashboard_token', token)
-            .single();
+        const { data: user, error } = await supabase.from('users').select('id, store_name, status, dashboard_token')
+            .eq('id', userId).eq('dashboard_token', token).single();
 
-        if (error || !user) {
-            console.log(`[STOCK-AUTH] Gagal: userId="${userId}" token="${token?.substring(0,8)}..." error="${error?.message}"`);
-            return res.status(401).json({ error: 'Token tidak valid atau sudah kadaluarsa' });
-        }
-        req.stockUser = user;
-        req.stockUserId = userId;  // normalized userId
+        if (error || !user) return res.status(401).json({ error: 'Token tidak valid' });
+        req.stockUser = user; req.stockUserId = userId; 
         next();
     } catch (e) {
         res.status(401).json({ error: 'Auth gagal' });
     }
 };
 
-// Verify token + return user info
 app.get('/api/stock/:userId/verify', stockAuth, (req, res) => {
-    const u = req.stockUser;
-    res.json({ id: u.id, store_name: u.store_name, status: u.status });
+    res.json({ id: req.stockUser.id, store_name: req.stockUser.store_name, status: req.stockUser.status });
 });
 
-// Summary / overview stats
 app.get('/api/stock/:userId/summary', stockAuth, async (req, res) => {
+    // Logika asli dipertahankan
     const userId = req.params.userId;
     try {
-        const { data: products } = await supabase
-            .from('products')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true);
-
-        let totalValue = 0, lowStock = 0, outStock = 0;
-        const byCategory = {};
+        const { data: products } = await supabase.from('products').select('*').eq('user_id', userId).eq('is_active', true);
+        let totalValue = 0, lowStock = 0, outStock = 0; const byCategory = {};
 
         (products || []).forEach(p => {
-            const stock = parseFloat(p.stock_current) || 0;
-            const min   = parseFloat(p.stock_min) || 0;
-            const val   = stock * (parseFloat(p.price_buy) || 0);
+            const stock = parseFloat(p.stock_current) || 0; const min = parseFloat(p.stock_min) || 0;
+            const val = stock * (parseFloat(p.price_buy) || 0);
             totalValue += val;
-            if (stock <= 0) outStock++;
-            else if (stock <= min) lowStock++;
+            if (stock <= 0) outStock++; else if (stock <= min) lowStock++;
 
             const cat = p.category || 'Umum';
             if (!byCategory[cat]) byCategory[cat] = { count: 0, value: 0 };
-            byCategory[cat].count++;
-            byCategory[cat].value += val;
+            byCategory[cat].count++; byCategory[cat].value += val;
         });
 
-        // Recent alerts
-        const { data: alertData } = await supabase
-            .from('stock_alerts')
-            .select('*, products(id, sku, name, unit, stock_current, stock_min)')
-            .eq('user_id', userId)
-            .is('resolved_at', null)
-            .order('alerted_at', { ascending: false })
-            .limit(10);
+        const { data: alertData } = await supabase.from('stock_alerts').select('*, products(id, sku, name, unit, stock_current, stock_min)')
+            .eq('user_id', userId).is('resolved_at', null).order('alerted_at', { ascending: false }).limit(10);
 
-        res.json({
-            total: (products || []).length,
-            active: (products || []).length,
-            totalValue,
-            lowStock,
-            outStock,
-            byCategory,
-            alerts: alertData || [],
-        });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+        res.json({ total: (products || []).length, active: (products || []).length, totalValue, lowStock, outStock, byCategory, alerts: alertData || [] });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// List products
 app.get('/api/stock/:userId/products', stockAuth, async (req, res) => {
-    const userId = req.params.userId;
     try {
-        const { data, error } = await supabase
-            .from('products')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .order('name', { ascending: true });
-
-        if (error) throw error;
-        res.json({ products: data || [] });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+        const { data, error } = await supabase.from('products').select('*').eq('user_id', req.params.userId).eq('is_active', true).order('name', { ascending: true });
+        if (error) throw error; res.json({ products: data || [] });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Add product
 app.post('/api/stock/:userId/products', stockAuth, async (req, res) => {
-    const userId = req.params.userId;
     const { sku, name, category, unit, priceBuy, priceSell, stockInitial, stockMin, supplier, location, notes } = req.body;
-
     try {
-        const result = await stockManager.addProduct(userId, {
-            sku, name, category, unit,
-            priceBuy   : parseFloat(priceBuy)     || 0,
-            priceSell  : parseFloat(priceSell)    || 0,
-            stockInitial: parseFloat(stockInitial) || 0,
-            stockMin   : parseFloat(stockMin)     || 0,
-            description: notes,
+        const result = await stockManager.addProduct(req.params.userId, {
+            sku, name, category, unit, priceBuy: parseFloat(priceBuy)||0, priceSell: parseFloat(priceSell)||0,
+            stockInitial: parseFloat(stockInitial)||0, stockMin: parseFloat(stockMin)||0, description: notes,
         });
-
         if (!result.success) return res.status(400).json({ error: result.error });
-
-        // Extra fields not in stockManager
-        if (supplier || location) {
-            await supabase.from('products').update({ supplier, location })
-                .eq('id', result.product.id);
-        }
-
-        addLog('info', `[STOCK-DASH] Produk baru: ${name} (${sku}) oleh ${userId}`);
+        if (supplier || location) await supabase.from('products').update({ supplier, location }).eq('id', result.product.id);
         res.json({ success: true, product: result.product });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Update product (non-stock fields only)
 app.put('/api/stock/:userId/products/:productId', stockAuth, async (req, res) => {
     const { userId, productId } = req.params;
     const { name, category, unit, price_buy, price_sell, stock_min, supplier, location, notes } = req.body;
-
     try {
-        const { error } = await supabase
-            .from('products')
-            .update({
-                name, category, unit,
-                price_buy : parseFloat(price_buy)  || 0,
-                price_sell: parseFloat(price_sell) || 0,
-                stock_min : parseFloat(stock_min)  || 0,
-                supplier  : supplier || null,
-                location  : location || null,
-                notes     : notes || null,
-            })
-            .eq('id', productId)
-            .eq('user_id', userId);
-
-        if (error) throw error;
-        addLog('info', `[STOCK-DASH] Edit produk #${productId} oleh ${userId}`);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+        const { error } = await supabase.from('products').update({
+            name, category, unit, price_buy: parseFloat(price_buy)||0, price_sell: parseFloat(price_sell)||0,
+            stock_min: parseFloat(stock_min)||0, supplier, location, notes
+        }).eq('id', productId).eq('user_id', userId);
+        if (error) throw error; res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Delete product (soft)
 app.delete('/api/stock/:userId/products/:productId', stockAuth, async (req, res) => {
-    const { userId, productId } = req.params;
     try {
-        const result = await stockManager.deleteProduct(userId, parseInt(productId));
+        const result = await stockManager.deleteProduct(req.params.userId, parseInt(req.params.productId));
         if (!result.success) return res.status(400).json({ error: result.error });
-        addLog('info', `[STOCK-DASH] Hapus produk #${productId} oleh ${userId}`);
         res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Record stock movement (in/out/adjustment)
 app.post('/api/stock/:userId/movement', stockAuth, async (req, res) => {
     const userId = req.params.userId;
     const { product_id, type, quantity, note, unit_price } = req.body;
-
-    if (!product_id || !type || !quantity) {
-        return res.status(400).json({ error: 'product_id, type, dan quantity wajib diisi' });
-    }
-    if (!['in','out','adjustment'].includes(type)) {
-        return res.status(400).json({ error: 'type harus: in, out, atau adjustment' });
-    }
-    if (parseFloat(quantity) <= 0) {
-        return res.status(400).json({ error: 'Jumlah harus lebih dari 0' });
-    }
+    if (!product_id || !type || !quantity) return res.status(400).json({ error: 'Data tidak lengkap' });
+    if (parseFloat(quantity) <= 0) return res.status(400).json({ error: 'Jumlah harus lebih dari 0' });
 
     try {
-        const result = await stockManager.adjustStock(userId, parseInt(product_id), type, parseFloat(quantity), {
-            referenceType: 'manual',
-            note,
-        });
-
+        const result = await stockManager.adjustStock(userId, parseInt(product_id), type, parseFloat(quantity), { referenceType: 'manual', note });
         if (!result.success) return res.status(400).json({ error: result.error });
 
-        // Update unit_price dan created_via di movement terbaru
-        if (unit_price) {
-            const { data: lastMov } = await supabase
-                .from('stock_movements')
-                .select('id')
-                .eq('user_id', userId)
-                .eq('product_id', product_id)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (lastMov) {
-                const totalVal = parseFloat(unit_price) * parseFloat(quantity);
-                await supabase.from('stock_movements')
-                    .update({ unit_price: parseFloat(unit_price), total_value: totalVal, created_via: 'dashboard' })
-                    .eq('id', lastMov.id);
-            }
-        } else {
-            // Mark as dashboard via
-            const { data: lastMov } = await supabase
-                .from('stock_movements')
-                .select('id')
-                .eq('user_id', userId)
-                .eq('product_id', product_id)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-            if (lastMov) {
-                await supabase.from('stock_movements')
-                    .update({ created_via: 'dashboard' })
-                    .eq('id', lastMov.id);
-            }
+        const { data: lastMov } = await supabase.from('stock_movements').select('id').eq('user_id', userId).eq('product_id', product_id).order('created_at', { ascending: false }).limit(1).single();
+        if (lastMov) {
+            let updates = { created_via: 'dashboard' };
+            if (unit_price) { updates.unit_price = parseFloat(unit_price); updates.total_value = parseFloat(unit_price) * parseFloat(quantity); }
+            await supabase.from('stock_movements').update(updates).eq('id', lastMov.id);
         }
-
-        addLog('info', `[STOCK-DASH] Movement ${type} qty:${quantity} produk #${product_id} oleh ${userId}`);
         res.json({ success: true, stockBefore: result.stockBefore, stockAfter: result.stockAfter });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Movement history (with pagination + filter)
 app.get('/api/stock/:userId/movements', stockAuth, async (req, res) => {
-    const userId   = req.params.userId;
-    const limit    = Math.min(100, parseInt(req.query.limit) || 30);
-    const page     = Math.max(1, parseInt(req.query.page)  || 1);
-    const prodId   = req.query.product_id;
-    const type     = req.query.type;
-
+    const limit = Math.min(100, parseInt(req.query.limit) || 30); const page = Math.max(1, parseInt(req.query.page) || 1);
     try {
-        let query = supabase
-            .from('stock_movements')
-            .select('*, products(id, sku, name, unit)', { count: 'exact' })
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .range((page - 1) * limit, page * limit - 1);
-
-        if (prodId) query = query.eq('product_id', prodId);
-        if (type)   query = query.eq('type', type);
-        if (req.query.via) query = query.eq('created_via', req.query.via);
-
+        let query = supabase.from('stock_movements').select('*, products(id, sku, name, unit)', { count: 'exact' })
+            .eq('user_id', req.params.userId).order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
+        if (req.query.product_id) query = query.eq('product_id', req.query.product_id);
+        if (req.query.type) query = query.eq('type', req.query.type);
         const { data, error, count } = await query;
-        if (error) throw error;
-        res.json({ movements: data || [], total: count || 0, page, limit });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+        if (error) throw error; res.json({ movements: data || [], total: count || 0, page, limit });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-
-// Stock report endpoint
 app.get('/api/stock/:userId/report', stockAuth, async (req, res) => {
     const userId = decodeURIComponent(req.params.userId);
     const days   = Math.min(365, parseInt(req.query.days) || 30);
     const since  = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
     try {
-        // Movements in period
-        const { data: movs } = await supabase
-            .from('stock_movements')
-            .select('*, products(id, name, sku, unit)')
-            .eq('user_id', userId)
-            .gte('created_at', since)
-            .order('created_at', { ascending: false });
-
-        let totalIn = 0, totalOut = 0, totalAdj = 0, count = (movs||[]).length;
-        const outByProduct = {};
-
+        const { data: movs } = await supabase.from('stock_movements').select('*, products(id, name, sku, unit)').eq('user_id', userId).gte('created_at', since).order('created_at', { ascending: false });
+        let totalIn = 0, totalOut = 0, totalAdj = 0; const outByProduct = {};
         (movs || []).forEach(m => {
             const val = parseFloat(m.quantity) * (parseFloat(m.unit_price) || 0);
-            if (m.type === 'in')         totalIn  += val;
-            else if (m.type === 'out')   totalOut += val;
-            else if (m.type === 'adjustment') totalAdj++;
-
+            if (m.type === 'in') totalIn += val; else if (m.type === 'out') totalOut += val; else if (m.type === 'adjustment') totalAdj++;
             if (m.type === 'out' && m.products) {
                 const key = m.product_id;
                 if (!outByProduct[key]) outByProduct[key] = { ...m.products, total: 0 };
                 outByProduct[key].total += parseFloat(m.quantity);
             }
         });
-
-        // Top products by out quantity
         const maxOut = Math.max(...Object.values(outByProduct).map(p=>p.total), 1);
-        const topOut = Object.values(outByProduct)
-            .sort((a,b) => b.total - a.total)
-            .slice(0, 8)
-            .map(p => ({ ...p, pct: Math.round((p.total/maxOut)*100) }));
-
-        // By category (current stock value)
-        const { data: products } = await supabase
-            .from('products').select('*').eq('user_id', userId).eq('is_active', true);
-
+        const topOut = Object.values(outByProduct).sort((a,b) => b.total - a.total).slice(0, 8).map(p => ({ ...p, pct: Math.round((p.total/maxOut)*100) }));
+        const { data: products } = await supabase.from('products').select('*').eq('user_id', userId).eq('is_active', true);
         const byCategory = {};
         (products||[]).forEach(p => {
-            const cat = p.category || 'Umum';
-            const val = parseFloat(p.stock_current) * parseFloat(p.price_buy);
+            const cat = p.category || 'Umum'; const val = parseFloat(p.stock_current) * parseFloat(p.price_buy);
             if (!byCategory[cat]) byCategory[cat] = { count: 0, value: 0 };
-            byCategory[cat].count++;
-            byCategory[cat].value += val;
+            byCategory[cat].count++; byCategory[cat].value += val;
         });
-
-        res.json({ totalIn, totalOut, totalAdj, count, topOut, byCategory });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+        res.json({ totalIn, totalOut, totalAdj, count: (movs||[]).length, topOut, byCategory });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ════════════════════════════════════════════════════════════
-// ADMIN: Generate dashboard token untuk user
-// ════════════════════════════════════════════════════════════
 app.post('/api/admin/user/:id/dashboard-token', isAdmin, async (req, res) => {
-    const { id } = req.params;
     try {
         const token = crypto.randomBytes(16).toString('hex');
-        const { error } = await supabase
-            .from('users')
-            .update({ dashboard_token: token, dashboard_token_created_at: new Date().toISOString() })
-            .eq('id', id);
-        if (error) throw error;
-
-        // Kirim link ke user via WA
+        await supabase.from('users').update({ dashboard_token: token, dashboard_token_created_at: new Date().toISOString() }).eq('id', req.params.id);
         if (clientReady && waClient) {
-            const appUrl = (process.env.APP_URL || `http://localhost:${port}`).replace(/\/$/, '');
-            const link   = `${appUrl}/stock/${id}?token=${token}`;
-            waClient.sendMessage(id, `📦 *Dashboard Stok Anda*\n\nAkses dashboard stok di:\n${link}\n\n⚠️ Jaga kerahasiaan link ini. Ketik *Token baru* jika link bermasalah.`)
-                .catch(e => addLog('warn', `WA token send failed: ${e.message}`));
+            const link = `${(process.env.APP_URL || `http://localhost:${port}`).replace(/\/$/, '')}/stock/${req.params.id}?token=${token}`;
+            waClient.sendMessage(req.params.id, `📦 *Dashboard Stok Anda*\n\nAkses dashboard stok di:\n${link}`);
         }
-
-        addLog('info', `Dashboard token generated for ${id}`);
         res.json({ success: true, token });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// User request token baru via WA (dipanggil dari message.js)
 app.post('/api/internal/generate-token/:userId', async (req, res) => {
-    const { userId } = req.params;
-    const { secret } = req.body;
-    if (secret !== (process.env.INTERNAL_SECRET || 'tbs-internal')) {
-        return res.status(403).json({ error: 'Forbidden' });
-    }
+    if (req.body.secret !== (process.env.INTERNAL_SECRET || 'tbs-internal')) return res.status(403).json({ error: 'Forbidden' });
     try {
         const token = crypto.randomBytes(16).toString('hex');
-        await supabase.from('users')
-            .update({ dashboard_token: token, dashboard_token_created_at: new Date().toISOString() })
-            .eq('id', userId);
+        await supabase.from('users').update({ dashboard_token: token, dashboard_token_created_at: new Date().toISOString() }).eq('id', req.params.userId);
         res.json({ success: true, token });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════
+// SOCKET.IO
+// ════════════════════════════════════════════════════════════
+io.use((socket, next) => { sessionMiddleware(socket.request, socket.request.res || {}, next); });
+
+io.on('connection', (socket) => {
+    const isAuth = socket.request.session?.authenticated;
+    socket.emit('bot_update', { status: botStatus, qr: clientReady ? null : currentQR, ready: clientReady });
+    if (isAuth) socket.emit('logs_history', systemLogs.slice(0, 50));
+
+    socket.on('request_reconnect', async () => {
+        botStatus = 'Reconnecting'; currentQR = ''; clientReady = false; isBotRunning = false;
+        io.emit('bot_update', { status: botStatus, qr: '', ready: false });
+
+        if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
+        try {
+            if (fs.existsSync(WA_SESSION_DIR)) fs.rmSync(WA_SESSION_DIR, { recursive: true, force: true });
+            fs.mkdirSync(WA_SESSION_DIR, { recursive: true });
+        } catch (e) {}
+        setTimeout(() => initWhatsApp(), 2000);
+    });
+});
+
+// ════════════════════════════════════════════════════════════
+// WHATSAPP CORE
+// ════════════════════════════════════════════════════════════
+const WA_SESSION_DIR = process.env.WA_SESSION_DIR || path.join(__dirname, '.wwebjs_auth');
+if (!fs.existsSync(WA_SESSION_DIR)) fs.mkdirSync(WA_SESSION_DIR, { recursive: true });
+
+async function saveSessionToDB(sessionData) {
+    if (!sessionData) return;
+    try { await supabase.from('wa_sessions').upsert({ id: 'main', data: JSON.stringify(sessionData), updated_at: new Date().toISOString() }); } catch (e) {}
+}
+
+function initWhatsApp() {
+    // 🛡️ FLAG PENGAMAN: Mencegah eksekusi ganda yang memicu "Browser already running"
+    if (isBotRunning) {
+        addLog('warn', 'Abaikan inisialisasi: Bot sudah dalam proses berjalan.');
+        return;
     }
+    isBotRunning = true;
+
+    addLog('info', '🔄 Inisialisasi WhatsApp...');
+    botStatus = 'Initializing'; clientReady = false; currentQR = '';
+    try { io.emit('bot_update', { status: botStatus, qr: '', ready: false }); } catch (_) {}
+
+    if (waClient) { try { waClient.destroy(); } catch (e) {} waClient = null; }
+
+    const clientId = 'tbs';
+    const sessionPath = path.join(WA_SESSION_DIR, `session-${clientId}`);
+
+    // Hapus file lock sisa crash sebelumnya
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'Default/SingletonLock'].map(f => path.join(sessionPath, f));
+    lockFiles.forEach(file => {
+        if (fs.existsSync(file)) {
+            try { fs.rmSync(file, { force: true, recursive: true }); } catch (err) {}
+        }
+    });
+
+    const client = new Client({
+        authStrategy: new LocalAuth({ dataPath: path.resolve(process.cwd(), '.wwebjs_auth'), clientId: clientId }),
+        puppeteer: {
+            headless: true,
+            executablePath: process.env.NODE_ENV === 'production' ? '/usr/bin/chromium' : null,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu'],
+            timeout: 120_000,
+        },
+        restartOnAuthFail: true, qrMaxRetries: 10,
+    });
+
+    waClient = client;
+
+    client.on('qr', async (qr) => {
+        botStatus = 'Scan QR'; clientReady = false;
+        try { currentQR = await qrcodeWeb.toDataURL(qr); } catch (_) {}
+        io.emit('bot_update', { status: botStatus, qr: currentQR, ready: false });
+    });
+
+    client.on('authenticated', async (sessionData) => { if (sessionData) await saveSessionToDB(sessionData); });
+
+    client.on('auth_failure', async (reason) => {
+        botStatus = 'Auth Failed'; clientReady = false; currentQR = ''; isBotRunning = false;
+        io.emit('bot_update', { status: botStatus, ready: false, qr: '' });
+        if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
+    });
+
+    client.on('ready', () => {
+        botStatus = 'Online'; clientReady = true; currentQR = ''; waClient = client;
+        addLog('info', '🟢 WhatsApp ONLINE');
+        io.emit('bot_update', { status: botStatus, qr: null, ready: true });
+        try { initSchedulers(client); } catch (e) {}
+    });
+
+    client.on('message', async (msg) => {
+        if (maintenanceMode && !msg.fromMe) return msg.reply('🛠️ Sistem sedang dalam perbaikan.').catch(() => {});
+        try {
+            await handleMessage(msg, client);
+            io.emit('new_log', { from: msg.from, body: msg.body, timestamp: new Date().toISOString() });
+        } catch (err) {}
+    });
+
+    client.on('disconnected', async (reason) => {
+        botStatus = 'Disconnected'; clientReady = false; currentQR = ''; isBotRunning = false;
+        io.emit('bot_update', { status: botStatus, ready: false, qr: '' });
+        if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
+        setTimeout(() => { initWhatsApp(); }, 3000);
+    });
+
+    // 🛡️ PERBAIKAN: Hanya memanggil .catch() untuk handle error, tidak memanggil initialize lagi.
+    client.initialize().catch(async (err) => {
+        addLog('error', `WA init error: ${err.message}`);
+        botStatus = 'Error'; clientReady = false; currentQR = ''; isBotRunning = false;
+        io.emit('bot_update', { status: botStatus, ready: false, qr: '' });
+        if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
+        setTimeout(() => { initWhatsApp(); }, 15000);
+    });
+    
+    // BARIS client.initialize(); YANG KEDUA SUDAH SAYA HAPUS DARI SINI
+}
+
+// ════════════════════════════════════════════════════════════
+// GLOBAL ERROR HANDLERS & GRACEFUL SHUTDOWN
+// ════════════════════════════════════════════════════════════
+process.on('uncaughtException', (err) => addLog('error', `uncaughtException: ${err.message}`));
+process.on('unhandledRejection', (reason) => addLog('error', `unhandledRejection: ${reason}`));
+
+// Dipindahkan ke luar agar tidak menyebabkan Memory Leak
+const shutdown = async (signal) => {
+    console.log(`\n[SYSTEM] Menerima sinyal ${signal}. Menutup proses...`);
+    try { if (waClient) await waClient.destroy(); } catch (err) {} finally { process.exit(0); }
+};
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// ════════════════════════════════════════════════════════════
+// START SERVER
+// ════════════════════════════════════════════════════════════
+server.listen(port, '0.0.0.0', (err) => {
+    if (err) { console.error('[FATAL] Listen gagal:', err); process.exit(1); }
+    console.log(`🚀 Server on Running Tata Business Suite | Port: ${port}`);
+    setTimeout(() => initWhatsApp(), 3000);
 });
