@@ -480,7 +480,7 @@ app.post('/api/admin/user/:id/dashboard-token', isAdmin, async (req, res) => {
         const token = crypto.randomBytes(16).toString('hex');
         await supabase.from('users').update({ dashboard_token: token, dashboard_token_created_at: new Date().toISOString() }).eq('id', req.params.id);
         if (clientReady && waClient) {
-            const link = `${(process.env.APP_URL || `http://localhost:${port}`).replace(/\/$/, '')}/stock/${req.params.id}?token=${token}`;
+            const link = `${(process.env.APP_URL || `https://tata-suite-production.up.railway.app/`).replace(/\/$/, '')}/stock/${req.params.id}?token=${token}`;
             waClient.sendMessage(req.params.id, `📦 *Dashboard Stok Anda*\n\nAkses dashboard stok di:\n${link}`);
         }
         res.json({ success: true, token });

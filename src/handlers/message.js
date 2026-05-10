@@ -624,7 +624,7 @@ async function handleTransaction(msg, sender, user, effectiveStatus, rawBody, bo
 // Generate / retrieve token dan kirim link ke user
 // ════════════════════════════════════════════════════════════
 async function handleDashboardRequest(msg, sender, user) {
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.APP_URL || 'https://tata-suite-production.up.railway.app';
 
     // Cek apakah user sudah punya token
     let { data: userData } = await supabase
@@ -664,7 +664,7 @@ async function handleDashboardRequest(msg, sender, user) {
 }
 
 async function handleNewToken(msg, sender, user) {
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.APP_URL || 'https://tata-suite-production.up.railway.app';
     const token = crypto.randomBytes(16).toString('hex');
     await supabase.from('users')
         .update({
