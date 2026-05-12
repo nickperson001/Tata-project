@@ -548,7 +548,7 @@ io.on('connection', (socket) => {
 // ════════════════════════════════════════════════════════════
 // WHATSAPP CORE
 // ════════════════════════════════════════════════════════════
-const WA_SESSION_DIR = process.env.WA_SESSION_DIR || path.join(__dirname, '.wwebjs_auth');
+const WA_SESSION_DIR = process.env.WA_SESSION_DIR || path.join(__dirname, '/.wwebjs_auth');
 if (!fs.existsSync(WA_SESSION_DIR)) fs.mkdirSync(WA_SESSION_DIR, { recursive: true });
 
 async function saveSessionToDB(sessionData) {
@@ -563,7 +563,7 @@ function initWhatsApp() {
     }
     isBotRunning = true;
 
-    addLog('info', '🔄 Inisialisasi WhatsApp...');
+    addLog('info', '🔄 Inisialisasi WhatsApp (Tata Business Suite)...');
     botStatus = 'Initializing'; clientReady = false; currentQR = ''; pairingCode = '';
     try { io.emit('bot_update', { status: botStatus, qr: '', pairingCode: '', ready: false }); } catch (_) {}
 
@@ -572,6 +572,7 @@ function initWhatsApp() {
     const clientId = 'tbs';
     const sessionPath = path.join(WA_SESSION_DIR, `session-${clientId}`);
 
+    // Bersihkan file lock agar tidak terjadi "Profile locked" error
     const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'Default/SingletonLock'].map(f => path.join(sessionPath, f));
     lockFiles.forEach(file => {
         if (fs.existsSync(file)) {
@@ -584,42 +585,90 @@ function initWhatsApp() {
         puppeteer: {
             headless: true,
             executablePath: process.env.NODE_ENV === 'production' ? '/usr/bin/chromium' : null,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu'],
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox', 
+                '--disable-dev-shm-usage', 
+                '--disable-accelerated-2d-canvas', 
+                '--no-first-run', 
+                '--no-zygote', 
+                '--single-process', 
+                '--disable-gpu'
+            ],
             timeout: 120_000,
         },
-        restartOnAuthFail: true, qrMaxRetries: 10,
+        restartOnAuthFail: true, 
+        qrMaxRetries: 10,
     });
 
     waClient = client;
 
-    // MODIFIKASI EVENT QR AGAR RELEVAN DENGAN PAIRING CODE
+    // ════════════════════════════════════════════════════════════
+    // FIX: EXPOSE FUNCTION KE BROWSER (MENGATASI ERROR window.onCodeReceivedEvent)
+    // ════════════════════════════════════════════════════════════
+    client.on('browser_launched', async (browser) => {
+        try {
+            const pages = await browser.pages();
+            const page = pages[0];
+            
+            // Mengekspos fungsi ke window browser agar library WA-Web.js bisa mengirim balik kode pairing
+            await page.exposeFunction('onCodeReceivedEvent', (code) => {
+                addLog('info', `Pairing Code Terdeteksi dari Browser: ${code}`);
+                pairingCode = code;
+                io.emit('bot_update', { 
+                    status: 'Pairing Code Active', 
+                    ready: false, 
+                    qr: '', 
+                    pairingCode: code 
+                });
+            });
+        } catch (err) {
+            addLog('error', `Gagal expose onCodeReceivedEvent: ${err.message}`);
+        }
+    });
+
+    // Event saat Pairing Code muncul (untuk library versi terbaru)
+    client.on('code', (code) => {
+        addLog('success', `Pairing Code Siap: ${code}`);
+        pairingCode = code;
+        io.emit('bot_update', { 
+            status: 'Menunggu Konfirmasi Pairing', 
+            ready: false, 
+            qr: '', 
+            pairingCode: code 
+        });
+    });
+
     client.on('qr', async (qr) => {
-        // Status diubah agar Admin tahu sistem siap menerima nomor telepon untuk Pairing
         botStatus = 'Menunggu Koneksi (QR / Pairing Code)'; 
         clientReady = false;
         try { 
-            // QR tetap digenerate sebagai cadangan visual jika admin ingin scan
             currentQR = await qrcodeWeb.toDataURL(qr); 
         } catch (_) {}
         
         io.emit('bot_update', { 
             status: botStatus, 
             qr: currentQR, 
-            pairingCode: pairingCode, // Mengirim pairingCode jika sudah digenerate
+            pairingCode: pairingCode, 
             ready: false 
         });
     });
 
-    client.on('authenticated', async (sessionData) => { if (sessionData) await saveSessionToDB(sessionData); });
+    client.on('authenticated', async (sessionData) => { 
+        if (sessionData) await saveSessionToDB(sessionData); 
+        addLog('info', 'Authenticated. Menunggu Ready...');
+    });
 
     client.on('auth_failure', async (reason) => {
         botStatus = 'Auth Failed'; clientReady = false; currentQR = ''; pairingCode = ''; isBotRunning = false;
+        addLog('error', `Otentikasi Gagal: ${reason}`);
         io.emit('bot_update', { status: botStatus, ready: false, qr: '', pairingCode: '' });
         if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
     });
 
     client.on('ready', () => {
-        botStatus = 'Online'; clientReady = true; currentQR = ''; pairingCode = ''; waClient = client;
+        botStatus = 'Online'; clientReady = true; currentQR = ''; pairingCode = ''; 
+        isBotRunning = true; // Tetap true karena bot sedang aktif
         addLog('info', '🟢 WhatsApp ONLINE');
         io.emit('bot_update', { status: botStatus, qr: null, pairingCode: null, ready: true });
         try { initSchedulers(client); } catch (e) {}
@@ -635,9 +684,10 @@ function initWhatsApp() {
 
     client.on('disconnected', async (reason) => {
         botStatus = 'Disconnected'; clientReady = false; currentQR = ''; pairingCode = ''; isBotRunning = false;
+        addLog('warn', `WhatsApp Terputus: ${reason}`);
         io.emit('bot_update', { status: botStatus, ready: false, qr: '', pairingCode: '' });
         if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
-        setTimeout(() => { initWhatsApp(); }, 3000);
+        setTimeout(() => { initWhatsApp(); }, 5000);
     });
 
     client.initialize().catch(async (err) => {

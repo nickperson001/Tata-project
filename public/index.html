@@ -352,40 +352,86 @@
         }
 
         function updateWAStatus(data) {
-            const dot = document.getElementById('waDot');
-            const text = document.getElementById('waText');
-            const mini = document.getElementById('waStatusMini');
-            
-            if (data.ready) {
-                dot.className = 'w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]';
-                text.innerText = 'Online Server'; text.className = 'text-xs font-bold text-emerald-600';
-                mini.innerText = 'Connected'; mini.className = 'text-xl font-black text-emerald-600 mt-1';
-                document.getElementById('qrContainer').classList.add('hidden');
-                document.getElementById('connectedState').classList.remove('hidden');
-                document.getElementById('disconnectedState').classList.add('hidden');
-            } else if (data.qr) {
-                dot.className = 'w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.8)]';
-                text.innerText = 'Scan QR Dibutuhkan'; text.className = 'text-xs font-bold text-amber-600';
-                mini.innerText = 'Scan Required'; mini.className = 'text-xl font-black text-amber-500 mt-1';
-                document.getElementById('qrContainer').classList.remove('hidden');
-                document.getElementById('connectedState').classList.add('hidden');
-                document.getElementById('disconnectedState').classList.add('hidden');
-                document.getElementById('qrImage').innerHTML = `<img src="${data.qr}" class="w-full h-full rounded-lg">`;
-            } else {
-                // UI Dinamis: Bedakan warna saat sedang Loading vs saat benar-benar Error
-                const isProcess = data.status === 'Initializing' || data.status === 'Reconnecting';
-                
-                dot.className = `w-3 h-3 rounded-full ${isProcess ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'}`;
-                text.innerText = data.status || 'Server Disconnected'; 
-                text.className = `text-xs font-bold ${isProcess ? 'text-blue-600' : 'text-red-600'}`;
-                mini.innerText = data.status || 'Offline'; 
-                mini.className = `text-xl font-black mt-1 ${isProcess ? 'text-blue-600' : 'text-red-600'}`;
-                
-                document.getElementById('qrContainer').classList.add('hidden');
-                document.getElementById('connectedState').classList.add('hidden');
-                document.getElementById('disconnectedState').classList.remove('hidden');
-            }
+    const dot = document.getElementById('waDot'); // Titik status di sidebar
+    const text = document.getElementById('waText'); // Teks status di sidebar
+    const mini = document.getElementById('waStatusMini'); // Teks status di stats card atas (WA Status)
+    
+    // Pastikan elemen kontainer ada
+    const qrContainer = document.getElementById('qrContainer');
+    const connectedState = document.getElementById('connectedState');
+    const disconnectedState = document.getElementById('disconnectedState');
+    const pairingContainer = document.getElementById('pairingCodeContainer'); // Span tempat kode angka
+
+    if (data.ready) {
+        // STATE: ONLINE
+        dot.className = 'w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]';
+        text.innerText = 'Online Server'; 
+        text.className = 'text-xs font-bold text-emerald-600';
+        
+        mini.innerText = 'Connected'; 
+        mini.className = 'text-xl font-black text-emerald-600 mt-1';
+        
+        qrContainer.classList.add('hidden');
+        connectedState.classList.remove('hidden');
+        disconnectedState.classList.add('hidden');
+
+    } else if (data.pairingCode) {
+        // STATE: PAIRING CODE ACTIVE (Prioritas di atas QR biasa)
+        dot.className = 'w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] animate-pulse';
+        text.innerText = 'Pairing Code Aktif'; 
+        text.className = 'text-xs font-bold text-blue-600';
+        
+        mini.innerText = 'Pairing Active'; 
+        mini.className = 'text-xl font-black text-blue-500 mt-1';
+        
+        // Tampilkan kode angka ke UI
+        if (pairingContainer) {
+            pairingContainer.innerText = data.pairingCode;
+            pairingContainer.classList.add('animate-pulse');
         }
+
+        qrContainer.classList.remove('hidden');
+        // Redupkan gambar QR jika pairing code sedang aktif agar user fokus ke angka
+        document.getElementById('qrImage').classList.add('opacity-30');
+        connectedState.classList.add('hidden');
+        disconnectedState.classList.add('hidden');
+
+    } else if (data.qr) {
+        // STATE: SCAN QR
+        dot.className = 'w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.8)]';
+        text.innerText = 'Scan QR Dibutuhkan'; 
+        text.className = 'text-xs font-bold text-amber-600';
+        
+        mini.innerText = 'Scan Required'; 
+        mini.className = 'text-xl font-black text-amber-500 mt-1';
+        
+        qrContainer.classList.remove('hidden');
+        document.getElementById('qrImage').classList.remove('opacity-30');
+        connectedState.classList.add('hidden');
+        disconnectedState.classList.add('hidden');
+        
+        // Render Image QR
+        document.getElementById('qrImage').innerHTML = `<img src="${data.qr}" class="w-full h-full rounded-xl shadow-inner">`;
+        
+        // Reset pairing text ke default jika tidak ada kode
+        if (pairingContainer) pairingContainer.innerText = "XXXX-XXXX";
+
+    } else {
+        // STATE: INITIALIZING / ERROR / DISCONNECTED
+        const isProcess = data.status === 'Initializing' || data.status === 'Reconnecting' || data.status === 'Processing';
+        
+        dot.className = `w-3 h-3 rounded-full ${isProcess ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'}`;
+        text.innerText = data.status || 'Server Disconnected'; 
+        text.className = `text-xs font-bold ${isProcess ? 'text-blue-600' : 'text-red-600'}`;
+        
+        mini.innerText = data.status || 'Offline'; 
+        mini.className = `text-xl font-black mt-1 ${isProcess ? 'text-blue-600' : 'text-red-600'}`;
+        
+        qrContainer.classList.add('hidden');
+        connectedState.classList.add('hidden');
+        disconnectedState.classList.remove('hidden');
+    }
+}
 
         function reconnectWA() {
             socket.emit('request_reconnect');
