@@ -12,13 +12,13 @@ const pgSession  = require('connect-pg-simple')(session);
 const os         = require('os');
 const path       = require('path');
 const fs         = require('fs');
-const crypto     = require('crypto'); // Dipindahkan dari bawah
+const crypto     = require('crypto');
 require('dotenv').config();
 
 const { handleMessage }  = require('./src/handlers/message');
 const { initSchedulers } = require('./src/jobs/scheduler');
 const supabase           = require('./src/config/supabase');
-const stockManager       = require('./src/utils/stockManager'); // Dipindahkan dari bawah
+const stockManager       = require('./src/utils/stockManager');
 
 const app    = express();
 const server = http.createServer(app);
@@ -102,7 +102,7 @@ let clientReady      = false;
 let maintenanceMode  = false;
 let waClient         = null;
 let systemLogs       = [];
-let isBotRunning     = false; // FLAG PENGAMAN ANTI-GANDA
+let isBotRunning     = false;
 const activeBroadcasts = new Map();
 
 const addLog = (level, message, data = {}) => {
@@ -312,28 +312,29 @@ async function processBroadcast(jobId, users, message) {
     addLog('info', `Broadcast selesai: ${job.sent} terkirim, ${job.failed} gagal`);
 }
 
-// === ENDPOINT PAIRING CODE BARU ===
+// === ENDPOINT PAIRING CODE (MODIFIKASI KONSEP) ===
 app.post('/api/admin/pairing-code', isAdmin, async (req, res) => {
     const { phoneNumber } = req.body;
 
     if (!phoneNumber) return res.status(400).json({ error: 'Nomor telepon wajib diisi.' });
-    if (!waClient) return res.status(503).json({ error: 'Sistem WhatsApp belum siap, tunggu sebentar.' });
+    if (!waClient) return res.status(503).json({ error: 'Sistem WhatsApp belum siap.' });
     if (clientReady) return res.status(400).json({ error: 'Bot sudah online.' });
 
     try {
         const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
+        // Menggunakan fitur pairing code dari library
         const code = await waClient.requestPairingCode(cleanNumber);
         
         pairingCode = code;
-        botStatus = 'Menunggu Tautan';
+        botStatus = 'Menunggu Tautan Pairing';
         
-        addLog('info', `Pairing code digenerate untuk: ${cleanNumber}`);
+        addLog('info', `Pairing code digenerate: ${code} untuk ${cleanNumber}`);
         io.emit('bot_update', { status: botStatus, qr: currentQR, pairingCode: pairingCode, ready: false });
 
         res.json({ success: true, code });
     } catch (err) {
-        addLog('error', `Gagal request pairing code: ${err.message}`);
-        res.status(500).json({ error: err.message });
+        addLog('error', `Gagal pairing code: ${err.message}`);
+        res.status(500).json({ error: 'Gagal meminta kode pairing. Coba gunakan QR atau restart bot.' });
     }
 });
 // ==================================
@@ -591,10 +592,22 @@ function initWhatsApp() {
 
     waClient = client;
 
+    // MODIFIKASI EVENT QR AGAR RELEVAN DENGAN PAIRING CODE
     client.on('qr', async (qr) => {
-        botStatus = 'Scan QR / Menunggu Pairing'; clientReady = false;
-        try { currentQR = await qrcodeWeb.toDataURL(qr); } catch (_) {}
-        io.emit('bot_update', { status: botStatus, qr: currentQR, pairingCode: pairingCode, ready: false });
+        // Status diubah agar Admin tahu sistem siap menerima nomor telepon untuk Pairing
+        botStatus = 'Menunggu Koneksi (QR / Pairing Code)'; 
+        clientReady = false;
+        try { 
+            // QR tetap digenerate sebagai cadangan visual jika admin ingin scan
+            currentQR = await qrcodeWeb.toDataURL(qr); 
+        } catch (_) {}
+        
+        io.emit('bot_update', { 
+            status: botStatus, 
+            qr: currentQR, 
+            pairingCode: pairingCode, // Mengirim pairingCode jika sudah digenerate
+            ready: false 
+        });
     });
 
     client.on('authenticated', async (sessionData) => { if (sessionData) await saveSessionToDB(sessionData); });
