@@ -97,6 +97,7 @@ app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
 // ════════════════════════════════════════════════════════════
 let botStatus        = 'Initializing';
 let currentQR        = '';
+let pairingCode      = '';
 let clientReady      = false;
 let maintenanceMode  = false;
 let waClient         = null;
@@ -262,11 +263,10 @@ app.post('/api/admin/maintenance', isAdmin, async (req, res) => {
     }
 });
 
-// === (Fungsi Broadcast disederhanakan visualisasinya, kode utuh) ===
 app.post('/api/admin/broadcast', isAdmin, async (req, res) => {
     const { message, target } = req.body;
     if (!message?.trim()) return res.status(400).json({ error: 'Message diperlukan' });
-    if (!clientReady || !waClient) return res.status(503).json({ error: 'Bot belum online — scan QR dulu' });
+    if (!clientReady || !waClient) return res.status(503).json({ error: 'Bot belum online' });
 
     try {
         let query = supabase.from('users').select('id, store_name');
@@ -312,16 +312,42 @@ async function processBroadcast(jobId, users, message) {
     addLog('info', `Broadcast selesai: ${job.sent} terkirim, ${job.failed} gagal`);
 }
 
+// === ENDPOINT PAIRING CODE BARU ===
+app.post('/api/admin/pairing-code', isAdmin, async (req, res) => {
+    const { phoneNumber } = req.body;
+
+    if (!phoneNumber) return res.status(400).json({ error: 'Nomor telepon wajib diisi.' });
+    if (!waClient) return res.status(503).json({ error: 'Sistem WhatsApp belum siap, tunggu sebentar.' });
+    if (clientReady) return res.status(400).json({ error: 'Bot sudah online.' });
+
+    try {
+        const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
+        const code = await waClient.requestPairingCode(cleanNumber);
+        
+        pairingCode = code;
+        botStatus = 'Menunggu Tautan';
+        
+        addLog('info', `Pairing code digenerate untuk: ${cleanNumber}`);
+        io.emit('bot_update', { status: botStatus, qr: currentQR, pairingCode: pairingCode, ready: false });
+
+        res.json({ success: true, code });
+    } catch (err) {
+        addLog('error', `Gagal request pairing code: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+// ==================================
+
 app.get('/api/admin/logs', isAdmin, (req, res) => {
     res.json(systemLogs.slice(0, parseInt(req.query.limit) || 100));
 });
 
 app.get('/api/admin/status', isAdmin, (req, res) => {
-    res.json({ status: botStatus, ready: clientReady, qr: currentQR, maintenance: maintenanceMode });
+    res.json({ status: botStatus, ready: clientReady, qr: currentQR, pairingCode: pairingCode, maintenance: maintenanceMode });
 });
 
 // ════════════════════════════════════════════════════════════
-// STOCK DASHBOARD — PUBLIC USER ROUTES (Dipindahkan ke atas)
+// STOCK DASHBOARD — PUBLIC USER ROUTES
 // ════════════════════════════════════════════════════════════
 app.get('/stock/:userId', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'stock.html'));
@@ -349,7 +375,6 @@ app.get('/api/stock/:userId/verify', stockAuth, (req, res) => {
 });
 
 app.get('/api/stock/:userId/summary', stockAuth, async (req, res) => {
-    // Logika asli dipertahankan
     const userId = decodeURIComponent(req.params.userId);
     try {
         const { data: products } = await supabase.from('products').select('*').eq('user_id', userId).eq('is_active', true);
@@ -503,12 +528,12 @@ io.use((socket, next) => { sessionMiddleware(socket.request, socket.request.res 
 
 io.on('connection', (socket) => {
     const isAuth = socket.request.session?.authenticated;
-    socket.emit('bot_update', { status: botStatus, qr: clientReady ? null : currentQR, ready: clientReady });
+    socket.emit('bot_update', { status: botStatus, qr: clientReady ? null : currentQR, pairingCode: clientReady ? null : pairingCode, ready: clientReady });
     if (isAuth) socket.emit('logs_history', systemLogs.slice(0, 50));
 
     socket.on('request_reconnect', async () => {
-        botStatus = 'Reconnecting'; currentQR = ''; clientReady = false; isBotRunning = false;
-        io.emit('bot_update', { status: botStatus, qr: '', ready: false });
+        botStatus = 'Reconnecting'; currentQR = ''; pairingCode = ''; clientReady = false; isBotRunning = false;
+        io.emit('bot_update', { status: botStatus, qr: '', pairingCode: '', ready: false });
 
         if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
         try {
@@ -531,7 +556,6 @@ async function saveSessionToDB(sessionData) {
 }
 
 function initWhatsApp() {
-    // 🛡️ FLAG PENGAMAN: Mencegah eksekusi ganda yang memicu "Browser already running"
     if (isBotRunning) {
         addLog('warn', 'Abaikan inisialisasi: Bot sudah dalam proses berjalan.');
         return;
@@ -539,15 +563,14 @@ function initWhatsApp() {
     isBotRunning = true;
 
     addLog('info', '🔄 Inisialisasi WhatsApp...');
-    botStatus = 'Initializing'; clientReady = false; currentQR = '';
-    try { io.emit('bot_update', { status: botStatus, qr: '', ready: false }); } catch (_) {}
+    botStatus = 'Initializing'; clientReady = false; currentQR = ''; pairingCode = '';
+    try { io.emit('bot_update', { status: botStatus, qr: '', pairingCode: '', ready: false }); } catch (_) {}
 
     if (waClient) { try { waClient.destroy(); } catch (e) {} waClient = null; }
 
     const clientId = 'tbs';
     const sessionPath = path.join(WA_SESSION_DIR, `session-${clientId}`);
 
-    // Hapus file lock sisa crash sebelumnya
     const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'Default/SingletonLock'].map(f => path.join(sessionPath, f));
     lockFiles.forEach(file => {
         if (fs.existsSync(file)) {
@@ -569,23 +592,23 @@ function initWhatsApp() {
     waClient = client;
 
     client.on('qr', async (qr) => {
-        botStatus = 'Scan QR'; clientReady = false;
+        botStatus = 'Scan QR / Menunggu Pairing'; clientReady = false;
         try { currentQR = await qrcodeWeb.toDataURL(qr); } catch (_) {}
-        io.emit('bot_update', { status: botStatus, qr: currentQR, ready: false });
+        io.emit('bot_update', { status: botStatus, qr: currentQR, pairingCode: pairingCode, ready: false });
     });
 
     client.on('authenticated', async (sessionData) => { if (sessionData) await saveSessionToDB(sessionData); });
 
     client.on('auth_failure', async (reason) => {
-        botStatus = 'Auth Failed'; clientReady = false; currentQR = ''; isBotRunning = false;
-        io.emit('bot_update', { status: botStatus, ready: false, qr: '' });
+        botStatus = 'Auth Failed'; clientReady = false; currentQR = ''; pairingCode = ''; isBotRunning = false;
+        io.emit('bot_update', { status: botStatus, ready: false, qr: '', pairingCode: '' });
         if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
     });
 
     client.on('ready', () => {
-        botStatus = 'Online'; clientReady = true; currentQR = ''; waClient = client;
+        botStatus = 'Online'; clientReady = true; currentQR = ''; pairingCode = ''; waClient = client;
         addLog('info', '🟢 WhatsApp ONLINE');
-        io.emit('bot_update', { status: botStatus, qr: null, ready: true });
+        io.emit('bot_update', { status: botStatus, qr: null, pairingCode: null, ready: true });
         try { initSchedulers(client); } catch (e) {}
     });
 
@@ -598,22 +621,19 @@ function initWhatsApp() {
     });
 
     client.on('disconnected', async (reason) => {
-        botStatus = 'Disconnected'; clientReady = false; currentQR = ''; isBotRunning = false;
-        io.emit('bot_update', { status: botStatus, ready: false, qr: '' });
+        botStatus = 'Disconnected'; clientReady = false; currentQR = ''; pairingCode = ''; isBotRunning = false;
+        io.emit('bot_update', { status: botStatus, ready: false, qr: '', pairingCode: '' });
         if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
         setTimeout(() => { initWhatsApp(); }, 3000);
     });
 
-    // 🛡️ PERBAIKAN: Hanya memanggil .catch() untuk handle error, tidak memanggil initialize lagi.
     client.initialize().catch(async (err) => {
         addLog('error', `WA init error: ${err.message}`);
-        botStatus = 'Error'; clientReady = false; currentQR = ''; isBotRunning = false;
-        io.emit('bot_update', { status: botStatus, ready: false, qr: '' });
+        botStatus = 'Error'; clientReady = false; currentQR = ''; pairingCode = ''; isBotRunning = false;
+        io.emit('bot_update', { status: botStatus, ready: false, qr: '', pairingCode: '' });
         if (waClient) { try { await waClient.destroy(); } catch (e) {} waClient = null; }
         setTimeout(() => { initWhatsApp(); }, 15000);
     });
-    
-    // BARIS client.initialize(); YANG KEDUA SUDAH SAYA HAPUS DARI SINI
 }
 
 // ════════════════════════════════════════════════════════════
@@ -622,7 +642,6 @@ function initWhatsApp() {
 process.on('uncaughtException', (err) => addLog('error', `uncaughtException: ${err.message}`));
 process.on('unhandledRejection', (reason) => addLog('error', `unhandledRejection: ${reason}`));
 
-// Dipindahkan ke luar agar tidak menyebabkan Memory Leak
 const shutdown = async (signal) => {
     console.log(`\n[SYSTEM] Menerima sinyal ${signal}. Menutup proses...`);
     try { if (waClient) await waClient.destroy(); } catch (err) {} finally { process.exit(0); }
