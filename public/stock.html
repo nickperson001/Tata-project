@@ -113,6 +113,7 @@ textarea.input{resize:vertical;min-height:90px}
 
 #mob-nav{display:none;background:var(--bg1);border-top:1px solid var(--border);position:fixed;bottom:0;left:0;right:0;z-index:100;padding:8px 8px 12px;}
 .mob-nav-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.hidden{display:none!important}
 .mob-nav-btn{display:flex;flex-direction:column;align-items:center;padding:10px 4px;border-radius:12px;border:none;background:transparent;color:var(--text3);font-size:10px;font-weight:700;}
 .mob-nav-btn.active{color:var(--green); background: #ecfdf5;}
 .mob-nav-btn span:first-child{font-size:22px;}
@@ -152,12 +153,12 @@ textarea.input{resize:vertical;min-height:90px}
 <body>
 
 <div id="loader">
-  <div class="loader-logo">📦 DompetKu</div>
+  <div class="loader-logo">📦 Tata Business Suite</div>
   <div class="loader-bar"><div class="loader-fill"></div></div>
   <div class="loader-text" id="loader-msg">Memverifikasi akses aman...</div>
 </div>
 
-<div id="auth-error" class="overlay" style="display:none">
+<div id="auth-error" class="overlay hidden">
   <div class="modal" style="text-align:center; padding: 40px;">
     <div style="font-size:64px;margin-bottom:20px">🔒</div>
     <div class="modal-title" style="margin-bottom:12px">Akses Ditolak</div>
@@ -397,8 +398,8 @@ function applyUserInfo() {
 }
 
 function setLoaderMsg(m) { document.getElementById('loader-msg').textContent = m; }
-function hideLoader() { document.getElementById('loader').style.display = 'none'; }
-function showAuthError() { hideLoader(); document.getElementById('auth-error').style.display = 'flex'; }
+function hideLoader() { const el = document.getElementById('loader'); if(el) el.style.display = 'none'; }
+function showAuthError() { hideLoader(); document.getElementById('auth-error').classList.remove('hidden'); }
 function escapeHTML(str) { return str ? str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : ''; }
 
 async function api(path, method='GET', body=null) {

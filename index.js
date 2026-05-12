@@ -350,7 +350,7 @@ app.get('/api/stock/:userId/verify', stockAuth, (req, res) => {
 
 app.get('/api/stock/:userId/summary', stockAuth, async (req, res) => {
     // Logika asli dipertahankan
-    const userId = req.params.userId;
+    const userId = decodeURIComponent(req.params.userId);
     try {
         const { data: products } = await supabase.from('products').select('*').eq('user_id', userId).eq('is_active', true);
         let totalValue = 0, lowStock = 0, outStock = 0; const byCategory = {};
@@ -375,7 +375,7 @@ app.get('/api/stock/:userId/summary', stockAuth, async (req, res) => {
 
 app.get('/api/stock/:userId/products', stockAuth, async (req, res) => {
     try {
-        const { data, error } = await supabase.from('products').select('*').eq('user_id', req.params.userId).eq('is_active', true).order('name', { ascending: true });
+        const { data, error } = await supabase.from('products').select('*').eq('user_id', decodeURIComponent(req.params.userId)).eq('is_active', true).order('name', { ascending: true });
         if (error) throw error; res.json({ products: data || [] });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -383,7 +383,7 @@ app.get('/api/stock/:userId/products', stockAuth, async (req, res) => {
 app.post('/api/stock/:userId/products', stockAuth, async (req, res) => {
     const { sku, name, category, unit, priceBuy, priceSell, stockInitial, stockMin, supplier, location, notes } = req.body;
     try {
-        const result = await stockManager.addProduct(req.params.userId, {
+        const result = await stockManager.addProduct(decodeURIComponent(req.params.userId), {
             sku, name, category, unit, priceBuy: parseFloat(priceBuy)||0, priceSell: parseFloat(priceSell)||0,
             stockInitial: parseFloat(stockInitial)||0, stockMin: parseFloat(stockMin)||0, description: notes,
         });
@@ -407,20 +407,20 @@ app.put('/api/stock/:userId/products/:productId', stockAuth, async (req, res) =>
 
 app.delete('/api/stock/:userId/products/:productId', stockAuth, async (req, res) => {
     try {
-        const result = await stockManager.deleteProduct(req.params.userId, parseInt(req.params.productId));
+        const result = await stockManager.deleteProduct(decodeURIComponent(req.params.userId), parseInt(req.params.productId));
         if (!result.success) return res.status(400).json({ error: result.error });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/stock/:userId/movement', stockAuth, async (req, res) => {
-    const userId = req.params.userId;
+    const userId = decodeURIComponent(req.params.userId);
     const { product_id, type, quantity, note, unit_price } = req.body;
     if (!product_id || !type || !quantity) return res.status(400).json({ error: 'Data tidak lengkap' });
     if (parseFloat(quantity) <= 0) return res.status(400).json({ error: 'Jumlah harus lebih dari 0' });
 
     try {
-        const result = await stockManager.adjustStock(userId, parseInt(product_id), type, parseFloat(quantity), { referenceType: 'manual', note });
+        const result = await stockManager.adjustStock(decodeURIComponent(req.params.userId), parseInt(product_id), type, parseFloat(quantity), { referenceType: 'manual', note });
         if (!result.success) return res.status(400).json({ error: result.error });
 
         const { data: lastMov } = await supabase.from('stock_movements').select('id').eq('user_id', userId).eq('product_id', product_id).order('created_at', { ascending: false }).limit(1).single();
@@ -437,7 +437,7 @@ app.get('/api/stock/:userId/movements', stockAuth, async (req, res) => {
     const limit = Math.min(100, parseInt(req.query.limit) || 30); const page = Math.max(1, parseInt(req.query.page) || 1);
     try {
         let query = supabase.from('stock_movements').select('*, products(id, sku, name, unit)', { count: 'exact' })
-            .eq('user_id', req.params.userId).order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
+            .eq('user_id', decodeURIComponent(req.params.userId)).order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
         if (req.query.product_id) query = query.eq('product_id', req.query.product_id);
         if (req.query.type) query = query.eq('type', req.query.type);
         const { data, error, count } = await query;

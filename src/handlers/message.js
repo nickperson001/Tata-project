@@ -105,7 +105,8 @@ function parseCurrency(text) {
     }
 
     // ── Strip prefix ──────────────────────────────────────────────
-    clean = clean.replace(/^rp\.?\s*/i, '').replace(/^:/, '').trim();
+    // Strip prefix Rp, colon, dan spasi di manapun posisinya
+    clean = clean.replace(/^rp\.?\s*/i, '').replace(/^[:\s]+/, '').replace(/[:\s]+$/, '').trim();
 
     // ── Handle multiplier suffix ──────────────────────────────────
     let multiplier = 1;
@@ -288,7 +289,7 @@ const KW_KELUAR = [
     'bensin', 'solar', 'bbm', 'pertalite', 'pertamax', 'transport', 'transportasi',
     'ojek', 'ojol', 'gojek', 'grab', 'maxim', 'taxi', 'travel', 'parkir', 'tol',
     // Makan & minum
-    'makan', 'minum', 'ngopi', 'kopi', 'lunch', 'dinner', 'breakfast', 'snack',
+    'makan', 'minum', 'ngopi', 'lunch', 'dinner', 'breakfast', 'snack',
     'jajan', 'nongkrong', 'hang out',
     // Sosial
     'sedekah', 'donasi', 'infaq', 'zakat', 'sumbangan', 'nyumbang', 'kondangan',
@@ -327,6 +328,8 @@ const KW_MASUK = [
     'refund', 'dikembalikan', 'kembalian', 'cashback', 'balik modal',
     // Tips & tambahan
     'tips', 'tip', 'tip masuk', 'uang tip', 'tambahan', 'extra',
+    // Produk yang sering dijual — eksplisit masuk
+    'kopi', 'teh', 'es', 'gorengan', 'bakso', 'mie', 'nasi', 'ayam',
     // Pinjaman diterima
     'pinjam masuk', 'hutang masuk', 'dikasih', 'dibantu',
     // Slang
