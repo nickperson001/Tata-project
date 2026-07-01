@@ -76,7 +76,7 @@ export function StockLayout() {
   if (isLoading) {
     return (
       <div className="loading-screen">
-        <video src="/stock/motion.mp4" autoPlay loop muted playsInline style={{ width: 200, height: 'auto', maxWidth: '90vw' }} />
+        <img src="/stock/motion.gif" alt="Loading..." style={{ width: 200, height: 'auto', maxWidth: '90vw' }} />
       </div>
     );
   }
