@@ -28,8 +28,4 @@ router.get('/stock/motion.mp4', (req, res) => {
   res.type('video/mp4').sendFile(path.join(publicDir, 'stock', 'motion.mp4'));
 });
 
-router.get('/stock/motion.gif', (req, res) => {
-  res.type('image/gif').sendFile(path.join(publicDir, 'stock', 'motion.gif'));
-});
-
 export default router;
