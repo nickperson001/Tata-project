@@ -38,6 +38,18 @@ async function safeDestroyClient(): Promise<void> {
     state.waClient = null;
     state.waDestroyLock = false;
   }
+  killChromeProcesses();
+}
+
+function killChromeProcesses(): void {
+  try {
+    const { execSync } = require('child_process');
+    if (process.platform === 'win32') {
+      execSync('taskkill /F /IM chrome.exe 2>nul', { stdio: 'ignore' });
+    } else {
+      execSync('pkill -f "chrome.*wwebjs" 2>/dev/null; pkill -f "chrom(e|ium).*" 2>/dev/null', { stdio: 'ignore' });
+    }
+  } catch { /* cleanup not available or no matches */ }
 }
 
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -67,16 +79,6 @@ async function initWhatsApp(): Promise<void> {
     const sessionDir = SESSION_BASE_DIR;
     const fs = require('fs');
     const path = require('path');
-
-    // Kill any stale Chrome processes holding the session lock
-    try {
-      const { execSync } = require('child_process');
-      if (process.platform === 'win32') {
-        execSync('taskkill /F /IM chrome.exe 2>nul', { stdio: 'ignore' });
-      } else {
-        execSync('pkill -f "chrome.*wwebjs" 2>/dev/null; pkill -f "chromium.*wwebjs" 2>/dev/null', { stdio: 'ignore' });
-      }
-    } catch { /* cleanup not available or no matches */ }
 
     // Remove Chrome lock files to avoid "browser is already running" error
     const lockFiles = ['SingletonLock', 'SingletonSocket', 'SingletonCookie'];
