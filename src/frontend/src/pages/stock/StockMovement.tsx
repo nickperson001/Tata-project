@@ -1,0 +1,187 @@
+import { useEffect, useState } from 'react';
+import { useStockStore } from '../../store/stockStore';
+import { stockApi } from '../../services/api';
+import { toast } from '../../components/Toast';
+import { Skeleton } from '../../components/LoadingSkeleton';
+import type { Product } from '../../types';
+import { Package, ArrowUpDown, ShoppingCart, Car, AlertTriangle } from 'lucide-react';
+
+const TYPE_BUTTONS = [
+  { value: 'in', label: 'Stok Masuk', icon: ShoppingCart, color: 'var(--primary)' },
+  { value: 'out', label: 'Stok Keluar', icon: Car, color: 'var(--danger)' },
+  { value: 'adjustment', label: 'Penyesuaian', icon: AlertTriangle, color: 'var(--warning)' },
+];
+
+export function StockMovement() {
+  const { token } = useStockStore();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ product_id: '', type: 'in' as 'in' | 'out' | 'adjustment', quantity: '', note: '', channel: '' });
+  const [activeChannels, setActiveChannels] = useState<string[]>(['offline', 'whatsapp', 'shopee', 'tokopedia']);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    Promise.all([
+      stockApi.get<{ products: Product[] }>('/api/stock/products?limit=500', token),
+      stockApi.get<{ settings: any }>('/api/stock/settings', token),
+    ]).then(([pData, sData]) => {
+      setProducts(pData.products || pData || []);
+      if (sData.settings?.active_channels) setActiveChannels(sData.settings.active_channels);
+    }).catch(() => toast.error('Gagal muat data'))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  function handleProductChange(id: string) {
+    const prod = products.find(p => p.id === id) || null;
+    setSelectedProduct(prod);
+    setForm({ ...form, product_id: id });
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token || !form.product_id || !form.quantity) {
+      toast.error('Lengkapi form');
+      return;
+    }
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        product_id: form.product_id,
+        type: form.type,
+        quantity: Number(form.quantity),
+        note: form.note || undefined,
+      };
+      if (form.channel) body.channel = form.channel;
+      await stockApi.post('/api/stock/movement', token, body);
+      toast('Stok berhasil dicatat');
+      setForm({ product_id: '', type: 'in', quantity: '', note: '', channel: '' });
+      setSelectedProduct(null);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Stok Masuk / Keluar</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Catat pergerakan stok barang</p>
+      </div>
+      <div className="card card-p" style={{ padding: '1.5rem' }}>
+        <div className="form-group"><label className="form-label"><Skeleton width="60px" height="0.8rem" /></label><Skeleton width="100%" height="2.5rem" /></div>
+        <div className="form-group"><label className="form-label"><Skeleton width="40px" height="0.8rem" /></label><div style={{ display: 'flex', gap: '0.5rem' }}>{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} width="100px" height="2rem" />)}</div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label"><Skeleton width="50px" height="0.8rem" /></label><Skeleton width="100%" height="2.5rem" /></div><div className="form-group"><label className="form-label"><Skeleton width="60px" height="0.8rem" /></label><Skeleton width="100%" height="2.5rem" /></div></div>
+        <Skeleton width="100%" height="2.5rem" style={{ marginTop: '1rem' }} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="data-enter" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Stok Masuk / Keluar</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Catat pergerakan stok barang</p>
+      </div>
+
+      <div className="card card-p">
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="form-group">
+            <label className="form-label">Produk</label>
+            <select
+              className="input"
+              value={form.product_id}
+              onChange={(e) => handleProductChange(e.target.value)}
+              required
+            >
+              <option value="">-- Pilih Produk --</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.sku}) — Stok: {p.stock_current} {p.unit || ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedProduct && (
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '0.75rem', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
+              <div style={{ fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Harga Beli: </span>
+                <strong>{fmtRp(selectedProduct.price_buy || 0)}</strong>
+              </div>
+              <div style={{ fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Harga Jual: </span>
+                <strong>{fmtRp(selectedProduct.price_sell)}</strong>
+              </div>
+              {selectedProduct.default_channel && (
+                <div style={{ fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Channel: </span>
+                  <strong>{selectedProduct.default_channel}</strong>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="form-group">
+            <label className="form-label">Tipe</label>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {TYPE_BUTTONS.map((btn) => (
+                <button
+                  key={btn.value}
+                  type="button"
+                  className={`btn btn-sm ${form.type === btn.value ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setForm({ ...form, type: btn.value as any })}
+                  style={form.type === btn.value ? { background: btn.color, border: 'none' } : { border: '1px solid var(--border)' }}
+                >
+                  <btn.icon size={16} />
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Jumlah</label>
+              <input className="input" type="number" min="0" step="any" value={form.quantity}
+                onChange={(e) => setForm({ ...form, quantity: e.target.value })} required placeholder="0" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Channel</label>
+              <select className="input" value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}>
+                <option value="">— Default —</option>
+                {activeChannels.map((ch) => (
+                  <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Catatan</label>
+            <input className="input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Misal: restok dari supplier" />
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
+            <ArrowUpDown size={18} style={{ color: 'var(--text-muted)' }} />
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              {form.type === 'in' ? 'Stok akan bertambah' : form.type === 'out' ? 'Stok akan berkurang' : 'Stok akan disesuaikan'}
+            </span>
+          </div>
+
+          <button className="btn btn-primary" type="submit" disabled={saving}>
+            <Package size={16} />
+            {saving ? 'Menyimpan...' : 'Catat Pergerakan Stok'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function fmtRp(v: number): string {
+  return `Rp ${v.toLocaleString('id-ID')}`;
+}

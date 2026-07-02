@@ -1,0 +1,17 @@
+node_modules/
+.git/
+.gitignore
+.env
+.env.example
+*.md
+docs/
+tests/
+scripts/
+secrets/
+venv/
+.venv/
+.wwebjs_auth/
+.wwebjs_cache/
+google-vision-key.json
+Dockerfile
+docker-compose.yml

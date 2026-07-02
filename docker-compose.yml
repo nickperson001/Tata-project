@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: tata-business-bot
+    restart: always
+    ports:
+      - "7860:7860"
+    environment:
+      - NODE_ENV=production
+      - PORT=7860
+      - NODE_OPTIONS=--max-old-space-size=512
+    env_file:
+      - .env
+    volumes:
+      # Mount folder auth agar tidak perlu scan QR terus-menerus
+      - ./.wwebjs_auth:/app/.wwebjs_auth
+    # Memory limit — prevent OOM crash on Railway/Cloud
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M

@@ -1,0 +1,243 @@
+export type BotStatus =
+  | 'Initializing'
+  | 'QR_READY'
+  | 'Authenticated'
+  | 'AUTH_FAILED'
+  | 'Ready'
+  | 'Disconnected'
+  | 'ERROR'
+  | 'Reconnecting'
+  | 'Processing';
+
+export type SubscriptionTier = 'demo' | 'pro' | 'unlimited';
+
+export interface BotState {
+  botStatus: BotStatus;
+  currentQR: string;
+  pairingCode: string;
+  clientReady: boolean;
+  maintenanceMode: boolean;
+  waRetryCount: number;
+  isInitializing: boolean;
+  isBotRunning: boolean;
+  waDestroyLock: boolean;
+}
+
+export interface User {
+  id: string;
+  store_name: string;
+  slug: string;
+  status: SubscriptionTier;
+  subscription_expiry: string | null;
+  dashboard_token: string | null;
+  created_at: string;
+}
+
+export interface LogEntry {
+  timestamp: string;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
+  data?: unknown;
+  memory?: string;
+}
+
+export interface BroadcastProgress {
+  current: number;
+  total: number;
+  failed: number;
+}
+
+export interface BroadcastResult {
+  success: number;
+  failed: number;
+  total: number;
+}
+
+export interface HealthResponse {
+  status: 'healthy' | 'degraded';
+  uptime: number;
+  system: {
+    memory: { used: number; total: number; percentage: number };
+  };
+}
+
+export interface MaintenanceMode {
+  active: boolean;
+  message: string;
+}
+
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  category: string | null;
+  unit: string | null;
+  price_buy: number | null;
+  price_sell: number;
+  stock_current: number;
+  stock_min: number | null;
+  default_channel: string | null;
+  description: string | null;
+  user_id: string;
+  created_at: string;
+}
+
+export interface StockMovement {
+  id: string;
+  product_id: string;
+  type: 'in' | 'out' | 'adjustment';
+  quantity: number;
+  unit_price: number | null;
+  note: string | null;
+  created_via: string | null;
+  user_id: string;
+  created_at: string;
+  products?: { id: string; sku: string; name: string; unit: string };
+}
+
+export interface OverviewData {
+  total_omzet: number;
+  total_hpp: number;
+  total_pengeluaran: number;
+  laba_bersih: number;
+  piutang: number;
+  profit_margin: number;
+  total_product: number;
+  nilai_inventori: number;
+  stok_menipis: number;
+  stok_habis: number;
+}
+
+export interface ChannelProfit {
+  channel: string;
+  revenue: number;
+  hpp: number;
+  netProfit: number;
+  margin: number;
+}
+
+export interface FinancialData {
+  labels: string[];
+  omzet: number[];
+  pengeluaran: number[];
+  cashflow: number[];
+  inventori: number[];
+  piutang: number[];
+}
+
+export interface LabaRugiRow {
+  account_code: string;
+  account_name: string;
+  account_type: 'revenue' | 'cogs' | 'expense';
+  total: number;
+}
+
+export interface LabaRugiData {
+  rows: LabaRugiRow[];
+  totalRevenue: number;
+  totalCOGS: number;
+  totalExpense: number;
+  labaKotor: number;
+  labaBersih: number;
+}
+
+export interface NeracaItem {
+  code: string;
+  name: string;
+  absolute: number;
+}
+
+export interface NeracaSection {
+  items: NeracaItem[];
+  total: number;
+}
+
+export interface NeracaData {
+  date: string;
+  totalAset: number;
+  totalLiabilitasEkuitas: number;
+  aset: NeracaSection;
+  liabilitas: NeracaSection;
+  ekuitas: NeracaSection;
+  selisih: number;
+}
+
+export interface GeneralLedgerEntry {
+  debit: number;
+  credit: number;
+  entry_date: string;
+  reference_type: string;
+  description: string;
+}
+
+export interface GeneralLedgerData {
+  account: {
+    code: string;
+    name: string;
+    type: string;
+    normal_balance: string;
+    balance: number;
+  } | null;
+  entries: GeneralLedgerEntry[];
+}
+
+export interface TrialBalanceRow {
+  code: string;
+  name: string;
+  type: string;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+export interface TrialBalanceData {
+  rows: TrialBalanceRow[];
+}
+
+export interface CashflowItem {
+  date: string;
+  masuk: number;
+  keluar: number;
+}
+
+export interface SaldoData {
+  saldo: number;
+  totalMasuk: number;
+  totalKeluar: number;
+}
+
+export interface PiutangItem {
+  id: string;
+  nama: string;
+  jumlah: number;
+  tanggal: string;
+  jatuh_tempo: string;
+  status: 'lunas' | 'belum' | 'overdue';
+}
+
+export interface JournalEntry {
+  id: string;
+  tanggal: string;
+  deskripsi: string;
+  debit: number;
+  kredit: number;
+  akun: string;
+}
+
+export interface HutangItem {
+  id: string;
+  nama_supplier: string;
+  nominal_hutang: number;
+  jumlah_dibayar: number;
+  status_lunas: boolean;
+  jatuh_tempo: string | null;
+  deskripsi: string | null;
+  created_at: string;
+}
+
+export interface PaginationMeta {
+  page: number;
+  totalPages: number;
+  total: number;
+  limit: number;
+}

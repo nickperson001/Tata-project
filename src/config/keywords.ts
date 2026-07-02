@@ -1,0 +1,98 @@
+export const KW_KELUAR: readonly string[] = [
+  'beli', 'belanja', 'purchase', 'bayar', 'bayarin', 'bayarkan', 'bayaran keluar',
+  'purchase', 'pesan', 'pesen', 'order', 'restock',
+  'biaya', 'ongkos', 'cost', 'expense', 'pengeluaran', 'keluar', 'modal',
+  'listrik', 'air', 'gas', 'telpon', 'telepon', 'internet', 'wifi', 'kuota',
+  'pulsa', 'paket data', 'sewa', 'kontrakan', 'kos', 'kontrak',
+  'gaji', 'upah', 'honor', 'fee', 'ongkir', 'pengiriman', 'kirim uang', 'kirim',
+  'kasbon', 'pinjam', 'minjemin', 'kasih pinjaman',
+  'hutang', 'utang', 'nyicil', 'cicilan', 'angsuran', 'kredit', 'bayar hutang',
+  'bayar cicilan', 'bayar angsuran', 'lunasin hutang',
+  'modal', 'invest', 'investasi', 'setor modal',
+  'pajak', 'tax', 'denda', 'administrasi', 'admin', 'biaya admin', 'asuransi',
+  'bensin', 'solar', 'bbm', 'pertalite', 'pertamax', 'transport', 'transportasi',
+  'ojek', 'ojol', 'gojek', 'grab', 'maxim', 'taxi', 'travel', 'parkir', 'tol',
+  'makan', 'minum', 'ngopi', 'lunch', 'dinner', 'breakfast', 'snack',
+  'jajan', 'nongkrong', 'hang out',
+  'sedekah', 'donasi', 'infaq', 'zakat', 'sumbangan', 'nyumbang', 'kondangan',
+  'amplop', 'kado', 'hadiah', 'parcel', 'patungan', 'urunan', 'kolekte',
+  'servis', 'service', 'benerin', 'repair', 'renovasi', 'maintenance',
+  'tarik', 'wd', 'withdraw', 'tarik tunai', 'ambil',
+  'tf', 'trf', 'transfer', 'kirim', 'transfer ke', 'bayar ke',
+  'rugi', 'minus', 'susut', 'hilang', 'rusak', 'expired', 'kadaluarsa',
+  'nombok', 'nombokin', 'talangan', 'ngasih', 'kasih', 'bantu',
+  'cap go', 'abis', 'habis buat', 'keluar buat', 'dipake buat',
+];
+
+export const KW_MASUK: readonly string[] = [
+  'jual', 'jualan', 'dagang', 'laku', 'terjual', 'sold', 'penjualan', 'omzet',
+  'sales', 'income', 'revenue', 'pemasukan', 'pendapatan',
+  'terima', 'nerima', 'diterima', 'dapat', 'dapet', 'nemu', 'masuk',
+  'bayaran', 'dibayar', 'terbayar', 'lunas', 'pelunasan',
+  'untung', 'laba', 'profit', 'cuan', 'hasilnya', 'hasil',
+  'komisi', 'bonus', 'thr', 'incentive', 'insentif', 'reward',
+  'gajian', 'honor masuk', 'cair',
+  'setor', 'setoran', 'deposit', 'depo', 'top up', 'topup', 'isi',
+  'tf masuk', 'transfer masuk', 'transferan', 'ditransfer', 'dikirim',
+  'refund', 'dikembalikan', 'kembalian', 'cashback', 'balik modal',
+  'tips', 'tip', 'tip masuk', 'uang tip', 'tambahan', 'extra',
+  'pinjam masuk', 'hutang masuk', 'dikasih', 'dibantu',
+  'nyairin', 'narik', 'dapet duit', 'uang masuk', 'duit masuk',
+  'abis terjual', 'laris', 'borong',
+];
+
+export const KW_STATUS: readonly string[] = [
+  'status', 'info', 'akun', 'profil', 'cek akun', 'cek status',
+  'saldo', 'cek saldo', 'lihat saldo', 'berapa saldo', 'saldo berapa',
+  'sisa uang', 'sisa duit', 'uangku', 'duitku', 'tabungan',
+  'riwayat', 'history', 'histori', 'mutasi', 'mutasi rekening',
+  'cek', 'lihat', 'view', 'pengaturan', 'setting',
+];
+
+export const KW_LAPORAN: readonly string[] = [
+  'laporan', 'report', 'rekap', 'rekapan', 'rangkuman', 'ringkasan',
+  'catatan', 'rincian', 'detail', 'summary',
+  'transaksi', 'daftar transaksi', 'list transaksi',
+  'statistik', 'analisis', 'analisa',
+  'total', 'jumlah', 'hitungan',
+  'bulan ini', 'minggu ini', 'hari ini',
+  'pengeluaran bulan ini', 'pemasukan bulan ini',
+  'rekap harian', 'rekap mingguan', 'rekap bulanan',
+  'berapa hari ini', 'hasil hari ini',
+];
+
+export const KW_BANTUAN: readonly string[] = [
+  'bantuan', 'menu', 'help', 'cara', 'panduan', 'petunjuk',
+  '?', 'tutorial', 'tolong', 'tanya', 'nanya',
+  'bingung', 'gimana', 'caranya', 'bagaimana', 'how',
+  'Tata', 'halo', 'hai', 'halo Tata', 'hi Tata', 'selamat', 'pagi', 'siang', 'sore', 'malam',
+  'ping', 'test', 'coba', 'tes',
+  'cs', 'admin', 'customer service', 'support',
+  'mulai', 'start', 'begin',
+];
+
+export const KW_UPGRADE: readonly string[] = [
+  'upgrade', 'paket', 'langganan', 'berlangganan', 'subscribe',
+  'premium', 'pro', 'unlimited', 'vip', 'berbayar',
+  'beli paket', 'beli langganan', 'perpanjang', 'renew', 'renewal',
+  'donasi', 'dukung', 'support',
+  'harga', 'tarif', 'biaya berlangganan',
+];
+
+export const KW_BATAL: readonly string[] = [
+  'batal', 'batalin', 'batalkan', 'cancel', 'stop',
+  'ga jadi', 'gak jadi', 'tidak jadi', 'nggak jadi', 'gajadi',
+  'dicancel', 'undo', 'hapus', 'delete',
+  'salah', 'keliru', 'maaf salah', 'kirim salah',
+  'skip', 'abaikan', 'lewat',
+];
+
+export const KW_STOCK: readonly string[] = ['stok', 'stock', 'persediaan', 'inventori', 'inventory', 'gudang'];
+export const KW_PRODUCT: readonly string[] = ['produk', 'barang', 'item'];
+export const KW_DASHBOARD: readonly string[] = [
+  'dashboard', 'web', 'portal', 'website',
+  'link stok', 'link stock', 'buka web', 'lihat web', 'akses web',
+  'buka dashboard', 'lihat dashboard', 'akses dashboard',
+  'cek stok', 'cek stock', 'lihat stok', 'lihat stock',
+  'stok saya', 'stock saya', 'inventori saya',
+];

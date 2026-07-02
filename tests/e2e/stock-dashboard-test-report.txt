@@ -1,0 +1,123 @@
+
+═══════════════════════════════════════════════════════════════
+  AUTOMATED UI/RESPONSIVENESS TEST REPORT
+  Stock Dashboard (stock.html)
+═══════════════════════════════════════════════════════════════
+
+📊 TEST SUMMARY
+───────────────────────────────────────────────────────────────
+Total Tests:     48
+Passed:          43 ✅
+Failed:          0 ❌
+Warnings:        5 ⚠️
+Duration:        22.34s
+Pass Rate:       89.6%
+
+📱 BREAKPOINTS TESTED
+───────────────────────────────────────────────────────────────
+• Desktop:       1280x800
+• Tablet:        768x1024
+• Phone:         640x960
+• Small Phone:   480x853
+
+📄 PAGES TESTED (9 total)
+───────────────────────────────────────────────────────────────
+1. Overview      - Main dashboard
+2. Financial     - Financial overview
+3. Products      - Product database
+4. Movement      - Stock in/out
+5. Opname        - Stock audit system
+6. Report        - Analytics & reports
+7. History       - Transaction log
+8. Piutang       - Receivables tracking
+9. Pembukuan     - Accounting ledger
+
+🧪 DETAILED TEST RESULTS
+───────────────────────────────────────────────────────────────
+
+Accessibility checks (1/1)
+  ✅ Accessibility checks
+
+All 9 pages present in DOM (4/4)
+  ✅ All 9 pages present in DOM
+  ✅ All 9 pages present in DOM
+  ✅ All 9 pages present in DOM
+  ✅ All 9 pages present in DOM
+
+Button hover effect (0/4)
+  ⚠️ Button hover effect - Could not trigger hover
+  ⚠️ Button hover effect - Could not trigger hover
+  ⚠️ Button hover effect - Could not trigger hover
+  ⚠️ Button hover effect - Could not trigger hover
+
+CSS animations/transitions defined (1/1)
+  ✅ CSS animations/transitions defined - Both found
+
+CSS variables defined (1/1)
+  ✅ CSS variables defined - 7 variables found
+
+Dark mode toggle (0/1)
+  ⚠️ Dark mode toggle - darkToggle function not available
+
+Font sizes check (4/4)
+  ✅ Font sizes check - desktop - 17 font sizes
+  ✅ Font sizes check - tablet - 16 font sizes
+  ✅ Font sizes check - phone - 15 font sizes
+  ✅ Font sizes check - small-phone - 16 font sizes
+
+Found 13 input fields (4/4)
+  ✅ Found 13 input fields
+  ✅ Found 13 input fields
+  ✅ Found 13 input fields
+  ✅ Found 13 input fields
+
+Found 14 select elements (4/4)
+  ✅ Found 14 select elements
+  ✅ Found 14 select elements
+  ✅ Found 14 select elements
+  ✅ Found 14 select elements
+
+Found 38 buttons (4/4)
+  ✅ Found 38 buttons
+  ✅ Found 38 buttons
+  ✅ Found 38 buttons
+  ✅ Found 38 buttons
+
+Input focus state (4/4)
+  ✅ Input focus state
+  ✅ Input focus state
+  ✅ Input focus state
+  ✅ Input focus state
+
+Layout structure (4/4)
+  ✅ Layout structure - desktop - Sidebar: true, Mobile Nav: false, Main: 1080x800px
+  ✅ Layout structure - tablet - Sidebar: false, Mobile Nav: true, Main: 768x1024px
+  ✅ Layout structure - phone - Sidebar: false, Mobile Nav: true, Main: 640x960px
+  ✅ Layout structure - small-phone - Sidebar: false, Mobile Nav: true, Main: 480x853px
+
+Page loads (4/4)
+  ✅ Page loads - desktop
+  ✅ Page loads - tablet
+  ✅ Page loads - phone
+  ✅ Page loads - small-phone
+
+Page loads successfully (4/4)
+  ✅ Page loads successfully
+  ✅ Page loads successfully
+  ✅ Page loads successfully
+  ✅ Page loads successfully
+
+Responsiveness check (4/4)
+  ✅ Responsiveness check - desktop
+  ✅ Responsiveness check - tablet
+  ✅ Responsiveness check - phone
+  ✅ Responsiveness check - small-phone
+
+═══════════════════════════════════════════════════════════════
+📋 RECOMMENDATIONS
+───────────────────────────────────────────────────────────────
+⚠️  5 warning(s) - minor issues detected
+
+═══════════════════════════════════════════════════════════════
+Generated: 6/19/2026, 9:01:40 PM
+═══════════════════════════════════════════════════════════════

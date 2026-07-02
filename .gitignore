@@ -1,0 +1,53 @@
+node_modules/
+.env
+.env.local
+/tmp/
+.wwebjs_auth/
+.wwebjs_cache/
+npm-debug.log
+yarn-error.log
+*.log
+.DS_Store
+*.traineddata
+
+# Secrets
+google-vision-key.json
+secrets/
+
+# Python virtual env
+venv/
+.venv/
+
+# Backup/temp files
+*.bak
+*.tmp
+*.backup
+
+# Tool/IDE config
+.qoderrules
+.vscode/
+.idea/
+
+# Personal notes
+docs/me.md
+
+# TypeScript build output
+dist/
+
+# Vite React build output (served by Express)
+public/dist/
+
+# Application logs
+logs/
+
+# Temp frontend folder (moved to src/frontend/)
+/frontend/
+
+# Large binary files (served separately)
+logo/motion.mp4
+logo/motion.svg
+logo/motion_000.zip
+logo/motion.gif
+public/stock/motion.gif
+public/stock/motion.mp4
+public/stock/motion.svg
