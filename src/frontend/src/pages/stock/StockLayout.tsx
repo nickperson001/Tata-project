@@ -76,7 +76,7 @@ export function StockLayout() {
   if (isLoading) {
     return (
       <div className="loading-screen">
-        <img src="https://raw.githubusercontent.com/nickperson001/Tata-project/main/public/stock/motion.gif" alt="Loading..." style={{ width: 200, height: 'auto', maxWidth: '90vw' }} />
+        <img src="/stock/motion.gif" alt="Loading..." style={{ width: 200, height: 'auto', maxWidth: '90vw' }} />
       </div>
     );
   }
