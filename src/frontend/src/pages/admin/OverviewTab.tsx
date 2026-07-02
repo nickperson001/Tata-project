@@ -6,7 +6,7 @@ import { StatCard } from '../../components/StatCard';
 import { Skeleton } from '../../components/LoadingSkeleton';
 import { toast } from '../../components/Toast';
 import type { HealthResponse, BotState } from '../../types';
-import { Wifi, WifiOff, RefreshCw, RotateCcw, Database, Activity, Send, FlaskConical, Smartphone, Bug } from 'lucide-react';
+import { Wifi, WifiOff, RefreshCw, RotateCcw, Database, Activity, Send, FlaskConical, Smartphone } from 'lucide-react';
 
 export function OverviewTab() {
   const { botState, setBotState } = useAdminStore();
@@ -15,7 +15,6 @@ export function OverviewTab() {
   const [seeding, setSeeding] = useState(false);
   const [pairingPhone, setPairingPhone] = useState('');
   const [pairingLoading, setPairingLoading] = useState(false);
-  const [testBotLoading, setTestBotLoading] = useState(false);
 
   useEffect(() => {
     api.get<HealthResponse>('/health')
@@ -29,7 +28,7 @@ export function OverviewTab() {
       .then((data) => {
         if (data) setBotState(data);
       })
-      .catch((err) => toast.error(err instanceof Error ? err.message : '[Admin] Fetch status gagal'));
+      .catch(() => {});
   }, [setBotState]);
 
   useEffect(() => {
@@ -46,7 +45,7 @@ export function OverviewTab() {
             setBotState({ ...botState, pairingCode: data.pairingCode });
           }
         })
-        .catch((err) => toast.error(err instanceof Error ? err.message : '[Admin] Fetch QR gagal'));
+        .catch(() => {});
     }
   }, [botState?.currentQR, botState?.pairingCode]);
 
@@ -60,9 +59,11 @@ export function OverviewTab() {
     if (!phone) { toast.error('Masukkan nomor telepon'); return; }
     setPairingLoading(true);
     try {
-      const res = await api.post<{ code: string }>('/api/admin/pairing-code', { phoneNumber: phone });
-      toast.success(`Kode pairing: ${res.code}`);
-      setPairingPhone('');
+      const res = await api.post<{ success: boolean; code: string }>('/api/admin/pairing-code', { phoneNumber: phone });
+      if (res.success) {
+        toast.success(`Kode pairing: ${res.code}`);
+        setPairingPhone('');
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal minta kode pairing');
     } finally {
@@ -76,28 +77,17 @@ export function OverviewTab() {
       .catch((err) => toast.error(err.message));
   }
 
-  async function testBot() {
-    setTestBotLoading(true);
-    try {
-      const res = await api.post<{ waSent: boolean; totalTests: number; message: string }>('/api/admin/test-bot', {});
-      toast.success(`Test bot: ${res.totalTests} skenario dikirim ke WA`);
-      if (!res.waSent) toast.warning('WA tidak terkirim (bot offline?)', { duration: 5000 });
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Gagal test bot');
-    } finally {
-      setTestBotLoading(false);
-    }
-  }
-
   async function seedDemo() {
     setSeeding(true);
     try {
-      const res = await api.post<{ log: string[] }>('/api/admin/seed-demo');
-      toast.success('Demo data berhasil di-seed!');
-      const urlLine = res.log.find(l => l.includes('/stock/'));
-      if (urlLine) {
-        const url = urlLine.trim();
-        toast.success(`URL: ${url}`, { duration: 8000 });
+      const res = await api.post<{ success: boolean; log: string[] }>('/api/admin/seed-demo');
+      if (res.success) {
+        toast.success('Demo data berhasil di-seed!');
+        const urlLine = res.log.find(l => l.includes('/stock/'));
+        if (urlLine) {
+          const url = urlLine.trim();
+          toast.success(`URL: ${url}`, { duration: 8000 });
+        }
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal seed demo');
@@ -230,18 +220,6 @@ export function OverviewTab() {
           </p>
           <button className="btn btn-primary btn-sm" onClick={seedDemo} disabled={seeding} style={{ alignSelf: 'flex-start' }}>
             {seeding ? 'Memproses...' : 'Seed Demo'}
-          </button>
-        </div>
-        <div className="card card-p" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Bug size={20} style={{ color: 'var(--warning)' }} />
-            <h3 style={{ fontWeight: 700 }}>Test Bot</h3>
-          </div>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Kirim 40+ skenario test langsung ke nomor WA Anda
-          </p>
-          <button className="btn btn-warning btn-sm" onClick={testBot} disabled={testBotLoading} style={{ alignSelf: 'flex-start' }}>
-            {testBotLoading ? 'Mengirim...' : 'Test Bot'}
           </button>
         </div>
       </div>
