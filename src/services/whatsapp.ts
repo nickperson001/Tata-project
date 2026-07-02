@@ -47,7 +47,7 @@ function killChromeProcesses(): void {
     if (process.platform === 'win32') {
       execSync('taskkill /F /IM chrome.exe 2>nul', { stdio: 'ignore' });
     } else {
-      execSync('pkill -f "chrome.*wwebjs" 2>/dev/null; pkill -f "chrom(e|ium).*" 2>/dev/null', { stdio: 'ignore' });
+      execSync('pkill chromium 2>/dev/null; pkill chrome 2>/devnull', { stdio: 'ignore' });
     }
   } catch { /* cleanup not available or no matches */ }
 }
@@ -228,7 +228,7 @@ async function initWhatsApp(): Promise<void> {
       if (state.waRetryCount <= WA_MAX_RETRIES) {
         const delay = getWaRetryDelay();
         addLog('info', `[WA] Reconnect attempt ${state.waRetryCount}/${WA_MAX_RETRIES} in ${Math.round(delay / 1000)}s`);
-        scheduleRetry(delay);
+        safeDestroyClient().then(() => scheduleRetry(delay));
       } else {
         addLog('error', `[WA] Max retry (${WA_MAX_RETRIES}) reached`);
         sendEmergencyBroadcast(`WhatsApp gagal konek setelah ${WA_MAX_RETRIES} kali percobaan`).catch(() => {});
@@ -245,11 +245,12 @@ async function initWhatsApp(): Promise<void> {
     const delay = getWaRetryDelay();
     if (state.waRetryCount <= WA_MAX_RETRIES) {
       addLog('info', `[WA] Reconnect attempt ${state.waRetryCount}/${WA_MAX_RETRIES} in ${Math.round(delay / 1000)}s`);
+      await safeDestroyClient();
       scheduleRetry(delay);
     } else {
       addLog('error', `[WA] Max retry (${WA_MAX_RETRIES}) reached — attempting full session reset`);
       sendEmergencyBroadcast(`WhatsApp gagal konek setelah ${WA_MAX_RETRIES} kali percobaan — session reset`).catch(() => {});
-      try { await safeDestroyClient(); } catch { }
+      await safeDestroyClient();
       addLog('info', '[WA] Full reset scheduled in 60s');
       setTimeout(() => { state.waRetryCount = 0; state.emergencySent = false; initWhatsApp(); }, 60_000);
     }
