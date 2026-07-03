@@ -1105,8 +1105,8 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         `  Contoh: *Tagih 150rb ke 08123456789*\n\n` +
         `📦 *CEK GUDANG*\n` +
         `• *Stock list* ➡️ Lihat sisa semua barang\n` +
-        `• *Masuk [SKU] [jumlah]* ➡️ Tambah stok barang datang\n` +
-        `• *Keluar [SKU] [jumlah]* ➡️ Kurangi stok barang rusak/hilang\n\n` +
+`• *Masuk [produk] [jumlah]* ➡️ Restok barang\n` +
+`• *Keluar [produk] [jumlah]* ➡️ Catat penjualan\n\n` +
         `📋 *LAINNYA*\n` +
         `• *Laporan* — Rekap transaksi hari ini\n` +
         `• *Status* — Info & status akun\n` +
@@ -1128,13 +1128,13 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
-    const stockOutMatch = rawBody.match(/^(?:keluar|kurang\s+stok|terjual)\s+(.+?)\s+(\d+(?:[.,]\d+)?)(?:\s+(pcs|kg|gram|liter|buah|bungkus|pack|box|dus|karton|sak|meter|cm|mm))?$/i);
+    const stockOutMatch = rawBody.match(/^(?:keluar|kurang\s+stok)\s+(.+?)\s+(\d+(?:[.,]\d+)?)(?:\s+(pcs|kg|gram|liter|buah|bungkus|pack|box|dus|karton|sak|meter|cm|mm))?$/i);
     if (stockOutMatch) {
       await handleStockInOutCommand(msg, user, stockOutMatch[1].trim(), stockOutMatch[2], 'out');
       return;
     }
 
-    const saleMatch = rawBody.match(/^(?:jual|laku|sold)\s+(?:(tokped|tiktok(?:\s*shop)?|lazada|shopee)\s+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s*(pcs|kg|gram|liter|buah|bungkus|pack|box|dus|karton|sak|meter|cm|mm)?$/i);
+    const saleMatch = rawBody.match(/^(?:jual|laku|terjual|sold)\s+(?:(tokped|tiktok(?:\s*shop)?|lazada|shopee)\s+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s*(pcs|kg|gram|liter|buah|bungkus|pack|box|dus|karton|sak|meter|cm|mm)?$/i);
     if (saleMatch) {
       const channelRaw = saleMatch[1] || null;
       const ch = channelRaw ? channelRaw.trim().replace(/\s+/g, '').toLowerCase() : 'offline';
@@ -1190,8 +1190,8 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         `• Ketik: *Tagih [nominal] ke [nomor WA]*\n  Contoh: *Tagih 150rb ke 08123456789*\n\n` +
         `📦 *CEK GUDANG*\n` +
         `• *Stock list* ➡️ Lihat sisa semua barang\n` +
-        `• *Masuk [SKU] [jumlah]* ➡️ Tambah stok barang datang\n` +
-        `• *Keluar [SKU] [jumlah]* ➡️ Kurangi stok barang rusak/hilang\n\n` +
+`• *Masuk [produk] [jumlah]* ➡️ Restok barang\n` +
+`• *Keluar [produk] [jumlah]* ➡️ Catat penjualan\n\n` +
         `📋 *LAINNYA*\n` +
         `• *Laporan* — Rekap transaksi hari ini\n` +
         `• *Status* — Info & status akun\n` +
