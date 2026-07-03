@@ -19,6 +19,36 @@ import { handleStockList, handleStockInfo, handleStockReport } from './stock-han
 import { handleInvoiceCommand, handleSetBankCommand, generateInvoiceNumber, normalizeWaNumber, getBankCache, setBankCache, generateInvoicePDF } from './invoice-handler';
 import { handleOnboardingStep } from './onboarding';
 
+async function handleStockInOutCommand(msg: any, user: any, productQuery: string, quantityStr: string, type: 'in' | 'out'): Promise<boolean> {
+  const qty = parseFloat(quantityStr.replace(',', '.'));
+  if (isNaN(qty) || qty <= 0) {
+    await safeReply(msg, `⚠️ Jumlah tidak valid: *${quantityStr}*.\nContoh: *${type === 'in' ? 'Masuk' : 'Keluar'} kopi 10*`);
+    return true;
+  }
+  const searchRes = await stockManager.searchProductByName(user.id, productQuery);
+  if (!searchRes.success || !searchRes.products || searchRes.products.length === 0) {
+    await safeReply(msg, `⚠️ Produk "*${productQuery}*" tidak ditemukan.\nKetik *Stock list* untuk lihat daftar produk.`);
+    return true;
+  }
+  const product = searchRes.products[0] as any;
+  const res = await transactionRecorder.recordStockAdjustment({
+    userId: user.id, productId: product.id, type, quantity: qty,
+    note: type === 'in' ? 'Restock via WA' : 'Terjual via WA',
+  });
+  if (!res.success) {
+    await safeReply(msg, `❌ *Gagal*\n\n${res.error}`);
+    return true;
+  }
+  const d = res.data as any;
+  const label = type === 'in' ? 'Stok Masuk' : 'Terjual';
+  await safeReply(msg,
+    `✅ *${label}* ${product.name}\n\n` +
+    `${stockManager.formatQty(d.stockBefore, d.product.unit)} ${d.product.unit} → ` +
+    `${stockManager.formatQty(d.stockAfter, d.product.unit)} ${d.product.unit}`
+  );
+  return true;
+}
+
 async function handleSaleCommand(msg: any, sender: string, user: any, productQuery: string, quantityStr: string, unitStr: string | null, channelName = 'Offline'): Promise<boolean> {
   const qty = parseFloat(quantityStr.replace(',', '.'));
   if (isNaN(qty) || qty <= 0) {
@@ -1092,7 +1122,19 @@ async function handleMessage(msg: any, client: any): Promise<any> {
     const tagihIntent = /\b(?:tagih|kirim\s+tagihan|minta\s+bayar|buat\s+(?:invoice|tagihan|bon)|invoice|nagih)\b/i;
     if (tagihIntent.test(body)) return handleInvoiceCommand(msg, sender, user, rawBody, client);
 
-    const saleMatch = rawBody.match(/^(?:jual|laku|terjual|sold)\s+(?:(tokped|tiktok(?:\s*shop)?|lazada|shopee)\s+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s*(pcs|kg|gram|liter|buah|bungkus|pack|box|dus|karton|sak|meter|cm|mm)?$/i);
+    const stockInMatch = rawBody.match(/^(?:masuk|restock|tambah\s+stok)\s+(.+?)\s+(\d+(?:[.,]\d+)?)(?:\s+(pcs|kg|gram|liter|buah|bungkus|pack|box|dus|karton|sak|meter|cm|mm))?$/i);
+    if (stockInMatch) {
+      await handleStockInOutCommand(msg, user, stockInMatch[1].trim(), stockInMatch[2], 'in');
+      return;
+    }
+
+    const stockOutMatch = rawBody.match(/^(?:keluar|kurang\s+stok|terjual)\s+(.+?)\s+(\d+(?:[.,]\d+)?)(?:\s+(pcs|kg|gram|liter|buah|bungkus|pack|box|dus|karton|sak|meter|cm|mm))?$/i);
+    if (stockOutMatch) {
+      await handleStockInOutCommand(msg, user, stockOutMatch[1].trim(), stockOutMatch[2], 'out');
+      return;
+    }
+
+    const saleMatch = rawBody.match(/^(?:jual|laku|sold)\s+(?:(tokped|tiktok(?:\s*shop)?|lazada|shopee)\s+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s*(pcs|kg|gram|liter|buah|bungkus|pack|box|dus|karton|sak|meter|cm|mm)?$/i);
     if (saleMatch) {
       const channelRaw = saleMatch[1] || null;
       const ch = channelRaw ? channelRaw.trim().replace(/\s+/g, '').toLowerCase() : 'offline';
