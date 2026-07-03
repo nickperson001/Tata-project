@@ -466,6 +466,86 @@ async function recordTransactionWithJournal(
   }
 }
 
+async function recordStockAdjustment(opts: {
+  userId: string;
+  productId: string;
+  type: 'in' | 'out';
+  quantity: number;
+  note?: string;
+  unitPrice?: number;
+}): Promise<RecordResult> {
+  const { userId, productId, type, quantity, note, unitPrice } = opts;
+  if (!userId) return { success: false, error: 'userId is required' };
+  if (!productId) return { success: false, error: 'productId is required' };
+  if (!quantity || quantity <= 0) return { success: false, error: 'quantity must be > 0' };
+  if (!['in', 'out'].includes(type)) return { success: false, error: 'type must be in or out' };
+  try {
+    return await withTransaction(async (client) => {
+      const prod = await client.query(
+        `SELECT id, name, stock_current, stock_min, unit, price_buy, price_sell FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [productId, userId]
+      );
+      if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
+      const p = prod.rows[0];
+      const stockBefore = parseFloat(p.stock_current) || 0;
+      const stockAfter = type === 'in' ? stockBefore + quantity : stockBefore - quantity;
+      if (stockAfter < 0) throw new Error(`Stok tidak cukup. Stok saat ini: ${stockBefore} ${p.unit}`);
+      await client.query(
+        `UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`,
+        [stockAfter, productId, userId]
+      );
+      const mov = await client.query(
+        `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_via)
+         VALUES ($1, $2, $3, $4, $5, $6, 'manual', $7, 'whatsapp')
+         RETURNING id`,
+        [userId, productId, type, quantity, stockBefore, stockAfter, note || null]
+      );
+      const movId = mov.rows[0].id;
+      if (type === 'in') {
+        const buyPrice = unitPrice || parseFloat(p.price_buy) || 0;
+        const totalValue = quantity * buyPrice;
+        if (unitPrice || parseFloat(p.price_buy) > 0) {
+          await client.query(`UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`, [buyPrice, totalValue, movId]);
+        }
+        if (totalValue > 0) {
+          await accountingEngine.insertJournalViaClient(client, userId, {
+            referenceType: 'stock_in', referenceId: String(movId),
+            description: `Stok Masuk ${quantity} ${p.unit}: ${p.name}`,
+            lines: [
+              { accountCode: '1201', debit: totalValue, credit: 0, description: 'Penambahan inventori' },
+              { accountCode: '3101', debit: 0, credit: totalValue, description: 'Modal inventori' },
+            ],
+          });
+        }
+      } else {
+        const sellPrice = parseFloat(p.price_sell) || 0;
+        const buyPrice = parseFloat(p.price_buy) || 0;
+        const omzet = quantity * sellPrice;
+        const modal = quantity * buyPrice;
+        if (sellPrice > 0) {
+          await client.query(`UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`, [sellPrice, omzet, movId]);
+        }
+        if (modal > 0) {
+          await accountingEngine.insertJournalViaClient(client, userId, {
+            referenceType: 'stock_out', referenceId: String(movId),
+            description: `Penjualan ${quantity} ${p.unit}: ${p.name}`,
+            lines: [
+              { accountCode: '1101', debit: omzet, credit: 0, description: 'Penerimaan penjualan' },
+              { accountCode: '4101', debit: 0, credit: omzet, description: 'Penjualan offline' },
+              { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${quantity} item` },
+              { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
+            ],
+          });
+        }
+      }
+      return { success: true, data: { stockBefore, stockAfter, product: { name: p.name, unit: p.unit } } };
+    });
+  } catch (err: any) {
+    addLog('error', '[TRX-RECORDER] recordStockAdjustment failed: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 export {
   recordTransaction,
   recordTransactionWithJournal,
@@ -473,5 +553,6 @@ export {
   recordExpense,
   recordDamagedGoods,
   recordPembukuan,
+  recordStockAdjustment,
   PEMBUKUAN_COA_MAP,
 };
