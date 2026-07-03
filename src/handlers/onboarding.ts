@@ -160,13 +160,13 @@ async function graduateOnboarding(msg: Message, sender: string, user: any, clien
 
   try {
     await supabase.rpc('complete_onboarding', { p_user_id: sender });
-  } catch {
-    try {
-      await supabase.from('users').update({
-        onboarding_completed_at: new Date().toISOString(),
-      }).eq('id', sender);
-    } catch { /* ignore */ }
-  }
+  } catch { /* ignore */ }
+  try {
+    await supabase.from('users').update({
+      onboarding_status: 'completed',
+      onboarding_completed_at: new Date().toISOString(),
+    }).eq('id', sender);
+  } catch { /* ignore */ }
 
   if (user && !user.created_at && !user.updated_at) {
     graduatedVirtualUsers.set(sender, Date.now());
