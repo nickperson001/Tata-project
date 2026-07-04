@@ -4,7 +4,7 @@ import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtDate } from '../../lib/utils';
-import { DollarSign } from 'lucide-react';
+import { DollarSign, Eye } from 'lucide-react';
 
 interface PiutangList {
   totalPiutang: number;
@@ -81,6 +81,7 @@ export function StockPiutang() {
                     <th>Jumlah</th>
                     <th>Tanggal</th>
                     <th>Status</th>
+                    <th style={{ width: 80 }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -93,6 +94,13 @@ export function StockPiutang() {
                         <Badge variant={item.status === 'paid' ? 'lunas' : 'belum'}>
                           {item.status === 'paid' ? 'Lunas' : 'Belum'}
                         </Badge>
+                      </td>
+                      <td>
+                        <div className="row-actions">
+                          <button className="btn btn-ghost btn-sm" title="Lihat Detail">
+                            <Eye size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

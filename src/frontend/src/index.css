@@ -138,12 +138,17 @@ select.input { appearance: auto; }
 .dark .badge-purple { background: #4c1d95; color: #d8b4fe; }
 
 /* ── Tables ── */
-.tbl-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
-table { width: 100%; border-collapse: collapse; }
+.tbl-wrap { overflow-x: auto; overflow-y: auto; max-height: 60vh; border-radius: var(--radius); border: 1px solid var(--border); position: relative; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; }
 th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.875rem; }
-th { background: var(--bg); font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
+th { background: var(--bg); font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 0 var(--border); }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: rgba(16, 185, 129, 0.03); }
+
+/* Table Hover Actions */
+.row-actions { opacity: 0; transition: opacity 0.2s ease; display: flex; gap: 0.25rem; justify-content: flex-end; }
+tr:hover .row-actions { opacity: 1; }
+@media (max-width: 768px) { .row-actions { opacity: 1; } }
 
 /* ── Modal ── */
 .overlay {
@@ -162,16 +167,29 @@ tr:hover td { background: rgba(16, 185, 129, 0.03); }
   width: 100%;
   max-width: 500px;
   max-height: 90vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   box-shadow: var(--shadow-lg);
   animation: modalIn 0.2s ease-out;
 }
 .modal-lg { max-width: 720px; }
 @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+.modal-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); background: var(--bg-card); position: sticky; top: 0; z-index: 10; border-radius: var(--radius) var(--radius) 0 0; }
 .modal-header h3 { font-size: 1.1rem; font-weight: 700; }
-.modal-body { padding: 1.25rem; }
-.modal-footer { display: flex; gap: 0.5rem; justify-content: flex-end; padding: 1rem 1.25rem; border-top: 1px solid var(--border); }
+.modal-body { flex: 1; overflow-y: auto; padding: 1.25rem; }
+.modal-footer { flex-shrink: 0; display: flex; gap: 0.5rem; justify-content: flex-end; padding: 1rem 1.25rem; border-top: 1px solid var(--border); background: var(--bg-card); position: sticky; bottom: 0; z-index: 10; border-radius: 0 0 var(--radius) var(--radius); }
+
+/* Table Virtualization — scroll container for large datasets */
+.tbl-virtual { max-height: 55vh; overflow-y: auto; position: relative; }
+.tbl-virtual thead { position: sticky; top: 0; z-index: 10; }
+.tbl-virtual th { background: var(--bg); }
+.tbl-virtual tbody tr:last-child td { border-bottom: none; }
+
+/* Sparkline mini chart */
+.sparkline-wrap { display: flex; align-items: flex-end; gap: 2px; height: 32px; }
+.sparkline-bar { width: 6px; border-radius: 2px 2px 0 0; background: var(--primary); transition: height 0.3s ease; min-height: 2px; }
+.sparkline-bar.negative { background: var(--danger); }
+.sparkline-bar.neutral { background: var(--warning); }
 
 /* ── Toast ── */
 #toast-container {

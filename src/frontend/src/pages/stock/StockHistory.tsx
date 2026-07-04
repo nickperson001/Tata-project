@@ -121,9 +121,11 @@ export function StockHistory() {
                     <td>{m.unit_price ? fmtRp(m.unit_price) : '-'}</td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{m.note || '-'}</td>
                     <td>
+                      <div className="row-actions">
                         <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} title="Hapus" onClick={() => setShowConfirmHapus(m.id)}>
-                        <Trash2 size={14} />
-                      </button>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

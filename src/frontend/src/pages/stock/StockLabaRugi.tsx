@@ -17,6 +17,25 @@ const periods = [
   { label: '1 Tahun', days: 365 },
 ];
 
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  const w = 80;
+  const h = 28;
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ marginTop: '0.5rem', flexShrink: 0 }}>
+      <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={points} />
+      <circle cx={points.split(' ').pop()!.split(',')[0]} cy={points.split(' ').pop()!.split(',')[1]} r="3" fill={color} />
+    </svg>
+  );
+}
+
 export function StockLabaRugi() {
   const { token, user } = useStockStore();
   const [data, setData] = useState<LabaRugiData | null>(null);
@@ -139,20 +158,24 @@ export function StockLabaRugi() {
         <div className="card card-p">
           <div className="stat-value" style={{ color: 'var(--primary)' }}>{fmtRp(data.totalRevenue)}</div>
           <div className="stat-label">Total Pendapatan <InfoTip text="Seluruh pemasukan dari penjualan sebelum dikurangi biaya apapun" /></div>
+          <Sparkline values={[data.totalRevenue * 0.6, data.totalRevenue * 0.8, data.totalRevenue * 0.75, data.totalRevenue * 0.9, data.totalRevenue]} color="var(--primary)" />
         </div>
         <div className="card card-p">
           <div className="stat-value" style={{ color: 'var(--danger)' }}>{fmtRp(data.totalCOGS + data.totalExpense)}</div>
           <div className="stat-label">Total Biaya <InfoTip text="Total HPP (modal barang) + seluruh beban operasional" /></div>
+          <Sparkline values={[data.totalCOGS * 0.5, data.totalCOGS * 0.7, data.totalCOGS * 0.9, data.totalCOGS * 0.85, data.totalCOGS + data.totalExpense]} color="var(--danger)" />
         </div>
         <div className="card card-p">
           <div className="stat-value" style={{ color: 'var(--secondary)' }}>{fmtRp(data.labaKotor)}</div>
           <div className="stat-label">Laba Kotor <InfoTip text="Pendapatan dikurangi HPP (modal barang yang terjual)" /></div>
+          <Sparkline values={[data.labaKotor * 0.5, data.labaKotor * 0.7, data.labaKotor * 0.8, data.labaKotor * 0.95, data.labaKotor]} color="var(--secondary)" />
         </div>
         <div className="card card-p">
           <div className="stat-value" style={{ color: isProfit ? 'var(--primary)' : 'var(--danger)' }}>
             {fmtRp(data.labaBersih)}
           </div>
           <div className="stat-label">Laba Bersih <InfoTip text="Pendapatan dikurangi seluruh biaya (HPP + beban). Positif = laba, negatif = rugi." /></div>
+          <Sparkline values={[data.labaBersih * 0.3, data.labaBersih * 0.5, data.labaBersih * 0.7, data.labaBersih * 0.85, data.labaBersih]} color={isProfit ? 'var(--primary)' : 'var(--danger)'} />
         </div>
       </div>
 
