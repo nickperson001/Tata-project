@@ -23,6 +23,11 @@ import { StockTrialBalance } from './pages/stock/StockTrialBalance';
 import { StockSlugRedirect } from './pages/stock/StockSlugRedirect';
 import { StockSettings } from './pages/stock/StockSettings';
 import { StockCategories } from './pages/stock/StockCategories';
+import { StockBatch } from './pages/stock/StockBatch';
+import { StockSummary } from './pages/stock/StockSummary';
+import { StockProductStats } from './pages/stock/StockProductStats';
+import { StockChannels } from './pages/stock/StockChannels';
+import { StockJurnal } from './pages/stock/StockJurnal';
 import { NotFound } from './pages/NotFound';
 
 export function App() {
@@ -52,6 +57,11 @@ export function App() {
           <Route path="buku-besar" element={<StockBukuBesar />} />
           <Route path="arus-kas" element={<StockArusKas />} />
           <Route path="neraca-saldo" element={<StockTrialBalance />} />
+          <Route path="batch" element={<StockBatch />} />
+          <Route path="summary" element={<StockSummary />} />
+          <Route path="product-stats" element={<StockProductStats />} />
+          <Route path="channels" element={<StockChannels />} />
+          <Route path="jurnal" element={<StockJurnal />} />
           <Route path="categories" element={<StockCategories />} />
           <Route path="settings" element={<StockSettings />} />
         </Route>

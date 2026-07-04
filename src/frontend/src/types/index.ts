@@ -241,3 +241,70 @@ export interface PaginationMeta {
   total: number;
   limit: number;
 }
+
+// ---- Batch (endpoint 1) ----
+export interface BatchProduct {
+  id: string; sku: string; name: string; category: string;
+  unit: string; stock_current: number; stock_min: number;
+  price_buy: number; price_sell: number;
+  supplier: string; location: string; notes: string;
+}
+export interface BatchSummary {
+  total: number; active: number; totalValue: number;
+  lowStock: number; outStock: number;
+  byCategory: Record<string, { count: number; value: number }>;
+  alerts: BatchAlert[];
+}
+export interface BatchAlert {
+  id: string; user_id: string; product_id: string;
+  alert_type: string; stock_level: number;
+  alerted_at: string; resolved_at: string | null;
+  products: { id: string; sku: string; name: string; unit: string; stock_current: number; stock_min: number } | null;
+}
+export interface BatchMovement {
+  id: string; user_id: string; product_id: string;
+  type: 'in' | 'out'; quantity: number;
+  stock_before: number; stock_after: number;
+  reference_type: string; note: string | null;
+  created_via: string; created_at: string;
+  products: { id: string; sku: string; name: string; unit: string } | null;
+}
+export interface BatchData {
+  products: BatchProduct[];
+  summary: BatchSummary;
+  recentMovements: BatchMovement[];
+}
+
+// ---- Summary (endpoint 2) ----
+export type StockSummaryData = BatchSummary;
+
+// ---- Product Stats (endpoint 3) ----
+export interface ProductStatItem {
+  id: string; sku: string; name: string; category: string;
+  unit: string; stock_current: number; stock_min: number;
+  price_buy: number; price_sell: number;
+  profitPerUnit: number; margin: number; stockValue: number;
+}
+export interface ProductStatsData {
+  products: ProductStatItem[];
+}
+
+// ---- Channels (endpoint 4) ----
+export type ChannelsData = Record<string, number>;
+
+// ---- Jurnal (endpoint 5) ----
+export interface JurnalLine {
+  id: string; entry_id: string; account_code: string;
+  debit: number; credit: number; description: string;
+  account_name: string;
+}
+export interface JurnalEntryItem {
+  id: string; user_id: string; entry_date: string;
+  reference_type: string; reference_id: string;
+  description: string; created_at: string;
+  lines: JurnalLine[];
+}
+export interface JurnalData {
+  list: JurnalEntryItem[];
+  total: number; page: number; limit: number;
+}

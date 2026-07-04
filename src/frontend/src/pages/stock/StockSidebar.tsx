@@ -3,7 +3,7 @@ import { useState } from 'react';
 import {
   LayoutDashboard, BookOpen, TrendingUp, Scale, BookText, Wallet,
   Package, ArrowUpDown, ClipboardCheck, History, CreditCard, DollarSign,
-  BarChart3, ChevronLeft, ChevronRight,
+  BarChart3, ChevronLeft, ChevronRight, ClipboardList, GitBranch, FileText, Database,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useStockStore } from '../../store/stockStore';
@@ -34,6 +34,8 @@ export function getNavGroups(status?: string): NavGroup[] {
         { to: '/stock/neraca', label: 'Neraca', icon: Scale },
         { to: '/stock/buku-besar', label: 'Buku Besar', icon: BookText },
         { to: '/stock/arus-kas', label: 'Arus Kas', icon: Wallet },
+        { to: '/stock/channels', label: 'Per Channel', icon: GitBranch },
+        { to: '/stock/jurnal', label: 'Jurnal', icon: FileText },
       ],
     },
     {
@@ -44,6 +46,8 @@ export function getNavGroups(status?: string): NavGroup[] {
         { to: '/stock/movement', label: 'Masuk/Keluar', icon: ArrowUpDown },
         { to: '/stock/opname', label: 'Opname', icon: ClipboardCheck },
         { to: '/stock/history', label: 'Riwayat', icon: History },
+        { to: '/stock/summary', label: 'Ringkasan Stok', icon: ClipboardList },
+        { to: '/stock/product-stats', label: 'Analisa Produk', icon: TrendingUp },
       ],
     },
     {
@@ -58,6 +62,7 @@ export function getNavGroups(status?: string): NavGroup[] {
       children: [
         { to: '/stock/report', label: 'Laporan Stok', icon: BarChart3 },
         { to: '/stock/neraca-saldo', label: 'Neraca Saldo', icon: Scale },
+        { to: '/stock/batch', label: 'Data Lengkap', icon: Database },
       ],
     },
   ];
