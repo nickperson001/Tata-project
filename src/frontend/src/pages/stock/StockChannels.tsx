@@ -5,7 +5,7 @@ import { Skeleton } from '../../components/LoadingSkeleton';
 import { EmptyState } from '../../components/EmptyState';
 import { InfoTip } from '../../components/InfoTip';
 import { fmtRp } from '../../lib/utils';
-import { GitBranch, TrendingUp, DollarSign } from 'lucide-react';
+import { GitBranch, TrendingUp } from 'lucide-react';
 import type { ChannelsData } from '../../types';
 
 const presets = [

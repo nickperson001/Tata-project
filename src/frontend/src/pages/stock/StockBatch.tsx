@@ -146,7 +146,7 @@ export function StockBatch() {
                 return (
                   <tr key={p.id}>
                     <td style={{ fontWeight: 600 }}>{p.name}</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.sku}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.sku || '-'}</td>
                     <td>{p.category || '-'}</td>
                     <td>{fmtRp(p.price_buy)}</td>
                     <td>{fmtRp(p.price_sell)}</td>
