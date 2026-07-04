@@ -51,3 +51,4 @@ logo/motion.gif
 public/stock/motion.gif
 public/stock/motion.mp4
 public/stock/motion.svg
+!src/frontend/tsconfig.tsbuildinfo

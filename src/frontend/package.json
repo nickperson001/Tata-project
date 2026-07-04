@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "chart.js": "^4.4.1",
-    "framer-motion": "^12.42.2",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.400.0",
     "react": "^19.0.0",
