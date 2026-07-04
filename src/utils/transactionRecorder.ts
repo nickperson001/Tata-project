@@ -3,20 +3,6 @@ import { addLog } from '../config/state';
 import accountingEngine from './accountingEngine';
 import { withTransaction } from './db';
 
-const CHANNEL_ACCOUNTS: Record<string, string> = {
-  offline: '4101', Offline: '4101',
-  tokopedia: '4102', Tokopedia: '4102',
-  'tiktok shop': '4103', 'TikTok Shop': '4103',
-  lazada: '4104', Lazada: '4104',
-  shopee: '4105', Shopee: '4105',
-};
-
-function channelToAccountCode(ch: string | undefined | null): string {
-  if (!ch) return '4101';
-  return CHANNEL_ACCOUNTS[ch] || CHANNEL_ACCOUNTS[ch.toLowerCase()] || '4101';
-}
-
-
 interface RecordOpts {
   userId: string;
   type: string;
@@ -81,6 +67,63 @@ interface RecordResult {
   error?: string;
 }
 
+interface ChannelConfig {
+  name: string;
+  coaCode: string;
+  adminFeePct: number;
+}
+
+// ── Channel config cache (5 min TTL) ──
+const channelCache = new Map<string, { data: ChannelConfig[]; ts: number }>();
+const CHANNEL_CACHE_TTL = 5 * 60 * 1000;
+
+function invalidateChannelCache(userId: string): void {
+  channelCache.delete(userId);
+}
+
+async function getChannelConfig(userId: string): Promise<ChannelConfig[]> {
+  const cached = channelCache.get(userId);
+  if (cached && Date.now() - cached.ts < CHANNEL_CACHE_TTL) {
+    return cached.data;
+  }
+  const { data, error } = await supabase
+    .from('sales_channels')
+    .select('name, coa_code, admin_fee_pct')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+  if (error || !data) {
+    addLog('error', '[TRX-RECORDER] getChannelConfig error: ' + (error?.message || 'no data'));
+    return [];
+  }
+  const configs: ChannelConfig[] = (data as any[]).map((r: any) => ({
+    name: r.name,
+    coaCode: r.coa_code,
+    adminFeePct: Number(r.admin_fee_pct) || 0,
+  }));
+  channelCache.set(userId, { data: configs, ts: Date.now() });
+  return configs;
+}
+
+async function resolveChannel(userId: string, channel: string): Promise<{ coaCode: string; adminFeePct: number }> {
+  const configs = await getChannelConfig(userId);
+  const match = configs.find((c) => c.name.toLowerCase() === channel.toLowerCase());
+  if (match) return { coaCode: match.coaCode, adminFeePct: match.adminFeePct };
+  return { coaCode: '4101', adminFeePct: 0 };
+}
+
+// ── Cash balance locking helper ──
+async function lockAndCheckCashBalance(client: any, userId: string, amount: number): Promise<void> {
+  const acct = await client.query(
+    `SELECT balance FROM chart_of_accounts WHERE user_id = $1 AND code = '1101' FOR UPDATE`,
+    [userId]
+  );
+  if (acct.rows.length === 0) throw new Error('Akun Kas (1101) belum di-set. Hubungi admin.');
+  const balance = parseFloat(acct.rows[0].balance) || 0;
+  if (balance < amount) {
+    throw new Error(`Saldo kas tidak cukup. Saldo: Rp ${balance.toLocaleString('id-ID')}`);
+  }
+}
+
 async function recordTransaction(opts: RecordOpts): Promise<RecordResult> {
   const {
     userId, type, amount, description, productId, quantity,
@@ -143,10 +186,14 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
   const omzet = totalOmzet || (qty * sell);
   const modal = qty * buy;
   const profit = omzet - modal;
-  const revenueAccount = channelToAccountCode(channel);
 
   try {
     return await withTransaction(async (client) => {
+      // 0. Resolve channel config
+      const ch = await resolveChannel(userId, channel);
+      const bebanAdmin = omzet * (ch.adminFeePct / 100);
+      const danaBersih = omzet - bebanAdmin;
+
       // 1. Lock product row + read current stock
       const prod = await client.query(
         `SELECT stock_current, stock_min, unit FROM products
@@ -186,17 +233,32 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
       );
       const trxId = trx.rows[0].id;
 
-      // 5. Post journal (inline via client, dalam transaction yang sama)
+      // 5. Build journal lines
+      const revenueLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [];
+      if (bebanAdmin > 0) {
+        revenueLines.push(
+          { accountCode: '1101', debit: danaBersih, credit: 0, description: 'Penerimaan penjualan (bersih)' },
+          { accountCode: '6105', debit: bebanAdmin, credit: 0, description: `Beban admin ${channel} ${ch.adminFeePct}%` },
+          { accountCode: ch.coaCode, debit: 0, credit: omzet, description: `Penjualan via ${channel}` },
+        );
+      } else {
+        revenueLines.push(
+          { accountCode: '1101', debit: omzet, credit: 0, description: 'Penerimaan penjualan' },
+          { accountCode: ch.coaCode, debit: 0, credit: omzet, description: `Penjualan via ${channel}` },
+        );
+      }
+
+      const allLines = [
+        ...revenueLines,
+        { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${qty} item` },
+        { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
+      ];
+
       const journalId = await accountingEngine.insertJournalViaClient(client, userId, {
         referenceType: 'sale',
         referenceId: String(trxId),
         description: description || `Penjualan ${qty} item via ${channel}`,
-        lines: [
-          { accountCode: '1101', debit: omzet, credit: 0, description: 'Penerimaan penjualan' },
-          { accountCode: revenueAccount, debit: 0, credit: omzet, description: `Penjualan via ${channel}` },
-          { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${qty} item` },
-          { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
-        ],
+        lines: allLines,
       });
 
       return {
@@ -206,8 +268,10 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
           stockBefore,
           stockAfter,
           totalOmzet: omzet,
+          bebanAdmin,
+          danaBersih,
           totalModal: modal,
-          profit,
+          profit: danaBersih - modal - bebanAdmin,
         },
       };
     });
@@ -224,6 +288,9 @@ async function recordExpense(opts: ExpenseOpts): Promise<RecordResult> {
 
   try {
     return await withTransaction(async (client) => {
+      // Lock cash balance before deducting
+      await lockAndCheckCashBalance(client, userId, amount);
+
       const trx = await client.query(
         `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, reference_type, customer_name, beban_operasional)
          VALUES ($1, 'keluar', $2, 'Offline', $3, $4, 'manual', $5, $6)
@@ -340,7 +407,7 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
   const creditCode = coaCredit || coaMap.credit;
 
   // Override credit account for piutang based on sales channel
-  const effectiveCredit = (tipe === 'piutang' && channel) ? channelToAccountCode(channel) : creditCode;
+  const effectiveCredit = (tipe === 'piutang' && channel) ? (await resolveChannel(userId, channel)).coaCode : creditCode;
 
   if (['piutang', 'hutang_dagang', 'hutang_lancar'].includes(tipe) && !customerName) {
     return { success: false, error: 'customerName is required for piutang/hutang' };
@@ -384,6 +451,11 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
 
   try {
     return await withTransaction(async (client) => {
+      // Lock cash for types that deduct from cash
+      if (tipe.startsWith('beban') || tipe === 'prive') {
+        await lockAndCheckCashBalance(client, userId, Number(amount));
+      }
+
       const trx = await client.query(
         `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, reference_type, customer_name)
          VALUES ($1, $2, 'tunai', $3, $4, $5, $6, $7)
@@ -427,6 +499,11 @@ async function recordTransactionWithJournal(
         if (parseInt(countRes.rows[0].cnt, 10) >= 5) {
           throw new Error('Limit harian demo habis');
         }
+      }
+
+      // Lock cash balance for expenses
+      if (type === 'keluar') {
+        await lockAndCheckCashBalance(client, userId, amount);
       }
 
       const trx = await client.query(
@@ -473,8 +550,9 @@ async function recordStockAdjustment(opts: {
   quantity: number;
   note?: string;
   unitPrice?: number;
+  channel?: string;
 }): Promise<RecordResult> {
-  const { userId, productId, type, quantity, note, unitPrice } = opts;
+  const { userId, productId, type, quantity, note, unitPrice, channel = 'Offline' } = opts;
   if (!userId) return { success: false, error: 'userId is required' };
   if (!productId) return { success: false, error: 'productId is required' };
   if (!quantity || quantity <= 0) return { success: false, error: 'quantity must be > 0' };
@@ -518,23 +596,39 @@ async function recordStockAdjustment(opts: {
           });
         }
       } else {
+        const ch = await resolveChannel(userId, channel);
         const sellPrice = parseFloat(p.price_sell) || 0;
         const buyPrice = parseFloat(p.price_buy) || 0;
         const omzet = quantity * sellPrice;
         const modal = quantity * buyPrice;
+        const bebanAdmin = omzet * (ch.adminFeePct / 100);
+        const danaBersih = omzet - bebanAdmin;
+
         if (sellPrice > 0) {
           await client.query(`UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`, [sellPrice, omzet, movId]);
         }
         if (modal > 0) {
+          const lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [];
+          if (bebanAdmin > 0) {
+            lines.push(
+              { accountCode: '1101', debit: danaBersih, credit: 0, description: 'Penerimaan penjualan (bersih)' },
+              { accountCode: '6105', debit: bebanAdmin, credit: 0, description: `Beban admin ${channel} ${ch.adminFeePct}%` },
+              { accountCode: ch.coaCode, debit: 0, credit: omzet, description: `Penjualan via ${channel}` },
+            );
+          } else {
+            lines.push(
+              { accountCode: '1101', debit: omzet, credit: 0, description: 'Penerimaan penjualan' },
+              { accountCode: ch.coaCode, debit: 0, credit: omzet, description: `Penjualan via ${channel}` },
+            );
+          }
+          lines.push(
+            { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${quantity} item` },
+            { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
+          );
           await accountingEngine.insertJournalViaClient(client, userId, {
             referenceType: 'stock_out', referenceId: String(movId),
             description: `Penjualan ${quantity} ${p.unit}: ${p.name}`,
-            lines: [
-              { accountCode: '1101', debit: omzet, credit: 0, description: 'Penerimaan penjualan' },
-              { accountCode: '4101', debit: 0, credit: omzet, description: 'Penjualan offline' },
-              { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${quantity} item` },
-              { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
-            ],
+            lines,
           });
         }
       }
@@ -555,4 +649,5 @@ export {
   recordPembukuan,
   recordStockAdjustment,
   PEMBUKUAN_COA_MAP,
+  invalidateChannelCache,
 };

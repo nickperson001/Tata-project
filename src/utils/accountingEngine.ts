@@ -108,16 +108,10 @@ class AccountingEngine {
         [journalId, l.accountCode, Number(l.debit) || 0, Number(l.credit) || 0, l.description || '']
       );
       const acct = await client.query(
-        `SELECT normal_balance FROM chart_of_accounts WHERE user_id = $1 AND code = $2`,
+        `SELECT code FROM chart_of_accounts WHERE user_id = $1 AND code = $2`,
         [userId, l.accountCode]
       );
       if (acct.rows.length === 0) throw new Error(`Akun ${l.accountCode} tidak ditemukan`);
-      let change = (Number(l.debit) || 0) - (Number(l.credit) || 0);
-      if (acct.rows[0].normal_balance === 'credit') change = -change;
-      await client.query(
-        `UPDATE chart_of_accounts SET balance = balance + $1, updated_at = now() WHERE user_id = $2 AND code = $3`,
-        [change, userId, l.accountCode]
-      );
     }
     return { journalId };
   }
