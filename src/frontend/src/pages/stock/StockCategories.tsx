@@ -71,7 +71,7 @@ export function StockCategories() {
   async function confirmDelete() {
     if (!token || !deleteId) return;
     try {
-      await stockApi.del(`/api/stock/categories/${deleteId}`, token, { categoryName: deleteName });
+      await stockApi.del(`/api/stock/categories/${deleteId}`, token);
       toast('Kategori dihapus');
       load();
     } catch (err: unknown) {

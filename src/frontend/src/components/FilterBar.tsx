@@ -1,4 +1,5 @@
 import { DateRangeFilter, type DateRange } from './DateRangeFilter';
+export type { DateRange };
 import { Search, Filter } from 'lucide-react';
 
 interface FilterBarProps {

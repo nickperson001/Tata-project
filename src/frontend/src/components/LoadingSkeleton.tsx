@@ -2,13 +2,14 @@ interface SkeletonProps {
   width?: string;
   height?: string;
   count?: number;
+  style?: React.CSSProperties;
 }
 
-export function Skeleton({ width = '100%', height = '1rem', count = 1 }: SkeletonProps) {
+export function Skeleton({ width = '100%', height = '1rem', count = 1, style }: SkeletonProps) {
   return (
     <>
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="skel" style={{ width, height, marginBottom: count > 1 ? '0.5rem' : 0 }} />
+        <div key={i} className="skel" style={{ width, height, marginBottom: count > 1 ? '0.5rem' : 0, ...style }} />
       ))}
     </>
   );

@@ -34,5 +34,15 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, '../../public/dist'),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom', 'zustand'],
+          charts: ['chart.js', 'react-chartjs-2'],
+          animations: ['framer-motion'],
+          scanner: ['html5-qrcode']
+        }
+      }
+    }
   },
 });
