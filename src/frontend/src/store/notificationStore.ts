@@ -25,8 +25,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   unreadCount: 0,
   socketAlertIds: new Set(),
 
-  setAlerts: (alerts) =>
-    set({ alerts, unreadCount: alerts.filter((a) => !a.resolved_at).length }),
+  setAlerts: (alerts) => set({ alerts, unreadCount: alerts.filter((a) => !a.resolved_at).length }),
 
   addAlert: (alert) =>
     set((state) => ({

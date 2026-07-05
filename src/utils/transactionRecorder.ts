@@ -115,7 +115,7 @@ async function resolveChannel(userId: string, channel: string): Promise<{ coaCod
 async function lockAndCheckCashBalance(client: any, userId: string, amount: number): Promise<void> {
   const acct = await client.query(
     `SELECT balance FROM chart_of_accounts WHERE user_id = $1 AND code = '1101' FOR UPDATE`,
-    [userId]
+    [userId],
   );
   if (acct.rows.length === 0) throw new Error('Akun Kas (1101) belum di-set. Hubungi admin.');
   const balance = parseFloat(acct.rows[0].balance) || 0;
@@ -126,10 +126,21 @@ async function lockAndCheckCashBalance(client: any, userId: string, amount: numb
 
 async function recordTransaction(opts: RecordOpts): Promise<RecordResult> {
   const {
-    userId, type, amount, description, productId, quantity,
-    priceSell, priceBuy, profit, channel = 'Offline',
-    referenceType = 'manual', hpp, bebanOperasional,
-    customerName, statusBayar = 'tunai',
+    userId,
+    type,
+    amount,
+    description,
+    productId,
+    quantity,
+    priceSell,
+    priceBuy,
+    profit,
+    channel = 'Offline',
+    referenceType = 'manual',
+    hpp,
+    bebanOperasional,
+    customerName,
+    statusBayar = 'tunai',
   } = opts;
 
   if (!userId) return { success: false, error: 'userId is required' };
@@ -155,11 +166,7 @@ async function recordTransaction(opts: RecordOpts): Promise<RecordResult> {
   if (bebanOperasional != null) record.beban_operasional = bebanOperasional;
   if (customerName) record.customer_name = customerName;
 
-  const { data, error } = await supabase
-    .from('transactions')
-    .insert([record])
-    .select()
-    .single();
+  const { data, error } = await supabase.from('transactions').insert([record]).select().single();
 
   if (error) {
     addLog('error', '[TRX-RECORDER] insert error: ' + error.message);
@@ -171,8 +178,14 @@ async function recordTransaction(opts: RecordOpts): Promise<RecordResult> {
 
 async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
   const {
-    userId, productId, quantity, priceSell, priceBuy,
-    totalOmzet, channel = 'Offline', description,
+    userId,
+    productId,
+    quantity,
+    priceSell,
+    priceBuy,
+    totalOmzet,
+    channel = 'Offline',
+    description,
     referenceType = 'cashier',
   } = opts;
 
@@ -183,7 +196,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
   const qty = parseFloat(String(quantity));
   const sell = parseFloat(String(priceSell)) || 0;
   const buy = parseFloat(String(priceBuy)) || 0;
-  const omzet = totalOmzet || (qty * sell);
+  const omzet = totalOmzet || qty * sell;
   const modal = qty * buy;
   const profit = omzet - modal;
 
@@ -198,7 +211,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
       const prod = await client.query(
         `SELECT stock_current, stock_min, unit FROM products
          WHERE id = $1 AND user_id = $2 FOR UPDATE`,
-        [productId, userId]
+        [productId, userId],
       );
       if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
       const stockBefore = parseFloat(prod.rows[0].stock_current) || 0;
@@ -208,17 +221,18 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
 
       // 2. Update stock
       const stockAfter = stockBefore - qty;
-      await client.query(
-        `UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`,
-        [stockAfter, productId, userId]
-      );
+      await client.query(`UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`, [
+        stockAfter,
+        productId,
+        userId,
+      ]);
 
       // 3. Insert stock_movements
       await client.query(
         `INSERT INTO stock_movements (user_id, product_id, type, quantity,
          stock_before, stock_after, reference_type, created_via)
          VALUES ($1, $2, 'out', $3, $4, $5, 'cashier', 'system')`,
-        [userId, productId, qty, stockBefore, stockAfter]
+        [userId, productId, qty, stockBefore, stockAfter],
       );
 
       // 4. Insert transaction
@@ -228,8 +242,19 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
          price_sell, price_buy, profit, hpp)
          VALUES ($1, 'masuk', 'tunai', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING id`,
-        [userId, channel, omzet, description || `Penjualan ${qty} item`,
-         referenceType, productId, qty, sell, buy, profit, modal]
+        [
+          userId,
+          channel,
+          omzet,
+          description || `Penjualan ${qty} item`,
+          referenceType,
+          productId,
+          qty,
+          sell,
+          buy,
+          profit,
+          modal,
+        ],
       );
       const trxId = trx.rows[0].id;
 
@@ -238,7 +263,12 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
       if (bebanAdmin > 0) {
         revenueLines.push(
           { accountCode: '1101', debit: danaBersih, credit: 0, description: 'Penerimaan penjualan (bersih)' },
-          { accountCode: '6105', debit: bebanAdmin, credit: 0, description: `Beban admin ${channel} ${ch.adminFeePct}%` },
+          {
+            accountCode: '6105',
+            debit: bebanAdmin,
+            credit: 0,
+            description: `Beban admin ${channel} ${ch.adminFeePct}%`,
+          },
           { accountCode: ch.coaCode, debit: 0, credit: omzet, description: `Penjualan via ${channel}` },
         );
       } else {
@@ -295,7 +325,14 @@ async function recordExpense(opts: ExpenseOpts): Promise<RecordResult> {
         `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, reference_type, customer_name, beban_operasional)
          VALUES ($1, 'keluar', $2, 'Offline', $3, $4, 'manual', $5, $6)
          RETURNING id`,
-        [userId, statusBayar || 'tunai', amount, description || 'Pengeluaran', customerName || null, bebanOperasional || amount]
+        [
+          userId,
+          statusBayar || 'tunai',
+          amount,
+          description || 'Pengeluaran',
+          customerName || null,
+          bebanOperasional || amount,
+        ],
       );
       const trxId = trx.rows[0].id;
 
@@ -329,10 +366,10 @@ async function recordDamagedGoods(opts: DamagedGoodsOpts): Promise<RecordResult>
 
   try {
     return await withTransaction(async (client) => {
-      const prod = await client.query(
-        `SELECT stock_current FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
-        [productId, userId]
-      );
+      const prod = await client.query(`SELECT stock_current FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`, [
+        productId,
+        userId,
+      ]);
       if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
       const stockBefore = parseFloat(prod.rows[0].stock_current) || 0;
       if (stockBefore < qty) {
@@ -340,22 +377,23 @@ async function recordDamagedGoods(opts: DamagedGoodsOpts): Promise<RecordResult>
       }
 
       const stockAfter = stockBefore - qty;
-      await client.query(
-        `UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`,
-        [stockAfter, productId, userId]
-      );
+      await client.query(`UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`, [
+        stockAfter,
+        productId,
+        userId,
+      ]);
 
       await client.query(
         `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, created_via)
          VALUES ($1, $2, 'out', $3, $4, $5, 'damaged', 'system')`,
-        [userId, productId, qty, stockBefore, stockAfter]
+        [userId, productId, qty, stockBefore, stockAfter],
       );
 
       const trx = await client.query(
         `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, reference_type, product_id, quantity, price_buy, beban_operasional)
          VALUES ($1, 'keluar', 'tunai', 'Offline', $2, $3, 'manual', $4, $5, $6, $7)
          RETURNING id`,
-        [userId, loss, description || `Barang rusak/susut ${qty} item`, productId, qty, buy, loss]
+        [userId, loss, description || `Barang rusak/susut ${qty} item`, productId, qty, buy, loss],
       );
       const trxId = trx.rows[0].id;
 
@@ -378,16 +416,16 @@ async function recordDamagedGoods(opts: DamagedGoodsOpts): Promise<RecordResult>
 }
 
 const PEMBUKUAN_COA_MAP: Record<string, { debit: string; credit: string; label: string }> = {
-  beban_gaji:        { debit: '6101', credit: '1101', label: 'Beban Gaji' },
-  beban_sewa:        { debit: '6102', credit: '1101', label: 'Beban Sewa' },
+  beban_gaji: { debit: '6101', credit: '1101', label: 'Beban Gaji' },
+  beban_sewa: { debit: '6102', credit: '1101', label: 'Beban Sewa' },
   beban_listrik_air: { debit: '6103', credit: '1101', label: 'Beban Listrik & Air' },
-  beban_transport:   { debit: '6104', credit: '1101', label: 'Beban Transport' },
+  beban_transport: { debit: '6104', credit: '1101', label: 'Beban Transport' },
   beban_operasional: { debit: '6105', credit: '1101', label: 'Beban Operasional Lainnya' },
-  modal:             { debit: '1101', credit: '3101', label: 'Modal Pemilik' },
-  prive:             { debit: '3102', credit: '1101', label: 'Prive' },
-  piutang:           { debit: '1102', credit: '4101', label: 'Piutang Dagang' },
-  hutang_dagang:     { debit: '1201', credit: '2101', label: 'Hutang Dagang' },
-  hutang_lancar:     { debit: '6105', credit: '2101', label: 'Hutang Lancar' },
+  modal: { debit: '1101', credit: '3101', label: 'Modal Pemilik' },
+  prive: { debit: '3102', credit: '1101', label: 'Prive' },
+  piutang: { debit: '1102', credit: '4101', label: 'Piutang Dagang' },
+  hutang_dagang: { debit: '1201', credit: '2101', label: 'Hutang Dagang' },
+  hutang_lancar: { debit: '6105', credit: '2101', label: 'Hutang Lancar' },
 };
 
 async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
@@ -407,7 +445,7 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
   const creditCode = coaCredit || coaMap.credit;
 
   // Override credit account for piutang based on sales channel
-  const effectiveCredit = (tipe === 'piutang' && channel) ? (await resolveChannel(userId, channel)).coaCode : creditCode;
+  const effectiveCredit = tipe === 'piutang' && channel ? (await resolveChannel(userId, channel)).coaCode : creditCode;
 
   if (['piutang', 'hutang_dagang', 'hutang_lancar'].includes(tipe) && !customerName) {
     return { success: false, error: 'customerName is required for piutang/hutang' };
@@ -415,7 +453,12 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
 
   const lines = [
     { accountCode: debitCode, debit: Number(amount), credit: 0, description: coaMap ? coaMap.label : tipe },
-    { accountCode: effectiveCredit, debit: 0, credit: Number(amount), description: `Pembayaran ${coaMap ? coaMap.label : tipe}` },
+    {
+      accountCode: effectiveCredit,
+      debit: 0,
+      credit: Number(amount),
+      description: `Pembayaran ${coaMap ? coaMap.label : tipe}`,
+    },
   ];
 
   // Hutang dagang/lancar: journal only (no cash transaction)
@@ -433,7 +476,7 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
           await client.query(
             `INSERT INTO accounts_payable (user_id, nama_supplier, nominal_hutang, deskripsi, status_lunas)
              VALUES ($1, $2, $3, $4, false)`,
-            [userId, customerName || 'Unknown', Number(amount), description]
+            [userId, customerName || 'Unknown', Number(amount), description],
           );
         }
 
@@ -444,19 +487,21 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
     }
   }
 
-  const trxType = tipe.startsWith('beban') || tipe === 'prive' ? 'keluar'
-    : (tipe === 'modal' || tipe === 'piutang') ? 'masuk'
-    : 'keluar';
+  const trxType =
+    tipe.startsWith('beban') || tipe === 'prive'
+      ? 'keluar'
+      : tipe === 'modal' || tipe === 'piutang'
+        ? 'masuk'
+        : 'keluar';
 
-  const trxRefType = tipe === 'modal' ? 'modal'
-    : tipe === 'piutang' ? 'receivable'
-    : 'pembukuan';
+  const trxRefType = tipe === 'modal' ? 'modal' : tipe === 'piutang' ? 'receivable' : 'pembukuan';
 
-  const trxDesc = customerName && tipe === 'piutang'
-    ? `${description} (Customer: ${customerName})`
-    : customerName
-      ? `${description} — ${customerName}`
-      : description;
+  const trxDesc =
+    customerName && tipe === 'piutang'
+      ? `${description} (Customer: ${customerName})`
+      : customerName
+        ? `${description} — ${customerName}`
+        : description;
 
   try {
     return await withTransaction(async (client) => {
@@ -469,7 +514,7 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
         `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, reference_type, customer_name)
          VALUES ($1, $2, 'tunai', $3, $4, $5, $6, $7)
          RETURNING id`,
-        [userId, trxType, channel || 'Offline', Number(amount), trxDesc, trxRefType, customerName || null]
+        [userId, trxType, channel || 'Offline', Number(amount), trxDesc, trxRefType, customerName || null],
       );
       const trxId = trx.rows[0].id;
 
@@ -485,7 +530,7 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
         await client.query(
           `INSERT INTO debts (user_id, transaction_id, nama_pelanggan, nominal_piutang, status_lunas)
            VALUES ($1, $2, $3, $4, false)`,
-          [userId, trxId, customerName || 'Unknown', Number(amount)]
+          [userId, trxId, customerName || 'Unknown', Number(amount)],
         );
       }
 
@@ -497,8 +542,12 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
 }
 
 async function recordTransactionWithJournal(
-  userId: string, type: string, amount: number,
-  description: string, productId?: string, demoCheck?: boolean
+  userId: string,
+  type: string,
+  amount: number,
+  description: string,
+  productId?: string,
+  demoCheck?: boolean,
 ): Promise<RecordResult> {
   if (!userId) return { success: false, error: 'userId is required' };
   if (!type) return { success: false, error: 'type is required' };
@@ -511,7 +560,7 @@ async function recordTransactionWithJournal(
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1::text))', [userId]);
         const countRes = await client.query(
           `SELECT COUNT(*) AS cnt FROM transactions WHERE user_id = $1 AND created_at >= CURRENT_DATE`,
-          [userId]
+          [userId],
         );
         if (parseInt(countRes.rows[0].cnt, 10) >= 5) {
           throw new Error('Limit harian demo habis');
@@ -527,7 +576,7 @@ async function recordTransactionWithJournal(
         `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, product_id, reference_type)
          VALUES ($1, $2, 'tunai', 'Offline', $3, $4, $5, 'manual')
          RETURNING id`,
-        [userId, type, amount, description || '', productId || null]
+        [userId, type, amount, description || '', productId || null],
       );
       const trxId = trx.rows[0].id;
 
@@ -578,33 +627,39 @@ async function recordStockAdjustment(opts: {
     return await withTransaction(async (client) => {
       const prod = await client.query(
         `SELECT id, name, stock_current, stock_min, unit, price_buy, price_sell FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
-        [productId, userId]
+        [productId, userId],
       );
       if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
       const p = prod.rows[0];
       const stockBefore = parseFloat(p.stock_current) || 0;
       const stockAfter = type === 'in' ? stockBefore + quantity : stockBefore - quantity;
       if (stockAfter < 0) throw new Error(`Stok tidak cukup. Stok saat ini: ${stockBefore} ${p.unit}`);
-      await client.query(
-        `UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`,
-        [stockAfter, productId, userId]
-      );
+      await client.query(`UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`, [
+        stockAfter,
+        productId,
+        userId,
+      ]);
       const mov = await client.query(
         `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_via)
          VALUES ($1, $2, $3, $4, $5, $6, 'manual', $7, 'whatsapp')
          RETURNING id`,
-        [userId, productId, type, quantity, stockBefore, stockAfter, note || null]
+        [userId, productId, type, quantity, stockBefore, stockAfter, note || null],
       );
       const movId = mov.rows[0].id;
       if (type === 'in') {
         const buyPrice = unitPrice || parseFloat(p.price_buy) || 0;
         const totalValue = quantity * buyPrice;
         if (unitPrice || parseFloat(p.price_buy) > 0) {
-          await client.query(`UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`, [buyPrice, totalValue, movId]);
+          await client.query(`UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`, [
+            buyPrice,
+            totalValue,
+            movId,
+          ]);
         }
         if (totalValue > 0) {
           await accountingEngine.insertJournalViaClient(client, userId, {
-            referenceType: 'stock_in', referenceId: String(movId),
+            referenceType: 'stock_in',
+            referenceId: String(movId),
             description: `Stok Masuk ${quantity} ${p.unit}: ${p.name}`,
             lines: [
               { accountCode: '1201', debit: totalValue, credit: 0, description: 'Penambahan inventori' },
@@ -622,14 +677,23 @@ async function recordStockAdjustment(opts: {
         const danaBersih = omzet - bebanAdmin;
 
         if (sellPrice > 0) {
-          await client.query(`UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`, [sellPrice, omzet, movId]);
+          await client.query(`UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`, [
+            sellPrice,
+            omzet,
+            movId,
+          ]);
         }
         if (modal > 0) {
           const lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [];
           if (bebanAdmin > 0) {
             lines.push(
               { accountCode: '1101', debit: danaBersih, credit: 0, description: 'Penerimaan penjualan (bersih)' },
-              { accountCode: '6105', debit: bebanAdmin, credit: 0, description: `Beban admin ${channel} ${ch.adminFeePct}%` },
+              {
+                accountCode: '6105',
+                debit: bebanAdmin,
+                credit: 0,
+                description: `Beban admin ${channel} ${ch.adminFeePct}%`,
+              },
               { accountCode: ch.coaCode, debit: 0, credit: omzet, description: `Penjualan via ${channel}` },
             );
           } else {
@@ -643,7 +707,8 @@ async function recordStockAdjustment(opts: {
             { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
           );
           await accountingEngine.insertJournalViaClient(client, userId, {
-            referenceType: 'stock_out', referenceId: String(movId),
+            referenceType: 'stock_out',
+            referenceId: String(movId),
             description: `Penjualan ${quantity} ${p.unit}: ${p.name}`,
             lines,
           });

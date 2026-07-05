@@ -1,9 +1,6 @@
 const BASE = '';
 
-async function request<T>(
-  url: string,
-  options?: RequestInit,
-): Promise<T> {
+async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
     credentials: 'include',
     ...options,
@@ -46,11 +43,7 @@ export const api = {
   },
 };
 
-async function stockRequest<T>(
-  url: string,
-  token: string,
-  options?: RequestInit,
-): Promise<T> {
+async function stockRequest<T>(url: string, token: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
     credentials: 'include',
     ...options,

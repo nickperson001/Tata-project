@@ -6,8 +6,12 @@ import os from 'os';
 
 let HfInference: any = null;
 let vision: any = null;
-try { HfInference = require('@huggingface/inference').HfInference; } catch { }
-try { vision = require('@google-cloud/vision'); } catch { }
+try {
+  HfInference = require('@huggingface/inference').HfInference;
+} catch {}
+try {
+  vision = require('@google-cloud/vision');
+} catch {}
 
 const CONFIG = {
   tmpDir: os.tmpdir(),
@@ -17,19 +21,24 @@ const CONFIG = {
     model: 'openai/whisper-large-v3',
     language: 'id',
     supportedMimes: [
-      'audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/aac',
-      'audio/wav', 'audio/webm', 'audio/opus', 'audio/x-m4a',
-      'audio/3gp', 'audio/amr', 'video/ogg',
+      'audio/ogg',
+      'audio/mpeg',
+      'audio/mp4',
+      'audio/aac',
+      'audio/wav',
+      'audio/webm',
+      'audio/opus',
+      'audio/x-m4a',
+      'audio/3gp',
+      'audio/amr',
+      'video/ogg',
     ],
   },
   image: {
     maxSizeBytes: 8 * 1024 * 1024,
     timeoutMs: 30_000,
     minTextLength: 5,
-    supportedMimes: [
-      'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-      'image/gif', 'image/bmp', 'image/tiff',
-    ],
+    supportedMimes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff'],
   },
 };
 
@@ -43,24 +52,31 @@ function getHFClient() {
 
 let _visionClient: any = null;
 function getVisionClient() {
-  if (!vision) throw new Error('Package @google-cloud/vision tidak terinstall. Jalankan: npm install @google-cloud/vision');
+  if (!vision)
+    throw new Error('Package @google-cloud/vision tidak terinstall. Jalankan: npm install @google-cloud/vision');
   if (!_visionClient) {
     if (process.env.GOOGLE_VISION_CREDENTIALS_JSON) {
       try {
         const credentials = JSON.parse(process.env.GOOGLE_VISION_CREDENTIALS_JSON);
         _visionClient = new vision.ImageAnnotatorClient({ credentials });
         return _visionClient;
-      } catch { throw new Error('Format GOOGLE_VISION_CREDENTIALS_JSON tidak valid atau rusak.'); }
+      } catch {
+        throw new Error('Format GOOGLE_VISION_CREDENTIALS_JSON tidak valid atau rusak.');
+      }
     }
     if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      throw new Error('Kredensial Google Vision tidak ditemukan. Set GOOGLE_APPLICATION_CREDENTIALS (path file) atau GOOGLE_VISION_CREDENTIALS_JSON (isi teks JSON).');
+      throw new Error(
+        'Kredensial Google Vision tidak ditemukan. Set GOOGLE_APPLICATION_CREDENTIALS (path file) atau GOOGLE_VISION_CREDENTIALS_JSON (isi teks JSON).',
+      );
     }
     _visionClient = new vision.ImageAnnotatorClient();
   }
   return _visionClient;
 }
 
-try { if (!fsSync.existsSync(CONFIG.tmpDir)) fsSync.mkdirSync(CONFIG.tmpDir, { recursive: true }); } catch { }
+try {
+  if (!fsSync.existsSync(CONFIG.tmpDir)) fsSync.mkdirSync(CONFIG.tmpDir, { recursive: true });
+} catch {}
 
 function base64SizeBytes(b64: string): number {
   if (!b64) return 0;
@@ -74,15 +90,15 @@ function tmpFilePath(ext: string): string {
 
 async function cleanupFile(filePath: string): Promise<void> {
   if (!filePath) return;
-  try { await fs.unlink(filePath); } catch { }
+  try {
+    await fs.unlink(filePath);
+  } catch {}
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout (${ms / 1000}s) saat ${label}`)), ms)
-    ),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timeout (${ms / 1000}s) saat ${label}`)), ms)),
   ]);
 }
 
@@ -122,9 +138,15 @@ function validateAudio(mediaObj: MediaObj): ValidationResult {
   if (sizeBytes < 100) return { valid: false, error: 'Audio terlalu pendek atau kosong.' };
 
   const extMap: Record<string, string> = {
-    'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac',
-    'audio/wav': 'wav', 'audio/webm': 'webm', 'audio/ogg': 'ogg',
-    'audio/opus': 'ogg', 'audio/x-m4a': 'm4a', 'video/ogg': 'ogg',
+    'audio/mpeg': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/aac': 'aac',
+    'audio/wav': 'wav',
+    'audio/webm': 'webm',
+    'audio/ogg': 'ogg',
+    'audio/opus': 'ogg',
+    'audio/x-m4a': 'm4a',
+    'video/ogg': 'ogg',
   };
   const ext = extMap[mime] || 'ogg';
 
@@ -189,10 +211,32 @@ function detectTransactionInText(text: string): { hasTransaction: boolean; confi
   const hasNumber = /\d{3,}/.test(text);
   if (hasNumber) score += 30;
 
-  const finWords = ['rp', 'total', 'bayar', 'harga', 'jual', 'beli', 'masuk', 'keluar',
-    'tunai', 'cash', 'transfer', 'debit', 'kredit', 'kembalian', 'jumlah',
-    'subtotal', 'diskon', 'pajak', 'ppn', 'nota', 'struk', 'receipt', 'invoice'];
-  const wordHits = finWords.filter(w => lower.includes(w)).length;
+  const finWords = [
+    'rp',
+    'total',
+    'bayar',
+    'harga',
+    'jual',
+    'beli',
+    'masuk',
+    'keluar',
+    'tunai',
+    'cash',
+    'transfer',
+    'debit',
+    'kredit',
+    'kembalian',
+    'jumlah',
+    'subtotal',
+    'diskon',
+    'pajak',
+    'ppn',
+    'nota',
+    'struk',
+    'receipt',
+    'invoice',
+  ];
+  const wordHits = finWords.filter((w) => lower.includes(w)).length;
   score += wordHits * 10;
 
   if (/rp\s*[\d.,]+/i.test(text)) score += 25;
@@ -202,8 +246,13 @@ function detectTransactionInText(text: string): { hasTransaction: boolean; confi
 }
 
 async function transcribeAudio(mediaObj: MediaObj): Promise<{
-  success: boolean; text: string; error: string | null; source: string;
-  rawText?: string; hasTransaction?: boolean; confidence?: number;
+  success: boolean;
+  text: string;
+  error: string | null;
+  source: string;
+  rawText?: string;
+  hasTransaction?: boolean;
+  confidence?: number;
 }> {
   const ctx = 'AUDIO';
   const validation = validateAudio(mediaObj);
@@ -214,12 +263,19 @@ async function transcribeAudio(mediaObj: MediaObj): Promise<{
   }
 
   const { sizeBytes, ext, mime } = validation;
-  log('info', ctx, 'Mulai transkrip', { sizeKB: Math.round((sizeBytes!) / 1024), mime });
+  log('info', ctx, 'Mulai transkrip', { sizeKB: Math.round(sizeBytes! / 1024), mime });
 
   let hf;
-  try { hf = getHFClient(); } catch (err: any) {
+  try {
+    hf = getHFClient();
+  } catch (err: any) {
     log('error', ctx, 'HF client gagal', { error: err.message });
-    return { success: false, text: '', error: 'Fitur voice note tidak tersedia (HF_TOKEN belum diset).', source: 'audio' };
+    return {
+      success: false,
+      text: '',
+      error: 'Fitur voice note tidak tersedia (HF_TOKEN belum diset).',
+      source: 'audio',
+    };
   }
 
   const filePath = tmpFilePath(ext!);
@@ -236,7 +292,7 @@ async function transcribeAudio(mediaObj: MediaObj): Promise<{
         parameters: { language: CONFIG.audio.language },
       }),
       CONFIG.audio.timeoutMs,
-      'Whisper transcription'
+      'Whisper transcription',
     );
 
     const raw = result?.text || '';
@@ -244,16 +300,25 @@ async function transcribeAudio(mediaObj: MediaObj): Promise<{
 
     if (!clean || clean.length < 2) {
       log('warn', ctx, 'Hasil transcribe kosong');
-      return { success: false, text: '', error: 'Suara tidak terdeteksi atau terlalu pendek. Coba kirim ulang dengan lebih jelas.', source: 'audio' };
+      return {
+        success: false,
+        text: '',
+        error: 'Suara tidak terdeteksi atau terlalu pendek. Coba kirim ulang dengan lebih jelas.',
+        source: 'audio',
+      };
     }
 
     const detection = detectTransactionInText(clean);
     log('info', ctx, 'Transcribe berhasil', { length: clean.length, confidence: detection.confidence });
 
     return {
-      success: true, text: clean, rawText: raw,
-      hasTransaction: detection.hasTransaction, confidence: detection.confidence,
-      source: 'audio', error: null,
+      success: true,
+      text: clean,
+      rawText: raw,
+      hasTransaction: detection.hasTransaction,
+      confidence: detection.confidence,
+      source: 'audio',
+      error: null,
     };
   } catch (err: any) {
     const isTimeout = err.message.includes('Timeout');
@@ -268,8 +333,14 @@ async function transcribeAudio(mediaObj: MediaObj): Promise<{
 }
 
 async function extractTextFromImage(mediaObj: MediaObj): Promise<{
-  success: boolean; text: string; error: string | null; source: string;
-  hasTransaction?: boolean; confidence?: number; ocrConfidence?: number; chain?: string;
+  success: boolean;
+  text: string;
+  error: string | null;
+  source: string;
+  hasTransaction?: boolean;
+  confidence?: number;
+  ocrConfidence?: number;
+  chain?: string;
 }> {
   const ctx = 'IMAGE-OCR';
   const validation = validateImage(mediaObj);
@@ -280,13 +351,15 @@ async function extractTextFromImage(mediaObj: MediaObj): Promise<{
   }
 
   let visionClient;
-  try { visionClient = getVisionClient(); } catch (err: any) {
+  try {
+    visionClient = getVisionClient();
+  } catch (err: any) {
     log('error', ctx, 'Vision client gagal', { error: err.message });
     return { success: false, text: '', error: `Fitur scan struk tidak tersedia: ${err.message}`, source: 'image' };
   }
 
   const { sizeBytes, mime } = validation;
-  log('info', ctx, 'Mulai OCR (Google Vision)', { sizeKB: Math.round((sizeBytes!) / 1024), mime });
+  log('info', ctx, 'Mulai OCR (Google Vision)', { sizeKB: Math.round(sizeBytes! / 1024), mime });
 
   try {
     const imageBuffer = Buffer.from(mediaObj.data, 'base64');
@@ -294,7 +367,7 @@ async function extractTextFromImage(mediaObj: MediaObj): Promise<{
     const [result] = await withTimeout<any[]>(
       visionClient.textDetection({ image: { content: imageBuffer } }),
       CONFIG.image.timeoutMs,
-      'Google Vision OCR'
+      'Google Vision OCR',
     );
 
     if (result.error) {
@@ -307,7 +380,12 @@ async function extractTextFromImage(mediaObj: MediaObj): Promise<{
 
     if (!clean || clean.length < CONFIG.image.minTextLength) {
       log('warn', ctx, 'Tidak ada teks terdeteksi oleh Vision API');
-      return { success: false, text: '', error: 'Tidak ada teks terdeteksi di gambar. Pastikan foto struk cukup terang dan tidak buram.', source: 'image' };
+      return {
+        success: false,
+        text: '',
+        error: 'Tidak ada teks terdeteksi di gambar. Pastikan foto struk cukup terang dan tidak buram.',
+        source: 'image',
+      };
     }
 
     const detection = detectTransactionInText(clean);
@@ -315,21 +393,34 @@ async function extractTextFromImage(mediaObj: MediaObj): Promise<{
     let visionConfidence = 0;
     const pages = result.fullTextAnnotation?.pages || [];
     if (pages.length > 0) {
-      let totalConf = 0, blockCount = 0;
+      let totalConf = 0,
+        blockCount = 0;
       for (const page of pages) {
-        for (const block of (page.blocks || [])) {
-          if (block.confidence !== undefined) { totalConf += block.confidence; blockCount++; }
+        for (const block of page.blocks || []) {
+          if (block.confidence !== undefined) {
+            totalConf += block.confidence;
+            blockCount++;
+          }
         }
       }
       visionConfidence = blockCount > 0 ? Math.round((totalConf / blockCount) * 100) : 0;
     }
 
-    log('info', ctx, 'OCR selesai (Google Vision)', { len: clean.length, visionConf: visionConfidence, txConf: detection.confidence });
+    log('info', ctx, 'OCR selesai (Google Vision)', {
+      len: clean.length,
+      visionConf: visionConfidence,
+      txConf: detection.confidence,
+    });
 
     return {
-      success: true, text: clean, hasTransaction: detection.hasTransaction,
-      confidence: detection.confidence, ocrConfidence: visionConfidence,
-      chain: 'google-vision', source: 'image', error: null,
+      success: true,
+      text: clean,
+      hasTransaction: detection.hasTransaction,
+      confidence: detection.confidence,
+      ocrConfidence: visionConfidence,
+      chain: 'google-vision',
+      source: 'image',
+      error: null,
     };
   } catch (err: any) {
     const isTimeout = err.message.includes('Timeout');

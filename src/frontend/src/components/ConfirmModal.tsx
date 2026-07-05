@@ -2,29 +2,50 @@ import { Modal } from './Modal';
 
 interface ConfirmModalProps {
   open: boolean;
-  title: string;
-  message: string;
+  onClose?: () => void;
+  onConfirm: () => void;
+  onCancel?: () => void;
+  title?: string;
+  message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
+  loading?: boolean;
 }
 
-export function ConfirmModal({ open, title, message, confirmLabel = 'Yakin', cancelLabel = 'Batal', danger, onConfirm, onCancel }: ConfirmModalProps) {
+export function ConfirmModal({
+  open, onClose, onConfirm, onCancel,
+  title = 'Konfirmasi',
+  message = 'Apakah Anda yakin ingin melanjutkan?',
+  confirmLabel = 'Ya',
+  cancelLabel = 'Batal',
+  danger, loading,
+}: ConfirmModalProps) {
+  const handleClose = onCancel || onClose || (() => {});
+
   return (
     <Modal
       open={open}
-      onClose={onCancel}
+      onClose={handleClose}
       title={title}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onCancel}>{cancelLabel}</button>
-          <button className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`} onClick={onConfirm}>{confirmLabel}</button>
+          <button className="btn btn-secondary" onClick={handleClose} disabled={loading}>
+            {cancelLabel}
+          </button>
+          <button
+            className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`}
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? 'Memproses...' : confirmLabel}
+          </button>
         </>
       }
     >
-      <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>{message}</p>
+      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+        {message}
+      </p>
     </Modal>
   );
 }

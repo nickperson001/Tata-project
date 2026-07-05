@@ -39,9 +39,9 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom', 'zustand'],
           charts: ['chart.js', 'react-chartjs-2'],
-          scanner: ['html5-qrcode']
-        }
-      }
-    }
+          scanner: ['html5-qrcode'],
+        },
+      },
+    },
   },
 });

@@ -23,7 +23,10 @@ export function useStockToken(): { token: string | null; isLoading: boolean } {
           localStorage.removeItem('tbs_token');
           setToken('');
         })
-        .finally(() => { setLoading(false); setDone(true); });
+        .finally(() => {
+          setLoading(false);
+          setDone(true);
+        });
     } else {
       setLoading(false);
       setDone(true);

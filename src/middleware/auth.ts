@@ -1,16 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
+import { sanitizeError } from '../utils/errors';
 
-export function sanitizeError(err: unknown): string {
-  let msg =
-    typeof err === 'string' ? err : err && typeof err === 'object' && 'message' in err
-      ? String((err as Error).message)
-      : String(err);
-  if (msg.indexOf('<!DOCTYPE') >= 0 || msg.indexOf('<html') >= 0 || msg.indexOf('Cloudflare') >= 0) {
-    return '[SUPABASE ERROR] API Down / Cloudflare 521 (HTML response received)';
-  }
-  if (msg.length > 500) return msg.substring(0, 500) + '...';
-  return msg;
-}
+export { sanitizeError };
 
 export function isAdmin(req: Request, res: Response, next: NextFunction): void {
   if (req.session && (req.session as any).authenticated) {
@@ -26,11 +17,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   res.redirect('/login');
 }
 
-export async function stockAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
+export async function stockAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const supabase = req.app.get('supabase');
   if (!supabase) {
     next();

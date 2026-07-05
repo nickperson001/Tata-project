@@ -3,10 +3,29 @@ import type { Message, Client } from 'whatsapp-web.js';
 import type { MessageHandler } from './types';
 
 const HELP_KEYWORDS = [
-  'bantuan', 'menu', 'help', 'cara', 'panduan', 'petunjuk',
-  '?', 'tutorial', 'tolong', 'tanya', 'nanya',
-  'bingung', 'gimana', 'caranya', 'bagaimana', 'how',
-  'halo', 'hai', 'selamat', 'ping', 'test', 'coba', 'tes',
+  'bantuan',
+  'menu',
+  'help',
+  'cara',
+  'panduan',
+  'petunjuk',
+  '?',
+  'tutorial',
+  'tolong',
+  'tanya',
+  'nanya',
+  'bingung',
+  'gimana',
+  'caranya',
+  'bagaimana',
+  'how',
+  'halo',
+  'hai',
+  'selamat',
+  'ping',
+  'test',
+  'coba',
+  'tes',
 ];
 
 @injectable()

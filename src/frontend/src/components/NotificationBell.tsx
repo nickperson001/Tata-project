@@ -12,16 +12,18 @@ export function NotificationBell() {
 
   useEffect(() => {
     if (!token) return;
+    let cancelled = false;
+    const currentToken: string = token;
     function fetchAlerts() {
-      stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', token).then((res) => {
+      stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', currentToken).then((res) => {
         if (res.data?.alerts) {
           useNotificationStore.getState().setAlerts(res.data.alerts);
         }
-      }).catch((err) => console.error('[NotificationBell] Fetch alerts gagal', err));
+      }).catch((err) => { if (!cancelled) console.error('[NotificationBell] Fetch alerts gagal', err); });
     }
     fetchAlerts();
     const interval = setInterval(fetchAlerts, 30_000);
-    return () => clearInterval(interval);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [token]);
 
   useEffect(() => {
@@ -39,29 +41,41 @@ export function NotificationBell() {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="btn btn-ghost btn-sm" onClick={() => { setOpen(!open); markAllRead(); }}>
+      <button
+        className="btn btn-ghost btn-sm"
+        onClick={() => { setOpen(!open); markAllRead(); }}
+        aria-label={`Notifikasi${unreadCount > 0 ? ` (${unreadCount} belum dibaca)` : ''}`}
+        aria-expanded={open}
+      >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span style={{
-            position: 'absolute', top: -2, right: -2,
-            background: 'var(--danger)', color: '#fff',
-            fontSize: '0.65rem', fontWeight: 700,
-            width: 16, height: 16, borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
+          <span
+            style={{
+              position: 'absolute', top: -2, right: -2,
+              background: 'var(--danger)', color: '#fff',
+              fontSize: '0.65rem', fontWeight: 700,
+              width: 16, height: 16, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            aria-hidden="true"
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div style={{
-          position: 'absolute', right: 0, top: '100%', marginTop: 4,
-          width: 320, maxHeight: 400, overflowY: 'auto',
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-          borderRadius: 8, boxShadow: '0 4px 24px rgba(0,0,0,.15)',
-          zIndex: 1000,
-        }}>
+        <div
+          role="menu"
+          aria-label="Daftar notifikasi"
+          style={{
+            position: 'absolute', right: 0, top: '100%', marginTop: 4,
+            width: 320, maxHeight: 400, overflowY: 'auto',
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 8, boxShadow: '0 4px 24px rgba(0,0,0,.15)',
+            zIndex: 1000,
+          }}
+        >
           <div style={{ padding: '0.5rem 0.75rem', fontWeight: 700, borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}>
             Notifikasi
           </div>
@@ -71,7 +85,7 @@ export function NotificationBell() {
             </div>
           ) : (
             displayAlerts.map((alert) => (
-              <div key={alert.id} style={{
+              <div key={alert.id} role="menuitem" style={{
                 padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border)',
                 fontSize: '0.8rem',
               }}>

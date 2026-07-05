@@ -5,6 +5,7 @@ import { useStockToken } from '../../hooks/useStockToken';
 import { useStockStore } from '../../store/stockStore';
 import { NotificationBell } from '../../components/NotificationBell';
 import { UserMenu } from '../../components/UserMenu';
+import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 import { StockSidebar, getNavGroups, isActive } from './StockSidebar';
 import { ChatbotWidget } from './ChatbotWidget';
 import { StockLogin } from './StockLogin';
@@ -49,16 +50,19 @@ export function StockLayout() {
     if (!user?.id) return;
     userIdRef.current = user.id;
     getSocket().emit('register_user', user.id);
-    const handler = (data: { userId: string; productId: string; alertType: string; stockLevel: number }) => {
-      if (userIdRef.current !== data.userId) return;
-      const label = data.alertType === 'out_of_stock' ? 'Stok Habis' : 'Stok Menipis';
-      toast.error(`${label} — Produk #${data.productId} (${data.stockLevel} tersisa)`, { duration: 5000 });
-      stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', token).then((res) => {
-        if (res.data?.alerts) {
-          useNotificationStore.getState().setAlerts(res.data.alerts);
+      const handler = (data: { userId: string; productId: string; alertType: string; stockLevel: number }) => {
+        if (userIdRef.current !== data.userId) return;
+        const label = data.alertType === 'out_of_stock' ? 'Stok Habis' : 'Stok Menipis';
+        toast.error(`${label} — Produk #${data.productId} (${data.stockLevel} tersisa)`, { duration: 5000 });
+        const currentToken = token;
+        if (currentToken) {
+          stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', currentToken).then((res) => {
+            if (res.data?.alerts) {
+              useNotificationStore.getState().setAlerts(res.data.alerts);
+            }
+          }).catch(() => {});
         }
-      }).catch(() => {});
-    };
+      };
     getSocket().on('stock_alert', handler);
     return () => { getSocket().off('stock_alert', handler); };
   }, [user?.id]);
@@ -93,6 +97,7 @@ export function StockLayout() {
             {user && <span className="topbar-store">— {user.store_name}</span>}
           </div>
           <div className="topbar-right">
+            <LanguageSwitcher />
             <NotificationBell />
             <UserMenu />
           </div>

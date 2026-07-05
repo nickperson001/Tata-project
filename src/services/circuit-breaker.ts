@@ -29,7 +29,10 @@ function circuitRecordFailure(): void {
   if (c.failures >= CIRCUIT_FAILURE_THRESHOLD && c.state !== 'OPEN') {
     c.state = 'OPEN';
     c.openedAt = Date.now();
-    addLog('warn', `[CIRCUIT] OPEN — ${c.failures} consecutive DB failures. Cooling down ${CIRCUIT_COOLDOWN_MS / 1000}s.`);
+    addLog(
+      'warn',
+      `[CIRCUIT] OPEN — ${c.failures} consecutive DB failures. Cooling down ${CIRCUIT_COOLDOWN_MS / 1000}s.`,
+    );
   }
 }
 

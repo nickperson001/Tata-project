@@ -31,14 +31,28 @@ if (dbUrl) {
     if (!connUrl.includes('?')) connUrl += '?pgbouncer=true';
     else if (!connUrl.includes('pgbouncer=true')) connUrl += '&pgbouncer=true';
   }
+  const poolMax = Math.min(50, Math.max(2, parseInt(process.env.DB_POOL_MAX || '20', 10)));
   pgPool = new Pool({
     connectionString: connUrl,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    max: 2,
+    max: poolMax,
     connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    query_timeout: 15000,
+    statement_timeout: 10000,
+    allowExitOnIdle: false,
   });
   pgPool.on('error', (err: Error) => console.error('[DB POOL] Error:', err.message));
-  console.log('[CONFIG] Direct pg pool siap.');
+  pgPool.on('acquire', (_client: any) => {
+    const poolSize = pgPool?.totalCount ?? 0;
+    if (poolSize > poolMax * 0.8) {
+      console.warn(`[DB POOL] Near capacity: ${poolSize}/${poolMax}`);
+    }
+  });
+  setInterval(() => {
+    pgPool?.query('SELECT 1').catch((err: Error) => console.error('[DB POOL] Health check fail:', err.message));
+  }, 60000).unref();
+  console.log(`[CONFIG] Direct pg pool siap. Max: ${poolMax} koneksi.`);
 } else {
   console.log('[CONFIG] DATABASE_URL tidak tersedia — pg pool tidak dibuat.');
 }

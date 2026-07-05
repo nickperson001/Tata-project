@@ -27,7 +27,10 @@ export function buildSessionMiddleware(): RequestHandler {
 
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret === 'tbs-secret-32chars-ganti-ini!') {
-    addLog('warn', '[SECURITY] SESSION_SECRET menggunakan default! Set SESSION_SECRET minimal 32 karakter random di .env');
+    addLog(
+      'warn',
+      '[SECURITY] SESSION_SECRET menggunakan default! Set SESSION_SECRET minimal 32 karakter random di .env',
+    );
   }
 
   const base: session.SessionOptions = {
@@ -38,7 +41,7 @@ export function buildSessionMiddleware(): RequestHandler {
     cookie: {
       secure: isCloud,
       httpOnly: true,
-      sameSite: isCloud ? 'none' as const : 'lax' as const,
+      sameSite: isCloud ? ('none' as const) : ('lax' as const),
     },
   };
 

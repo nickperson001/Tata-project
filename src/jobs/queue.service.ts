@@ -14,10 +14,8 @@ export class QueueService {
   private redisAvailable = false;
   private logger: ILogger;
 
-  constructor(
-    @inject(TOKENS.Logger) logger?: ILogger,
-  ) {
-    this.logger = logger || console as unknown as ILogger;
+  constructor(@inject(TOKENS.Logger) logger?: ILogger) {
+    this.logger = logger || (console as unknown as ILogger);
   }
 
   register(jobs: JobDefinition[]): void {

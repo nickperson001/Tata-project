@@ -4,11 +4,19 @@ function parseCurrency(text: string): number | null {
   if (!text || typeof text !== 'string') return null;
   let clean = text.toLowerCase().trim();
 
-  if (/\d+(kg|gr|gram|ons|liter|lt|ml|cc|buah|biji|bungkus|pack|pcs|box|krat|karton|dus|sak|meter|cm|mm|menit|jam|hari|minggu|bulan|tahun|orang|org|lembar|rim|roll|set|pasang|ton)$/i.test(clean)) {
+  if (
+    /\d+(kg|gr|gram|ons|liter|lt|ml|cc|buah|biji|bungkus|pack|pcs|box|krat|karton|dus|sak|meter|cm|mm|menit|jam|hari|minggu|bulan|tahun|orang|org|lembar|rim|roll|set|pasang|ton)$/i.test(
+      clean,
+    )
+  ) {
     return null;
   }
 
-  clean = clean.replace(/^rp\.?\s*/i, '').replace(/^[:\s]+/, '').replace(/[:\s]+$/, '').trim();
+  clean = clean
+    .replace(/^rp\.?\s*/i, '')
+    .replace(/^[:\s]+/, '')
+    .replace(/[:\s]+$/, '')
+    .trim();
 
   let multiplier = 1;
 
@@ -65,7 +73,9 @@ function parseQuantity(text: string): number | null {
   if (!text || typeof text !== 'string') return null;
   const clean = text.toLowerCase().trim();
 
-  const match = clean.match(/^(\d+(?:[.,]\d+)?)(kg|gr|gram|liter|ml|buah|biji|bungkus|pack|pcs|box|dus|karton|sak|meter|cm|mm)?$/i);
+  const match = clean.match(
+    /^(\d+(?:[.,]\d+)?)(kg|gr|gram|liter|ml|buah|biji|bungkus|pack|pcs|box|dus|karton|sak|meter|cm|mm)?$/i,
+  );
   if (!match) return null;
 
   const num = parseFloat(match[1].replace(',', '.'));
@@ -87,9 +97,11 @@ function formatRupiah(amount: number): string {
 async function getDailyTransactionCount(userId: string): Promise<number> {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  const { count, error } = await supabase
-    .from('transactions').select('*', { count: 'exact', head: true })
-    .eq('user_id', userId).gte('created_at', start.toISOString()) as any;
+  const { count, error } = (await supabase
+    .from('transactions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', start.toISOString())) as any;
   if (error) throw new Error(`DB count error: ${error.message}`);
   return count ?? 0;
 }
@@ -123,9 +135,20 @@ function buildStatusMessage(user: UserInfo, effectiveStatus: string, sender: str
   } else {
     statusBlock = `\uD83C\uDFAF *Status:* \uD83D\uDC8E UNLIMITED SELAMANYA`;
   }
-  return `\u2139\uFE0F *INFO AKUN - ${(user.store_name || '').toUpperCase()}*\n\n` +
+  return (
+    `\u2139\uFE0F *INFO AKUN - ${(user.store_name || '').toUpperCase()}*\n\n` +
     `\uD83C\uDFEA *Toko:* ${user.store_name}\n` +
-    `\uD83D\uDCF1 *WhatsApp:* ${formatPhone(sender)}\n\n---\n\n${statusBlock}\n\n---`;
+    `\uD83D\uDCF1 *WhatsApp:* ${formatPhone(sender)}\n\n---\n\n${statusBlock}\n\n---`
+  );
 }
 
-export { parseCurrency, parseQuantity, formatPhone, formatRupiah, getDailyTransactionCount, getEffectiveStatus, getDaysRemaining, buildStatusMessage };
+export {
+  parseCurrency,
+  parseQuantity,
+  formatPhone,
+  formatRupiah,
+  getDailyTransactionCount,
+  getEffectiveStatus,
+  getDaysRemaining,
+  buildStatusMessage,
+};

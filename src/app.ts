@@ -11,8 +11,12 @@ import apiRoutes from './routes/api';
 
 const originalMkdirSync = fs.mkdirSync;
 fs.mkdirSync = function (this: any, p: any, options?: any) {
-  try { return originalMkdirSync.apply(this, arguments as any); }
-  catch (err: any) { if (err.code === 'EEXIST') return p; throw err; }
+  try {
+    return originalMkdirSync.apply(this, arguments as any);
+  } catch (err: any) {
+    if (err.code === 'EEXIST') return p;
+    throw err;
+  }
 } as typeof fs.mkdirSync;
 
 const app = express();

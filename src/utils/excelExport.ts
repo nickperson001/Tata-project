@@ -20,7 +20,7 @@ export async function generateExcel(sheets: SheetDef[], filename: string): Promi
   for (const sheet of sheets) {
     const ws = wb.addWorksheet(sheet.name, { properties: { tabColor: { argb: 'FF10B981' } } });
 
-    ws.columns = sheet.columns.map(c => ({
+    ws.columns = sheet.columns.map((c) => ({
       header: c.header,
       key: c.key,
       width: c.width || 18,

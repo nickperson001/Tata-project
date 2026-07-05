@@ -12,11 +12,7 @@ export function slugify(text?: string): string {
   );
 }
 
-export async function generateUniqueSlug(
-  storeName: string,
-  supabase: any,
-  currentUserId?: string,
-): Promise<string> {
+export async function generateUniqueSlug(storeName: string, supabase: any, currentUserId?: string): Promise<string> {
   let slug = slugify(storeName);
   if (!slug) slug = 'toko-saya';
 
@@ -29,11 +25,7 @@ export async function generateUniqueSlug(
       candidate = slug + '-' + counter;
     }
 
-    let query = supabase
-      .from('users')
-      .select('id')
-      .eq('store_slug', candidate)
-      .maybeSingle();
+    let query = supabase.from('users').select('id').eq('store_slug', candidate).maybeSingle();
 
     if (currentUserId) {
       query = query.neq('id', currentUserId);

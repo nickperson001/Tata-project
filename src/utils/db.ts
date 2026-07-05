@@ -1,9 +1,7 @@
 import { pgPool } from '../config/supabase';
 import type { PoolClient } from 'pg';
 
-export async function withTransaction<T>(
-  fn: (client: PoolClient) => Promise<T>
-): Promise<T> {
+export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   if (!pgPool) {
     throw new Error('DATABASE_URL tidak tersedia — koneksi database langsung tidak bisa digunakan');
   }

@@ -40,12 +40,33 @@ const responseSchema = {
   properties: {
     intent: {
       type: 'string',
-      description: "Tujuan atau intent dari input. Pilih salah satu: 'pemasukan', 'pengeluaran', 'barang_rusak', 'cek_stok', 'laporan_laba', 'buat_invoice', 'beban_gaji', 'beban_sewa', 'beban_listrik_air', 'beban_transport', 'beban_operasional', 'modal', 'prive', 'piutang', 'hutang_dagang', 'hutang_lancar', 'hutang', 'lainnya'",
-      enum: ['pemasukan', 'pengeluaran', 'barang_rusak', 'cek_stok', 'laporan_laba', 'buat_invoice', 'beban_gaji', 'beban_sewa', 'beban_listrik_air', 'beban_transport', 'beban_operasional', 'modal', 'prive', 'piutang', 'hutang_dagang', 'hutang_lancar', 'hutang', 'lainnya'],
+      description:
+        "Tujuan atau intent dari input. Pilih salah satu: 'pemasukan', 'pengeluaran', 'barang_rusak', 'cek_stok', 'laporan_laba', 'buat_invoice', 'beban_gaji', 'beban_sewa', 'beban_listrik_air', 'beban_transport', 'beban_operasional', 'modal', 'prive', 'piutang', 'hutang_dagang', 'hutang_lancar', 'hutang', 'lainnya'",
+      enum: [
+        'pemasukan',
+        'pengeluaran',
+        'barang_rusak',
+        'cek_stok',
+        'laporan_laba',
+        'buat_invoice',
+        'beban_gaji',
+        'beban_sewa',
+        'beban_listrik_air',
+        'beban_transport',
+        'beban_operasional',
+        'modal',
+        'prive',
+        'piutang',
+        'hutang_dagang',
+        'hutang_lancar',
+        'hutang',
+        'lainnya',
+      ],
     },
     items: {
       type: 'array',
-      description: 'Daftar barang jika intent adalah pemasukan, pengeluaran, atau barang rusak. Kosongkan jika intent laporan/cek stok.',
+      description:
+        'Daftar barang jika intent adalah pemasukan, pengeluaran, atau barang rusak. Kosongkan jika intent laporan/cek stok.',
       items: {
         type: 'object',
         properties: {
@@ -128,7 +149,7 @@ async function callOpenRouter(model: string, messages: Message[]): Promise<any> 
     const resp = await fetch(OPENROUTER_BASE_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': process.env.APP_URL || 'https://localhost',
         'X-Title': 'Tata Business Suite',
@@ -152,7 +173,10 @@ async function callOpenRouter(model: string, messages: Message[]): Promise<any> 
       throw new Error('OpenRouter: empty response content');
     }
 
-    const jsonStr = (content as string).replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    const jsonStr = (content as string)
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
     return JSON.parse(jsonStr);
   } catch (err) {
     clearTimeout(timeout);
@@ -178,10 +202,13 @@ async function callWithFallback(models: string[], messages: Message[], label: st
         lastError = err as Error;
         const status = (err as ExtendedError).status;
         const retryable = status === 429 || status === 503 || status === 502 || (status || 0) >= 500;
-        addLog('warn', `[AI-ROUTER] ${label}: ${model} failed (${(err as Error).message})${retryable ? '' : ' — non-retryable'}`);
+        addLog(
+          'warn',
+          `[AI-ROUTER] ${label}: ${model} failed (${(err as Error).message})${retryable ? '' : ' — non-retryable'}`,
+        );
         if (!retryable) break;
         if (attempt < MAX_RETRIES_PER_MODEL - 1) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
         }
       }
     }
@@ -191,7 +218,11 @@ async function callWithFallback(models: string[], messages: Message[], label: st
   throw lastError || new Error('All AI models failed');
 }
 
-async function processMessageWithGemini(promptText: string, imageBuffer: Buffer | null = null, mimeType = 'image/jpeg'): Promise<ClassificationResult> {
+async function processMessageWithGemini(
+  promptText: string,
+  imageBuffer: Buffer | null = null,
+  mimeType = 'image/jpeg',
+): Promise<ClassificationResult> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OPENROUTER_API_KEY not set in environment');
   }

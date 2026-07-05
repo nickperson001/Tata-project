@@ -12,11 +12,13 @@ async function handleStockList(msg: Message, user: any): Promise<boolean> {
   }
 
   if (!result.products || result.products.length === 0) {
-    await safeReply(msg, `📦 *Stock Kosong*\n\n` +
-      `Belum ada produk terdaftar.\n\n` +
-      `Tambah produk dengan:\n` +
-      `*Tambah produk [SKU] [Nama] ...*\n\n` +
-      `Ketik *Bantuan Stock* untuk panduan Tata.`
+    await safeReply(
+      msg,
+      `📦 *Stock Kosong*\n\n` +
+        `Belum ada produk terdaftar.\n\n` +
+        `Tambah produk dengan:\n` +
+        `*Tambah produk [SKU] [Nama] ...*\n\n` +
+        `Ketik *Bantuan Stock* untuk panduan Tata.`,
     );
     return true;
   }
@@ -66,20 +68,22 @@ async function handleStockInfo(msg: Message, user: any, rawBody: string): Promis
     alert = '\n\n⚠️ *Stock di bawah minimum!*';
   }
 
-  await safeReply(msg,
+  await safeReply(
+    msg,
     `📦 *Detail Produk*\n\n` +
-    `SKU      : ${p.sku}\n` +
-    `Nama     : ${p.name}\n` +
-    `Kategori : ${p.category}\n` +
-    `Satuan   : ${p.unit}\n\n` +
-    `💵 Harga Beli : ${formatRupiah(p.price_buy)}\n` +
-    `💰 Harga Jual : ${formatRupiah(p.price_sell)}\n\n` +
-    `📊 Stock      : ${stock} ${p.unit}\n` +
-    `⚠️ Minimum    : ${min} ${p.unit}\n` +
-    `💎 Nilai Stock: ${formatRupiah(value)}` +
-    alert + `\n\n` +
-    `💡 Kelola stok (tambah/kurangi/opname) via web:\n` +
-    `Ketik *Dashboard* untuk dapat link akses.`
+      `SKU      : ${p.sku}\n` +
+      `Nama     : ${p.name}\n` +
+      `Kategori : ${p.category}\n` +
+      `Satuan   : ${p.unit}\n\n` +
+      `💵 Harga Beli : ${formatRupiah(p.price_buy)}\n` +
+      `💰 Harga Jual : ${formatRupiah(p.price_sell)}\n\n` +
+      `📊 Stock      : ${stock} ${p.unit}\n` +
+      `⚠️ Minimum    : ${min} ${p.unit}\n` +
+      `💎 Nilai Stock: ${formatRupiah(value)}` +
+      alert +
+      `\n\n` +
+      `💡 Kelola stok (tambah/kurangi/opname) via web:\n` +
+      `Ketik *Dashboard* untuk dapat link akses.`,
   );
   return true;
 }

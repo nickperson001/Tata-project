@@ -14,7 +14,7 @@ export function cacheGet(key: string, ttlMs?: number): unknown | null {
 export function cacheSet(key: string, val: unknown, ttlMs?: number): void {
   if (state._cache.size >= CACHE_MAX_SIZE) {
     const oldest = Array.from(state._cache.keys()).slice(0, 50);
-    oldest.forEach(k => state._cache.delete(k));
+    oldest.forEach((k) => state._cache.delete(k));
   }
   state._cache.set(key, { val, ts: Date.now(), ttl: ttlMs || CACHE_TTL_DEFAULT });
 }

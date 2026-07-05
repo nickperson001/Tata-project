@@ -38,11 +38,15 @@ function walkDir(dirPath: string, basePath: string): DirEntry[] {
           if (stat.size <= MAX_FILE_SIZE) {
             entry_.content = fs.readFileSync(fullPath, { encoding: 'base64' });
           }
-        } catch { /* skip content */ }
+        } catch {
+          /* skip content */
+        }
         results.push(entry_);
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return results;
 }
 
@@ -54,13 +58,11 @@ async function saveSessionDirToDB(userId: string): Promise<void> {
     if (!fs.existsSync(baseDir)) return;
 
     const manifest = walkDir(baseDir, baseDir);
-    const { error } = await supabase
-      .from('wa_session_backup')
-      .upsert({
-        user_id: userId,
-        manifest: JSON.stringify(manifest),
-        updated_at: new Date().toISOString(),
-      } as any);
+    const { error } = await supabase.from('wa_session_backup').upsert({
+      user_id: userId,
+      manifest: JSON.stringify(manifest),
+      updated_at: new Date().toISOString(),
+    } as any);
     if (error) addLog('error', `[SESSION] Save manifest error: ${error.message}`);
   } catch (err: any) {
     addLog('error', `[SESSION] Save manifest exception: ${err.message}`);
@@ -71,17 +73,20 @@ async function restoreSessionDirFromDB(userId: string): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;
   try {
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('wa_session_backup')
       .select('manifest, updated_at')
       .eq('user_id', userId)
-      .single() as any;
+      .single()) as any;
     if (error || !data || !data.manifest) return false;
 
     if (data.updated_at) {
       const sessionAge = Date.now() - new Date(data.updated_at).getTime();
       if (sessionAge > SESSION_MAX_AGE) {
-        addLog('warn', `[SESSION] Session expired (age: ${Math.round(sessionAge / 86400000)} days) — forcing fresh login`);
+        addLog(
+          'warn',
+          `[SESSION] Session expired (age: ${Math.round(sessionAge / 86400000)} days) — forcing fresh login`,
+        );
         await supabase.from('wa_session_backup').delete().eq('user_id', userId);
         return false;
       }
@@ -93,18 +98,24 @@ async function restoreSessionDirFromDB(userId: string): Promise<boolean> {
     const baseDir = SESSION_BASE_DIR;
     if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true });
 
-    let fileCount = 0, dirCount = 0;
+    let fileCount = 0,
+      dirCount = 0;
     for (const entry of manifest) {
       const fullPath = path.join(baseDir, entry.path);
       if (entry.type === 'dir') {
-        if (!fs.existsSync(fullPath)) { fs.mkdirSync(fullPath, { recursive: true }); dirCount++; }
+        if (!fs.existsSync(fullPath)) {
+          fs.mkdirSync(fullPath, { recursive: true });
+          dirCount++;
+        }
       } else if (entry.type === 'file' && entry.content) {
         try {
           const dir = path.dirname(fullPath);
           if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
           fs.writeFileSync(fullPath, Buffer.from(entry.content, 'base64'));
           fileCount++;
-        } catch { /* skip file */ }
+        } catch {
+          /* skip file */
+        }
       }
     }
     addLog('info', `[SESSION] Restored from DB: ${dirCount} dirs, ${fileCount} files`);
@@ -119,10 +130,13 @@ async function resetBootStatus(): Promise<void> {
   const supabase = getSupabase();
   if (!supabase) return;
   try {
-    await supabase.from('bot_status')
+    await supabase
+      .from('bot_status')
       .update({ status: 'offline', updated_at: new Date().toISOString() })
       .eq('status', 'active');
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 async function saveSessionToDB(sessionData: string | Record<string, unknown>): Promise<void> {
@@ -139,7 +153,4 @@ async function saveSessionToDB(sessionData: string | Record<string, unknown>): P
   }
 }
 
-export {
-  walkDir, saveSessionDirToDB, restoreSessionDirFromDB,
-  resetBootStatus, saveSessionToDB,
-};
+export { walkDir, saveSessionDirToDB, restoreSessionDirFromDB, resetBootStatus, saveSessionToDB };

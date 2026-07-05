@@ -2,15 +2,7 @@ import type { Message } from 'whatsapp-web.js';
 import supabase from './supabase';
 import { addLog } from './state';
 
-// ── Error Sanitizer ──
-export function sanitizeError(err: unknown): string {
-  const msg = typeof err === 'string' ? err : err && (err as Error).message ? (err as Error).message : String(err);
-  if (msg.indexOf('<!DOCTYPE') >= 0 || msg.indexOf('<html') >= 0 || msg.indexOf('Cloudflare') >= 0) {
-    return '[SUPABASE ERROR] API Down / Cloudflare 521 (HTML response received)';
-  }
-  if (msg.length > 500) return msg.substring(0, 500) + '... [truncated]';
-  return msg;
-}
+export { sanitizeError } from '../utils/errors';
 
 // ── Message Deduplication ──
 const processedMessages = new Set<string>();
@@ -18,19 +10,21 @@ const processedMessages = new Set<string>();
 export async function isMessageProcessed(messageId: string): Promise<boolean> {
   if (processedMessages.has(messageId)) return true;
   try {
-    const { data } = await supabase
-      .from('message_processed').select('message_id')
-      .eq('message_id', messageId).single();
-    if (data) { processedMessages.add(messageId); return true; }
+    const { data } = await supabase.from('message_processed').select('message_id').eq('message_id', messageId).single();
+    if (data) {
+      processedMessages.add(messageId);
+      return true;
+    }
     return false;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 export async function markMessageProcessed(messageId: string, userId: string): Promise<void> {
   processedMessages.add(messageId);
   try {
-    await (supabase.from('message_processed') as any)
-      .insert([{ message_id: messageId, user_id: userId }]);
+    await (supabase.from('message_processed') as any).insert([{ message_id: messageId, user_id: userId }]);
   } catch (err: any) {
     addLog('error', `[MSG-STATE] markMessageProcessed gagal: ${err.message}`);
   }
@@ -43,13 +37,40 @@ export async function markMessageProcessed(messageId: string, userId: string): P
 
 // ── Per-Sender Lock ──
 const senderLocks = new Map<string, Promise<void>>();
+const senderLockTimestamps = new Map<string, number>();
+const SENDER_LOCK_TTL = 10 * 60 * 1000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, ts] of senderLockTimestamps) {
+    if (now - ts > SENDER_LOCK_TTL && !senderLocks.has(key)) {
+      senderLockTimestamps.delete(key);
+    }
+  }
+  if (senderLockTimestamps.size > 10000) {
+    const keysToDelete: string[] = [];
+    for (const [key, ts] of senderLockTimestamps) {
+      if (now - ts > SENDER_LOCK_TTL) keysToDelete.push(key);
+    }
+    keysToDelete.forEach((k) => {
+      senderLockTimestamps.delete(k);
+      senderLocks.delete(k);
+    });
+  }
+}, 120_000).unref();
 
 export async function withSenderLock<T>(sender: string, fn: () => Promise<T>): Promise<T> {
-  const prev = senderLocks.get(sender) || Promise.resolve() as Promise<unknown>;
+  const prev = senderLocks.get(sender) || (Promise.resolve() as Promise<unknown>);
   const next = prev.then(fn, fn).finally(() => {
-    if (senderLocks.get(sender) === cleanupPromise) senderLocks.delete(sender);
+    if (senderLocks.get(sender) === cleanupPromise) {
+      senderLocks.delete(sender);
+      senderLockTimestamps.set(sender, Date.now());
+    }
   });
-  const cleanupPromise = next.then(() => {}, () => {});
+  const cleanupPromise = next.then(
+    () => {},
+    () => {},
+  );
   senderLocks.set(sender, cleanupPromise);
   return next;
 }
@@ -116,17 +137,26 @@ export async function getMaintenanceMode(): Promise<{ active: boolean; message: 
   if (Date.now() - _mCache.ts < 30_000) return _mCache;
   try {
     const { data } = await supabase
-      .from('settings').select('key, value')
+      .from('settings')
+      .select('key, value')
       .in('key', ['maintenance_mode', 'maintenance_message']);
     const map: Record<string, string> = {};
-    (data || []).forEach((r: { key: string; value: string }) => { map[r.key] = r.value; });
+    (data || []).forEach((r: { key: string; value: string }) => {
+      map[r.key] = r.value;
+    });
     _mCache = {
       active: map['maintenance_mode'] === 'true',
-      message: map['maintenance_message'] || '🔧 Tata Sedang Perbaikan\n\nMohon maaf atas ketidaknyamanannya Bos.\nTata akan segera kembali normal. Terima kasih! 🙏',
+      message:
+        map['maintenance_message'] ||
+        '🔧 Tata Sedang Perbaikan\n\nMohon maaf atas ketidaknyamanannya Bos.\nTata akan segera kembali normal. Terima kasih! 🙏',
       ts: Date.now(),
     };
-  } catch { _mCache.ts = Date.now(); }
+  } catch {
+    _mCache.ts = Date.now();
+  }
   return _mCache;
 }
 
-export function invalidateMaintenanceCache(): void { _mCache.ts = 0; }
+export function invalidateMaintenanceCache(): void {
+  _mCache.ts = 0;
+}

@@ -121,7 +121,9 @@ export class RedisStateService implements IStateService {
     if (raw) {
       try {
         this.localState = { ...this.localState, ...JSON.parse(raw) };
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
     return Object.freeze({ ...this.localState });
   }
@@ -135,13 +137,17 @@ export class RedisStateService implements IStateService {
     if (this.redisAvailable && this.redis) {
       try {
         await this.redis.publish('bot:state:changed', json);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     this.stateListeners.forEach((cb) => {
       try {
         cb(this.localState);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     });
   }
 

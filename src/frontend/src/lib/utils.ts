@@ -1,6 +1,20 @@
+function getLocale(): string {
+  try {
+    return localStorage.getItem('i18nextLng') || 'id-ID';
+  } catch {
+    return 'id-ID';
+  }
+}
+
+function locale(): string {
+  const lng = getLocale();
+  if (lng === 'en') return 'en-US';
+  return 'id-ID';
+}
+
 export function fmtRp(value: number): string {
   if (typeof value !== 'number' || isNaN(value)) return 'Rp0';
-  return new Intl.NumberFormat('id-ID', {
+  return new Intl.NumberFormat(locale(), {
     style: 'currency',
     currency: 'IDR',
     minimumFractionDigits: 0,
@@ -8,11 +22,20 @@ export function fmtRp(value: number): string {
   }).format(value);
 }
 
+export function fmtCurrency(value: number, currency = 'IDR'): string {
+  if (typeof value !== 'number' || isNaN(value)) return `${currency}0`;
+  return new Intl.NumberFormat(locale(), {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export function fmtQty(value: number, unit?: string | null): string {
   if (typeof value !== 'number' || isNaN(value)) return '0';
-  const decimals =
-    unit && ['kg', 'liter', 'gram', 'ml'].includes(unit) ? 2 : 0;
-  return value.toLocaleString('id-ID', {
+  const decimals = unit && ['kg', 'liter', 'gram', 'ml'].includes(unit) ? 2 : 0;
+  return value.toLocaleString(locale(), {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
@@ -20,7 +43,7 @@ export function fmtQty(value: number, unit?: string | null): string {
 
 export function fmtDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('id-ID', {
+  return new Date(dateStr).toLocaleDateString(locale(), {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -29,7 +52,7 @@ export function fmtDate(dateStr: string | null | undefined): string {
 
 export function fmtDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleString('id-ID', {
+  return new Date(dateStr).toLocaleString(locale(), {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

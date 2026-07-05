@@ -22,13 +22,16 @@ function ToastContainer() {
         },
         duration: 3500,
       }}
+      containerStyle={{
+        top: '1rem',
+        right: '1rem',
+      }}
     />
   );
 }
 
-// Extended toast with success/error helpers and direct call support
 const toast = Object.assign(
-  (message: string, opts?: any) => hotToast(message, opts),
+  (message: string, opts?: any) => hotToast(message, { ...opts }),
   {
     success: (msg: string, opts?: any) => hotToast.success(msg, opts),
     error: (msg: string, opts?: any) => hotToast.error(msg, opts),
@@ -40,4 +43,3 @@ const toast = Object.assign(
 );
 
 export { ToastContainer, toast };
-

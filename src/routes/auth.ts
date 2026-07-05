@@ -42,10 +42,7 @@ router.post('/admin/login', async (req, res) => {
       return;
     }
 
-    const { rows } = await pgPool.query(
-      'SELECT email, password_hash, role FROM admins WHERE email = $1',
-      [userEmail]
-    );
+    const { rows } = await pgPool.query('SELECT email, password_hash, role FROM admins WHERE email = $1', [userEmail]);
     const admin = rows?.[0] || null;
 
     if (!admin) {

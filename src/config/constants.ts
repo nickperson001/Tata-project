@@ -36,22 +36,45 @@ export const HIST_PAGE_LIMIT = 30;
 
 // Session directories (whitelist / blacklist for session persistence)
 export const SESSION_DIR_WHITELIST: string[] = [
-  'Default', 'Session-WhatsApp', 'Crashpad', 'GrShaderCache',
-  'ShaderCache', 'Dictionaries', 'Safe Browsing', 'FileSystem',
-  'Sessions', 'Sync Data', 'Local Extension Settings',
-  'Network Action Predictor', 'Origin Trials',
-  'Site Characteristics Helper', 'Session Storage', 'Extensions',
-  'Platform Notifications', 'Subresource Filter', 'Trust Tokens',
-  'Component Updater', 'Optimization Hints', 'OnDeviceHeadSuggest',
-  'Crowd Deny', 'Certificate Revocation', 'Download Service',
-  'TrialData', 'First Party Sets', 'Privacy Sandbox',
-  'Segmentation Platform', 'SharedStorage',
+  'Default',
+  'Session-WhatsApp',
+  'Crashpad',
+  'GrShaderCache',
+  'ShaderCache',
+  'Dictionaries',
+  'Safe Browsing',
+  'FileSystem',
+  'Sessions',
+  'Sync Data',
+  'Local Extension Settings',
+  'Network Action Predictor',
+  'Origin Trials',
+  'Site Characteristics Helper',
+  'Session Storage',
+  'Extensions',
+  'Platform Notifications',
+  'Subresource Filter',
+  'Trust Tokens',
+  'Component Updater',
+  'Optimization Hints',
+  'OnDeviceHeadSuggest',
+  'Crowd Deny',
+  'Certificate Revocation',
+  'Download Service',
+  'TrialData',
+  'First Party Sets',
+  'Privacy Sandbox',
+  'Segmentation Platform',
+  'SharedStorage',
 ];
 
 export const SESSION_DIR_BLACKLIST: string[] = [
-  'Code Cache', 'GPUCache', 'CacheStorage',
-  'Service Worker', 'sw.js', '.com.google.Chrome',
+  'Code Cache',
+  'GPUCache',
+  'CacheStorage',
+  'Service Worker',
+  'sw.js',
+  '.com.google.Chrome',
 ];
 
-export const SESSION_BASE_DIR: string =
-  process.env.WA_SESSION_DIR || path.join(__dirname, '../../.wwebjs_auth');
+export const SESSION_BASE_DIR: string = process.env.WA_SESSION_DIR || path.join(__dirname, '../../.wwebjs_auth');

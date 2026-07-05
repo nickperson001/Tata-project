@@ -10,7 +10,11 @@ export async function setupDemoAccount() {
   if (!pool) return { error: 'Database tidak tersedia' };
 
   // Check if demo already exists
-  const { data: existing } = await supabase.from('users').select('id, store_name, dashboard_token, store_slug').eq('store_slug', 'demo').maybeSingle() as any;
+  const { data: existing } = (await supabase
+    .from('users')
+    .select('id, store_name, dashboard_token, store_slug')
+    .eq('store_slug', 'demo')
+    .maybeSingle()) as any;
   if (existing) {
     const baseUrl = process.env.PUBLIC_URL || 'http://localhost:7860';
     return {
@@ -36,7 +40,13 @@ export async function setupDemoAccount() {
     await client.query(
       `INSERT INTO users (id, store_name, store_slug, status, dashboard_token, onboarding_status, metadata)
        VALUES ($1, $2, $3, 'pro', $4, 'completed', $5)`,
-      [userId, storeName, slug, token, JSON.stringify({ active_channels: ['offline', 'whatsapp', 'shopee', 'tokopedia'] })],
+      [
+        userId,
+        storeName,
+        slug,
+        token,
+        JSON.stringify({ active_channels: ['offline', 'whatsapp', 'shopee', 'tokopedia'] }),
+      ],
     );
 
     // COA
@@ -45,28 +55,28 @@ export async function setupDemoAccount() {
       await client.query('SELECT seed_default_coa_mapping($1)', [userId]);
     } catch {
       const coa = [
-        ['1101', 'Kas / Bank',              'asset',    'debit'],
-        ['1102', 'Piutang Dagang',           'asset',    'debit'],
-        ['1201', 'Inventori',                'asset',    'debit'],
-        ['1301', 'Aset Tetap',               'asset',    'debit'],
-        ['1302', 'Akumulasi Penyusutan',     'asset',    'credit'],
-        ['2101', 'Hutang Dagang',            'liability','credit'],
-        ['2102', 'Hutang Pajak',             'liability','credit'],
-        ['3101', 'Modal Pemilik',            'equity',   'credit'],
-        ['3102', 'Prive (Pribadi)',          'equity',   'debit'],
-        ['3103', 'Laba Ditahan',             'equity',   'credit'],
-        ['4101', 'Penjualan Offline',        'revenue',  'credit'],
-        ['4102', 'Penjualan Tokopedia',      'revenue',  'credit'],
-        ['4103', 'Penjualan TikTok Shop',    'revenue',  'credit'],
-        ['4104', 'Penjualan Lazada',         'revenue',  'credit'],
-        ['4105', 'Penjualan Shopee',         'revenue',  'credit'],
-        ['5101', 'Harga Pokok Penjualan',    'cogs',     'debit'],
-        ['6101', 'Beban Gaji',               'expense',  'debit'],
-        ['6102', 'Beban Sewa',               'expense',  'debit'],
-        ['6103', 'Beban Listrik & Air',      'expense',  'debit'],
-        ['6104', 'Beban Transport',          'expense',  'debit'],
-        ['6105', 'Beban Operasional Lainnya','expense',  'debit'],
-        ['6106', 'Beban Penyusutan',         'expense',  'debit'],
+        ['1101', 'Kas / Bank', 'asset', 'debit'],
+        ['1102', 'Piutang Dagang', 'asset', 'debit'],
+        ['1201', 'Inventori', 'asset', 'debit'],
+        ['1301', 'Aset Tetap', 'asset', 'debit'],
+        ['1302', 'Akumulasi Penyusutan', 'asset', 'credit'],
+        ['2101', 'Hutang Dagang', 'liability', 'credit'],
+        ['2102', 'Hutang Pajak', 'liability', 'credit'],
+        ['3101', 'Modal Pemilik', 'equity', 'credit'],
+        ['3102', 'Prive (Pribadi)', 'equity', 'debit'],
+        ['3103', 'Laba Ditahan', 'equity', 'credit'],
+        ['4101', 'Penjualan Offline', 'revenue', 'credit'],
+        ['4102', 'Penjualan Tokopedia', 'revenue', 'credit'],
+        ['4103', 'Penjualan TikTok Shop', 'revenue', 'credit'],
+        ['4104', 'Penjualan Lazada', 'revenue', 'credit'],
+        ['4105', 'Penjualan Shopee', 'revenue', 'credit'],
+        ['5101', 'Harga Pokok Penjualan', 'cogs', 'debit'],
+        ['6101', 'Beban Gaji', 'expense', 'debit'],
+        ['6102', 'Beban Sewa', 'expense', 'debit'],
+        ['6103', 'Beban Listrik & Air', 'expense', 'debit'],
+        ['6104', 'Beban Transport', 'expense', 'debit'],
+        ['6105', 'Beban Operasional Lainnya', 'expense', 'debit'],
+        ['6106', 'Beban Penyusutan', 'expense', 'debit'],
       ];
       for (const [code, name, type, nb] of coa) {
         await client.query(
@@ -76,16 +86,16 @@ export async function setupDemoAccount() {
         );
       }
       const mapping = [
-        ['beban_gaji',        '6101', '1101'],
-        ['beban_sewa',        '6102', '1101'],
+        ['beban_gaji', '6101', '1101'],
+        ['beban_sewa', '6102', '1101'],
         ['beban_listrik_air', '6103', '1101'],
-        ['beban_transport',   '6104', '1101'],
+        ['beban_transport', '6104', '1101'],
         ['beban_operasional', '6105', '1101'],
-        ['modal',             '1101', '3101'],
-        ['prive',             '3102', '1101'],
-        ['piutang',           '1102', '4101'],
-        ['hutang_dagang',     '1201', '2101'],
-        ['hutang_lancar',     '6105', '2101'],
+        ['modal', '1101', '3101'],
+        ['prive', '3102', '1101'],
+        ['piutang', '1102', '4101'],
+        ['hutang_dagang', '1201', '2101'],
+        ['hutang_lancar', '6105', '2101'],
       ];
       for (const [tipe, debit, credit] of mapping) {
         await client.query(
@@ -99,29 +109,164 @@ export async function setupDemoAccount() {
     // Categories
     const categoryNames = ['Konsumsi', 'Rumah Tangga', 'Sembako', 'Elektronik', 'Minuman'];
     for (const catName of categoryNames) {
-      await client.query(
-        `INSERT INTO product_categories (user_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [userId, catName],
-      );
+      await client.query(`INSERT INTO product_categories (user_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [
+        userId,
+        catName,
+      ]);
     }
 
     // Products
     const products = [
-      { name: 'Kopi Arabica 250g',  cat: 'Konsumsi',   unit: 'pcs', buy: 25000,  sell: 45000,  stock: 48,  min: 10, channel: 'offline' },
-      { name: 'Kopi Robusta 250g',  cat: 'Konsumsi',   unit: 'pcs', buy: 20000,  sell: 35000,  stock: 35,  min: 10, channel: 'offline' },
-      { name: 'Gula Aren 500g',     cat: 'Konsumsi',   unit: 'pcs', buy: 12000,  sell: 22000,  stock: 60,  min: 15, channel: 'offline' },
-      { name: 'Susu UHT 1L',       cat: 'Konsumsi',   unit: 'pcs', buy: 15000,  sell: 28000,  stock: 24,  min: 8,  channel: 'offline' },
-      { name: 'Teh Hijau 50 kantong', cat: 'Konsumsi', unit: 'pcs', buy: 8000,   sell: 15000,  stock: 40,  min: 10, channel: 'offline' },
-      { name: 'Sabun Cuci Piring',  cat: 'Rumah Tangga', unit: 'pcs', buy: 7000, sell: 13000,  stock: 90,  min: 20, channel: 'shopee' },
-      { name: 'Deterjen 1kg',       cat: 'Rumah Tangga', unit: 'pcs', buy: 14000, sell: 25000,  stock: 30,  min: 10, channel: 'shopee' },
-      { name: 'Pembersih Lantai',   cat: 'Rumah Tangga', unit: 'pcs', buy: 10000, sell: 18000,  stock: 45,  min: 10, channel: 'shopee' },
-      { name: 'Tisu 200 lembar',    cat: 'Rumah Tangga', unit: 'pcs', buy: 5000,  sell: 10000,  stock: 100, min: 25, channel: 'tokopedia' },
-      { name: 'Beras Premium 5kg',  cat: 'Sembako',   unit: 'pcs', buy: 55000,  sell: 75000,  stock: 20,  min: 5,  channel: 'offline' },
-      { name: 'Minyak Goreng 2L',   cat: 'Sembako',   unit: 'pcs', buy: 28000,  sell: 42000,  stock: 25,  min: 8,  channel: 'offline' },
-      { name: 'Telur 1kg',          cat: 'Sembako',   unit: 'pcs', buy: 22000,  sell: 32000,  stock: 15,  min: 5,  channel: 'offline' },
-      { name: 'Tepung Terigu 1kg',  cat: 'Sembako',   unit: 'pcs', buy: 9000,   sell: 15000,  stock: 40,  min: 10, channel: 'tokopedia' },
-      { name: 'Mie Instant (karton)', cat: 'Sembako',  unit: 'pcs', buy: 85000,  sell: 110000, stock: 12,  min: 3,  channel: 'tokopedia' },
-      { name: 'Pulsa Listrik 50rb', cat: 'Elektronik', unit: 'pcs', buy: 48000,  sell: 50000,  stock: 999, min: 50, channel: 'offline' },
+      {
+        name: 'Kopi Arabica 250g',
+        cat: 'Konsumsi',
+        unit: 'pcs',
+        buy: 25000,
+        sell: 45000,
+        stock: 48,
+        min: 10,
+        channel: 'offline',
+      },
+      {
+        name: 'Kopi Robusta 250g',
+        cat: 'Konsumsi',
+        unit: 'pcs',
+        buy: 20000,
+        sell: 35000,
+        stock: 35,
+        min: 10,
+        channel: 'offline',
+      },
+      {
+        name: 'Gula Aren 500g',
+        cat: 'Konsumsi',
+        unit: 'pcs',
+        buy: 12000,
+        sell: 22000,
+        stock: 60,
+        min: 15,
+        channel: 'offline',
+      },
+      {
+        name: 'Susu UHT 1L',
+        cat: 'Konsumsi',
+        unit: 'pcs',
+        buy: 15000,
+        sell: 28000,
+        stock: 24,
+        min: 8,
+        channel: 'offline',
+      },
+      {
+        name: 'Teh Hijau 50 kantong',
+        cat: 'Konsumsi',
+        unit: 'pcs',
+        buy: 8000,
+        sell: 15000,
+        stock: 40,
+        min: 10,
+        channel: 'offline',
+      },
+      {
+        name: 'Sabun Cuci Piring',
+        cat: 'Rumah Tangga',
+        unit: 'pcs',
+        buy: 7000,
+        sell: 13000,
+        stock: 90,
+        min: 20,
+        channel: 'shopee',
+      },
+      {
+        name: 'Deterjen 1kg',
+        cat: 'Rumah Tangga',
+        unit: 'pcs',
+        buy: 14000,
+        sell: 25000,
+        stock: 30,
+        min: 10,
+        channel: 'shopee',
+      },
+      {
+        name: 'Pembersih Lantai',
+        cat: 'Rumah Tangga',
+        unit: 'pcs',
+        buy: 10000,
+        sell: 18000,
+        stock: 45,
+        min: 10,
+        channel: 'shopee',
+      },
+      {
+        name: 'Tisu 200 lembar',
+        cat: 'Rumah Tangga',
+        unit: 'pcs',
+        buy: 5000,
+        sell: 10000,
+        stock: 100,
+        min: 25,
+        channel: 'tokopedia',
+      },
+      {
+        name: 'Beras Premium 5kg',
+        cat: 'Sembako',
+        unit: 'pcs',
+        buy: 55000,
+        sell: 75000,
+        stock: 20,
+        min: 5,
+        channel: 'offline',
+      },
+      {
+        name: 'Minyak Goreng 2L',
+        cat: 'Sembako',
+        unit: 'pcs',
+        buy: 28000,
+        sell: 42000,
+        stock: 25,
+        min: 8,
+        channel: 'offline',
+      },
+      {
+        name: 'Telur 1kg',
+        cat: 'Sembako',
+        unit: 'pcs',
+        buy: 22000,
+        sell: 32000,
+        stock: 15,
+        min: 5,
+        channel: 'offline',
+      },
+      {
+        name: 'Tepung Terigu 1kg',
+        cat: 'Sembako',
+        unit: 'pcs',
+        buy: 9000,
+        sell: 15000,
+        stock: 40,
+        min: 10,
+        channel: 'tokopedia',
+      },
+      {
+        name: 'Mie Instant (karton)',
+        cat: 'Sembako',
+        unit: 'pcs',
+        buy: 85000,
+        sell: 110000,
+        stock: 12,
+        min: 3,
+        channel: 'tokopedia',
+      },
+      {
+        name: 'Pulsa Listrik 50rb',
+        cat: 'Elektronik',
+        unit: 'pcs',
+        buy: 48000,
+        sell: 50000,
+        stock: 999,
+        min: 50,
+        channel: 'offline',
+      },
     ];
     const productIds: number[] = [];
     for (const p of products) {
@@ -129,13 +274,26 @@ export async function setupDemoAccount() {
         `INSERT INTO products (user_id, sku, name, category, unit, price_buy, price_sell, stock_current, stock_min, default_channel)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT DO NOTHING RETURNING id`,
-        [userId, `SKU-${p.name.replace(/\s+/g, '-')}`, p.name, p.cat, p.unit, p.buy, p.sell, p.stock, p.min, p.channel || null],
+        [
+          userId,
+          `SKU-${p.name.replace(/\s+/g, '-')}`,
+          p.name,
+          p.cat,
+          p.unit,
+          p.buy,
+          p.sell,
+          p.stock,
+          p.min,
+          p.channel || null,
+        ],
       );
       if (r.rows.length > 0) productIds.push(r.rows[0].id);
     }
 
     // Stock movements
-    const prodRows = await client.query('SELECT id, name, stock_current, price_buy FROM products WHERE user_id = $1', [userId]);
+    const prodRows = await client.query('SELECT id, name, stock_current, price_buy FROM products WHERE user_id = $1', [
+      userId,
+    ]);
     for (const row of prodRows.rows) {
       const stk = Number(row.stock_current);
       if (stk > 0) {
@@ -149,7 +307,9 @@ export async function setupDemoAccount() {
 
     // Transactions
     const now = new Date();
-    const prodPrices = await client.query('SELECT id, name, price_buy, price_sell FROM products WHERE user_id = $1', [userId]);
+    const prodPrices = await client.query('SELECT id, name, price_buy, price_sell FROM products WHERE user_id = $1', [
+      userId,
+    ]);
     const pp = prodPrices.rows;
     const channels = ['Offline', 'Offline', 'Offline', 'Tokopedia', 'Shopee'];
     const customers = ['Budi', 'Siti', 'Ahmad', 'Rina', 'Dedi', 'Maya', 'Irfan', 'Nina', 'Eko', 'Dewi'];
@@ -172,7 +332,19 @@ export async function setupDemoAccount() {
         await client.query(
           `INSERT INTO transactions (user_id, type, amount, description, product_id, quantity, price_sell, price_buy, profit, channel, customer_name, status_bayar, reference_type, created_at)
            VALUES ($1, 'masuk', $2, $3, $4, $5, $6, $7, $8, $9, $10, 'tunai', 'cashier', $11)`,
-          [userId, total, `Penjualan ${qty} ${prod.name}`, prod.id, qty, ps, pb, profit, ch, cust, txDate.toISOString()],
+          [
+            userId,
+            total,
+            `Penjualan ${qty} ${prod.name}`,
+            prod.id,
+            qty,
+            ps,
+            pb,
+            profit,
+            ch,
+            cust,
+            txDate.toISOString(),
+          ],
         );
       }
     }
@@ -228,12 +400,17 @@ export async function setupDemoAccount() {
 
     // Journal entries (after COMMIT so supabase sees the transactions)
     const channelAccounts: Record<string, string> = {
-      Offline: '4101', Tokopedia: '4102', 'TikTok Shop': '4103',
-      Lazada: '4104', Shopee: '4105',
+      Offline: '4101',
+      Tokopedia: '4102',
+      'TikTok Shop': '4103',
+      Lazada: '4104',
+      Shopee: '4105',
     };
     const { data: txRows } = await supabase
-      .from('transactions').select('id, type, amount, channel, quantity, price_buy, description, created_at')
-      .eq('user_id', userId).throwOnError();
+      .from('transactions')
+      .select('id, type, amount, channel, quantity, price_buy, description, created_at')
+      .eq('user_id', userId)
+      .throwOnError();
     let journalCount = 0;
     for (const tx of (txRows as any[]) || []) {
       const amt = Number(tx.amount) || 0;
@@ -257,13 +434,19 @@ export async function setupDemoAccount() {
         if (j.success) journalCount++;
       } else if (tx.type === 'keluar') {
         const expenseAccounts: Record<string, string> = {
-          'sewa': '6102', 'listrik': '6103', 'gaji': '6101',
-          'transport': '6104', 'kantong': '6105',
+          sewa: '6102',
+          listrik: '6103',
+          gaji: '6101',
+          transport: '6104',
+          kantong: '6105',
         };
         const desc = (tx.description || '').toLowerCase();
         let expCode = '6105';
         for (const [keyword, code] of Object.entries(expenseAccounts)) {
-          if (desc.includes(keyword)) { expCode = code; break; }
+          if (desc.includes(keyword)) {
+            expCode = code;
+            break;
+          }
         }
         const j = await accountingEngine.postJournal({
           userId,
@@ -331,13 +514,16 @@ export async function setupDemoAccount() {
     }
 
     // Closing entry
-    const { data: coaRows } = await supabase
-      .from('chart_of_accounts').select('code, type, normal_balance, balance')
-      .eq('user_id', userId).eq('is_active', true) as any;
+    const { data: coaRows } = (await supabase
+      .from('chart_of_accounts')
+      .select('code, type, normal_balance, balance')
+      .eq('user_id', userId)
+      .eq('is_active', true)) as any;
     const closingLines: any[] = [];
-    let totalDebitCl = 0, totalCreditCl = 0;
+    let totalDebitCl = 0,
+      totalCreditCl = 0;
     let netIncome = 0;
-    for (const acct of (coaRows || [])) {
+    for (const acct of coaRows || []) {
       const bal = Number(acct.balance) || 0;
       if (bal === 0) continue;
       if (acct.type === 'revenue') {
@@ -351,10 +537,20 @@ export async function setupDemoAccount() {
       }
     }
     if (netIncome > 0) {
-      closingLines.push({ accountCode: '3103', debit: 0, credit: netIncome, description: 'Laba bersih ke Laba Ditahan' });
+      closingLines.push({
+        accountCode: '3103',
+        debit: 0,
+        credit: netIncome,
+        description: 'Laba bersih ke Laba Ditahan',
+      });
       totalCreditCl += netIncome;
     } else if (netIncome < 0) {
-      closingLines.push({ accountCode: '3103', debit: Math.abs(netIncome), credit: 0, description: 'Rugi bersih (dikurangi dari Laba Ditahan)' });
+      closingLines.push({
+        accountCode: '3103',
+        debit: Math.abs(netIncome),
+        credit: 0,
+        description: 'Rugi bersih (dikurangi dari Laba Ditahan)',
+      });
       totalDebitCl += Math.abs(netIncome);
     }
     if (closingLines.length > 0 && Math.abs(totalDebitCl - totalCreditCl) < 0.01) {

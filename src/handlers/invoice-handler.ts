@@ -1,7 +1,8 @@
 import { MessageMedia } from 'whatsapp-web.js';
 import supabase from '../config/supabase';
 import { addLog } from '../config/state';
-import { safeReply, sanitizeError } from '../config/message-state';
+import { sanitizeError } from '../utils/errors';
+import { safeReply } from '../config/message-state';
 import { formatRupiah, parseCurrency } from '../utils/helpers';
 import type { Message, Client } from 'whatsapp-web.js';
 
@@ -31,7 +32,10 @@ const _bankCache = new Map<string, CacheEntry<{ name: string; account: string; h
 function getBankCache(userId: string): { name: string; account: string; holder: string } | null {
   const e = _bankCache.get(userId);
   if (!e) return null;
-  if (Date.now() > e.exp) { _bankCache.delete(userId); return null; }
+  if (Date.now() > e.exp) {
+    _bankCache.delete(userId);
+    return null;
+  }
   return e.val;
 }
 
@@ -53,10 +57,15 @@ interface InvoiceData {
   bank: { name: string; account: string; holder: string };
 }
 
-async function generateInvoicePDF(invoiceData: InvoiceData): Promise<{ success: boolean; buffer?: Buffer; error?: string }> {
+async function generateInvoicePDF(
+  invoiceData: InvoiceData,
+): Promise<{ success: boolean; buffer?: Buffer; error?: string }> {
   let PDFDocument: any;
-  try { PDFDocument = require('pdfkit'); }
-  catch { return { success: false, error: 'pdfkit tidak terinstall.' }; }
+  try {
+    PDFDocument = require('pdfkit');
+  } catch {
+    return { success: false, error: 'pdfkit tidak terinstall.' };
+  }
 
   const { invoiceNumber, storeName, targetNumber, amount, dateStr, dueDateStr, bank } = invoiceData;
 
@@ -70,9 +79,7 @@ async function generateInvoicePDF(invoiceData: InvoiceData): Promise<{ success: 
 
       doc.fontSize(22).font('Helvetica-Bold').text('INVOICE', { align: 'right' });
       doc.moveDown(0.3);
-      doc.fontSize(10).font('Helvetica')
-        .fillColor('#666666')
-        .text(`No: ${invoiceNumber}`, { align: 'right' });
+      doc.fontSize(10).font('Helvetica').fillColor('#666666').text(`No: ${invoiceNumber}`, { align: 'right' });
       doc.moveDown(1.5);
 
       doc.fillColor('#000000');
@@ -89,25 +96,36 @@ async function generateInvoicePDF(invoiceData: InvoiceData): Promise<{ success: 
 
       const boxY = doc.y;
       doc.rect(50, boxY, 495, 60).stroke('#333333');
-      doc.fontSize(10).font('Helvetica').fillColor('#666666')
+      doc
+        .fontSize(10)
+        .font('Helvetica')
+        .fillColor('#666666')
         .text('TOTAL TAGIHAN', 60, boxY + 8);
-      doc.fontSize(24).font('Helvetica-Bold').fillColor('#000000')
+      doc
+        .fontSize(24)
+        .font('Helvetica-Bold')
+        .fillColor('#000000')
         .text(`Rp ${Number(amount).toLocaleString('id-ID')}`, 60, boxY + 26);
       doc.moveDown(3);
 
-      doc.fontSize(12).font('Helvetica-Bold')
-        .text('Instruksi Pembayaran');
+      doc.fontSize(12).font('Helvetica-Bold').text('Instruksi Pembayaran');
       doc.moveDown(0.5);
-      doc.fontSize(10).font('Helvetica')
+      doc
+        .fontSize(10)
+        .font('Helvetica')
         .text(`Bank      : ${bank.name}`)
         .text(`No. Rek   : ${bank.account}`)
         .text(`Atas Nama : ${bank.holder}`);
       doc.moveDown(1);
-      doc.fontSize(9).fillColor('#666666')
+      doc
+        .fontSize(9)
+        .fillColor('#666666')
         .text('Mohon transfer tepat waktu. Jika sudah transfer, konfirmasi ke pengirim invoice.');
       doc.moveDown(2);
 
-      doc.fontSize(8).fillColor('#999999')
+      doc
+        .fontSize(8)
+        .fillColor('#999999')
         .text('Dikirim otomatis oleh Tata Business Suite', 50, 750, { align: 'center' });
 
       doc.end();
@@ -120,12 +138,14 @@ async function generateInvoicePDF(invoiceData: InvoiceData): Promise<{ success: 
 async function handleSetBankCommand(msg: Message, sender: string, user: any, rawBody: string): Promise<boolean> {
   const parts = rawBody.split(/\s+/);
   if (parts.length < 4) {
-    await safeReply(msg, `❓ *Format SetBank Salah*\n\n` +
-      `Format: *setbank [nama_bank] [no_rek] [nama_pemilik]*\n\n` +
-      `Contoh:\n` +
-      `• *setbank BCA 8670662536 Ridwan*\n` +
-      `• *setbank BRI 1234567890 Budi*\n` +
-      `• *setbank Mandiri 0012345678 Siti*`
+    await safeReply(
+      msg,
+      `❓ *Format SetBank Salah*\n\n` +
+        `Format: *setbank [nama_bank] [no_rek] [nama_pemilik]*\n\n` +
+        `Contoh:\n` +
+        `• *setbank BCA 8670662536 Ridwan*\n` +
+        `• *setbank BRI 1234567890 Budi*\n` +
+        `• *setbank Mandiri 0012345678 Siti*`,
     );
     return true;
   }
@@ -139,48 +159,65 @@ async function handleSetBankCommand(msg: Message, sender: string, user: any, raw
   let saveError: string | null = null;
 
   try {
-    const { error: rpcErr } = await supabase.rpc('upsert_user_profile', {
-      p_user_id: sender, p_bank_name: bankName,
-      p_bank_account: bankAccount, p_bank_holder: bankHolder,
-    }) as any;
+    const { error: rpcErr } = (await supabase.rpc('upsert_user_profile', {
+      p_user_id: sender,
+      p_bank_name: bankName,
+      p_bank_account: bankAccount,
+      p_bank_holder: bankHolder,
+    })) as any;
     if (!rpcErr) saved = true;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   if (!saved) {
     try {
-      const { error: upsertErr } = await supabase
-        .from('users').update({ bank_name: bankName, bank_account: bankAccount, bank_holder: bankHolder })
-        .eq('id', sender) as any;
+      const { error: upsertErr } = (await supabase
+        .from('users')
+        .update({ bank_name: bankName, bank_account: bankAccount, bank_holder: bankHolder })
+        .eq('id', sender)) as any;
       if (!upsertErr) saved = true;
       else saveError = upsertErr.message;
-    } catch (e: any) { saveError = e.message; }
+    } catch (e: any) {
+      saveError = e.message;
+    }
   }
 
   setBankCache(sender, bankData);
 
   if (!saved) {
     addLog('warn', '[SETBANK] DB save failed but cache set: ' + sanitizeError(saveError));
-    await safeReply(msg, `✅ Tata sudah catat data bank kamu untuk sesi ini.\n\n` +
-      `🏦 Bank     : *${bankName}*\n` +
-      `💳 No. Rek  : *${bankAccount}*\n` +
-      `👤 Atas Nama: *${bankHolder}*\n\n` +
-      `Kamu sudah bisa langsung kirim tagihan ya! 😊\n` +
-      `_Catatan: Data belum tersimpan permanen. Coba lagi nanti jika server sudah stabil._`
+    await safeReply(
+      msg,
+      `✅ Tata sudah catat data bank kamu untuk sesi ini.\n\n` +
+        `🏦 Bank     : *${bankName}*\n` +
+        `💳 No. Rek  : *${bankAccount}*\n` +
+        `👤 Atas Nama: *${bankHolder}*\n\n` +
+        `Kamu sudah bisa langsung kirim tagihan ya! 😊\n` +
+        `_Catatan: Data belum tersimpan permanen. Coba lagi nanti jika server sudah stabil._`,
     );
     return true;
   }
 
-  await safeReply(msg, `✅ Siap! Tata sudah berhasil memperbarui data rekening bank kamu.\n\n` +
-    `🏦 Bank     : *${bankName}*\n` +
-    `💳 No. Rek  : *${bankAccount}*\n` +
-    `👤 Atas Nama: *${bankHolder}*\n\n` +
-    `Data kamu aman bersama Tata! 🔒\n` +
-    `Kamu sudah bisa langsung kirim tagihan ya! 😊`
+  await safeReply(
+    msg,
+    `✅ Siap! Tata sudah berhasil memperbarui data rekening bank kamu.\n\n` +
+      `🏦 Bank     : *${bankName}*\n` +
+      `💳 No. Rek  : *${bankAccount}*\n` +
+      `👤 Atas Nama: *${bankHolder}*\n\n` +
+      `Data kamu aman bersama Tata! 🔒\n` +
+      `Kamu sudah bisa langsung kirim tagihan ya! 😊`,
   );
   return true;
 }
 
-async function handleInvoiceCommand(msg: Message, sender: string, user: any, rawBody: string, client: Client): Promise<boolean> {
+async function handleInvoiceCommand(
+  msg: Message,
+  sender: string,
+  user: any,
+  rawBody: string,
+  client: Client,
+): Promise<boolean> {
   const phoneMatch = rawBody.match(/(?:ke|kepada|nomer|nomor|wa)?\s*((?:\+?62|0)8\d[\d\s\-]{6,12}|8\d[\d\s\-]{7,12})/i);
 
   let amountText: string | null = null;
@@ -195,13 +232,15 @@ async function handleInvoiceCommand(msg: Message, sender: string, user: any, raw
   }
 
   if (!amountText || !phoneMatch) {
-    await safeReply(msg, `❌ *Format Tagihan Salah*\n\n` +
-      `Format: *tagih [nominal] ke [nomor]*\n\n` +
-      `Contoh:\n` +
-      `• *tagih 150rb ke 08123456789*\n` +
-      `• *tagih 1.5jt ke +628123456789*\n` +
-      `• *tagih 500rb ke 08123456789*\n\n` +
-      `💡 Format angka: 50rb • 1jt • 500k • 1.5jt`
+    await safeReply(
+      msg,
+      `❌ *Format Tagihan Salah*\n\n` +
+        `Format: *tagih [nominal] ke [nomor]*\n\n` +
+        `Contoh:\n` +
+        `• *tagih 150rb ke 08123456789*\n` +
+        `• *tagih 1.5jt ke +628123456789*\n` +
+        `• *tagih 500rb ke 08123456789*\n\n` +
+        `💡 Format angka: 50rb • 1jt • 500k • 1.5jt`,
     );
     return true;
   }
@@ -217,43 +256,56 @@ async function handleInvoiceCommand(msg: Message, sender: string, user: any, raw
 
   if (!hasBank) {
     try {
-      const { data: profile } = await supabase
-        .from('user_profiles').select('bank_name, bank_account, bank_holder')
-        .eq('user_id', sender).maybeSingle() as any;
+      const { data: profile } = (await supabase
+        .from('user_profiles')
+        .select('bank_name, bank_account, bank_holder')
+        .eq('user_id', sender)
+        .maybeSingle()) as any;
       if (profile?.bank_name) {
         hasBank = true;
         bankInfo = { name: profile.bank_name, account: profile.bank_account, holder: profile.bank_holder };
         setBankCache(sender, bankInfo);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   if (!hasBank) {
     try {
-      const { data: u } = await supabase
-        .from('users').select('bank_name, bank_account, bank_holder')
-        .eq('id', sender).maybeSingle() as any;
+      const { data: u } = (await supabase
+        .from('users')
+        .select('bank_name, bank_account, bank_holder')
+        .eq('id', sender)
+        .maybeSingle()) as any;
       if (u?.bank_name) {
         hasBank = true;
         bankInfo = { name: u.bank_name, account: u.bank_account, holder: u.bank_holder };
         setBankCache(sender, bankInfo);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   if (!hasBank) {
-    await safeReply(msg, `Halo Bosku! 👋 Sebelum kita kirim tagihan yang keren ke pelanggan, yuk atur rekening penerimanya dulu biar mereka gampang transfernya.\n\n` +
-      `Ketik aja pakai format ini ya:\n` +
-      `*setbank [Nama Bank] [No Rekening] [Atas Nama]*\n\n` +
-      `Contoh: *setbank BCA 8670123456 Hanan*\n\n` +
-      `Kalau udah, nanti tinggal ketik ulang perintah tagihnya. Yuk dicoba!`
+    await safeReply(
+      msg,
+      `Halo Bosku! 👋 Sebelum kita kirim tagihan yang keren ke pelanggan, yuk atur rekening penerimanya dulu biar mereka gampang transfernya.\n\n` +
+        `Ketik aja pakai format ini ya:\n` +
+        `*setbank [Nama Bank] [No Rekening] [Atas Nama]*\n\n` +
+        `Contoh: *setbank BCA 8670123456 Hanan*\n\n` +
+        `Kalau udah, nanti tinggal ketik ulang perintah tagihnya. Yuk dicoba!`,
     );
     return true;
   }
 
   const amount = parseCurrency(amountText);
   if (!amount) {
-    await safeReply(msg, `❌ Nominal tidak valid.\n\nContoh: *tagih 150rb ke 08123456789*\nAtau ketik natural: *kirim tagihan 150rb ke 08123456789*`);
+    await safeReply(
+      msg,
+      `❌ Nominal tidak valid.\n\nContoh: *tagih 150rb ke 08123456789*\nAtau ketik natural: *kirim tagihan 150rb ke 08123456789*`,
+    );
     return true;
   }
 
@@ -267,9 +319,19 @@ async function handleInvoiceCommand(msg: Message, sender: string, user: any, raw
   const targetWa = `${targetNum}@c.us`;
   const invoiceNumber = generateInvoiceNumber();
   const now = new Date();
-  const dateStr = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' } as any);
+  const dateStr = now.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  } as any);
   const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const dueDateStr = dueDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' } as any);
+  const dueDateStr = dueDate.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  } as any);
 
   const invoiceText = [
     `━━━━━━━━━━━━━━━━━━━━━━━`,
@@ -309,8 +371,13 @@ async function handleInvoiceCommand(msg: Message, sender: string, user: any, raw
   let pdfBuffer: Buffer | null = null;
   try {
     const pdfResult = await generateInvoicePDF({
-      invoiceNumber, storeName: user.store_name, targetNumber: targetNum,
-      amount, dateStr, dueDateStr, bank: bankInfo!,
+      invoiceNumber,
+      storeName: user.store_name,
+      targetNumber: targetNum,
+      amount,
+      dateStr,
+      dueDateStr,
+      bank: bankInfo!,
     });
     if (pdfResult.success && pdfResult.buffer) pdfBuffer = pdfResult.buffer;
   } catch (pdfErr: any) {
@@ -325,43 +392,67 @@ async function handleInvoiceCommand(msg: Message, sender: string, user: any, raw
       await client.sendMessage(targetWa, invoiceText);
     }
   } catch (sendErr: any) {
-    await safeReply(msg, `❌ *Gagal mengirim tagihan*\n\n` +
-      `Nomor *${targetNum}* tidak bisa dikirim.\n` +
-      `Kemungkinan:\n` +
-      `• Nomor tidak terdaftar di WhatsApp\n` +
-      `• Tata belum menyimpan kontak tersebut\n\n` +
-      `Error: ${sendErr.message}`
+    await safeReply(
+      msg,
+      `❌ *Gagal mengirim tagihan*\n\n` +
+        `Nomor *${targetNum}* tidak bisa dikirim.\n` +
+        `Kemungkinan:\n` +
+        `• Nomor tidak terdaftar di WhatsApp\n` +
+        `• Tata belum menyimpan kontak tersebut\n\n` +
+        `Error: ${sendErr.message}`,
     );
     return true;
   }
 
-  (supabase.from('invoices').insert([{
-    user_id: sender, invoice_number: invoiceNumber,
-    target_number: targetNum, amount, description: rawBody, status: 'sent',
-  }] as any) as unknown as Promise<any>).then(async (invResult: any) => {
-    if (invResult.error) return;
-    try {
-      await supabase.from('debts').insert([{
-        user_id: sender, transaction_id: null, nama_pelanggan: targetNum,
-        nominal_piutang: amount, status_lunas: false, jatuh_tempo: dueDate.toISOString(),
-      }] as any);
-    } catch { /* ignore */ }
-  }).catch(() => {});
+  (
+    supabase.from('invoices').insert([
+      {
+        user_id: sender,
+        invoice_number: invoiceNumber,
+        target_number: targetNum,
+        amount,
+        description: rawBody,
+        status: 'sent',
+      },
+    ] as any) as unknown as Promise<any>
+  )
+    .then(async (invResult: any) => {
+      if (invResult.error) return;
+      try {
+        await supabase.from('debts').insert([
+          {
+            user_id: sender,
+            transaction_id: null,
+            nama_pelanggan: targetNum,
+            nominal_piutang: amount,
+            status_lunas: false,
+            jatuh_tempo: dueDate.toISOString(),
+          },
+        ] as any);
+      } catch {
+        /* ignore */
+      }
+    })
+    .catch(() => {});
 
-  await safeReply(msg,
+  await safeReply(
+    msg,
     `✅ *Tagihan Terkirim!*\n\n` +
-    `🧾 No. Invoice: *${invoiceNumber}*\n` +
-    `💰 Nominal   : *${formatRupiah(amount)}*\n` +
-    `📱 Dikirim ke: *${targetNum}*\n` +
-    `📅 Jatuh Tempo: *${dueDateStr}*\n\n` +
-    `Tagihan sudah masuk ke WhatsApp pelanggan.`
+      `🧾 No. Invoice: *${invoiceNumber}*\n` +
+      `💰 Nominal   : *${formatRupiah(amount)}*\n` +
+      `📱 Dikirim ke: *${targetNum}*\n` +
+      `📅 Jatuh Tempo: *${dueDateStr}*\n\n` +
+      `Tagihan sudah masuk ke WhatsApp pelanggan.`,
   );
   return true;
 }
 
 export {
-  generateInvoiceNumber, normalizeWaNumber,
-  getBankCache, setBankCache,
+  generateInvoiceNumber,
+  normalizeWaNumber,
+  getBankCache,
+  setBankCache,
   generateInvoicePDF,
-  handleSetBankCommand, handleInvoiceCommand,
+  handleSetBankCommand,
+  handleInvoiceCommand,
 };

@@ -5,6 +5,7 @@ import { getSocket } from '../../services/socket';
 import { useAdminStore } from '../../store/adminStore';
 import type { BotState, LogEntry } from '../../types';
 import { LayoutDashboard, Users, Send, Terminal } from 'lucide-react';
+import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 
 const navItems = [
   { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -63,43 +64,33 @@ export function AdminLayout() {
   if (!isAuthenticated) return <></>;
 
   return (
-    <div style={{ minHeight: '100vh' }}>
-      {/* Top Bar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0.75rem 1.25rem', borderBottom: '1px solid var(--border)',
-        background: 'var(--bg-card)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <img src="/stock/logo.svg" alt="Tata" style={{ height: 28 }} />
+    <div className="admin-layout">
+      <header className="admin-topbar">
+        <div className="admin-topbar-brand">
+          <img src="/stock/logo.svg" alt="Tata" className="admin-topbar-brand-img" />
           <div>
-            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Tata</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Business Suite</div>
+            <div className="admin-topbar-brand-name">Tata</div>
+            <div className="admin-topbar-brand-sub">Business Suite</div>
           </div>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => logout().then(() => navigate('/login'))}
-          style={{ color: 'var(--text-muted)' }}>
-          Keluar
-        </button>
-      </div>
+        <div className="admin-topbar-actions">
+          <LanguageSwitcher />
+          <button className="btn btn-ghost btn-sm" onClick={() => logout().then(() => navigate('/login'))}
+            style={{ color: 'var(--text-muted)' }}>
+            Keluar
+          </button>
+        </div>
+      </header>
 
-      {/* Bottom Nav */}
-      <nav style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
-        background: 'var(--bg-card)', borderTop: '1px solid var(--border)',
-        display: 'flex', justifyContent: 'space-around', padding: '0.5rem',
-      }}>
+      <nav className="admin-bottom-nav">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
+            className="admin-bottom-link"
             style={({ isActive }) => ({
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem',
-              padding: '0.5rem 0.75rem', borderRadius: '8px',
               color: isActive ? 'var(--primary)' : 'var(--text-muted)',
-              fontSize: '0.65rem', fontWeight: 600,
-              textDecoration: 'none',
               background: isActive ? 'rgba(16,185,129,0.08)' : 'transparent',
             })}
           >
@@ -109,7 +100,6 @@ export function AdminLayout() {
         ))}
       </nav>
 
-      {/* Main Content */}
       <main className="admin-main content-fade">
         <Outlet />
       </main>

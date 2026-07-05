@@ -13,7 +13,6 @@ export const useAdminStore = create<AdminState>((set) => ({
   botState: null,
   logs: [],
   setBotState: (botState) => set({ botState }),
-  addLog: (log) =>
-    set((s) => ({ logs: [log, ...s.logs].slice(0, 1000) })),
+  addLog: (log) => set((s) => ({ logs: [log, ...s.logs].slice(0, 1000) })),
   setLogs: (logs) => set({ logs }),
 }));

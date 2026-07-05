@@ -2,10 +2,7 @@ import { useEffect, useRef } from 'react';
 import { getSocket, disconnectSocket } from '../services/socket';
 import type { Socket } from 'socket.io-client';
 
-export function useSocket(
-  event: string,
-  handler: (data: unknown) => void,
-): { socket: Socket | null } {
+export function useSocket(event: string, handler: (data: unknown) => void): { socket: Socket | null } {
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
 

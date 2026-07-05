@@ -14,16 +14,25 @@ async function sendEmergencyBroadcast(reason: string): Promise<void> {
       let adminWa = process.env.ADMIN_WA_NUMBER || null;
       if (!adminWa && supabase) {
         try {
-          const { data: adminProfile } = await supabase
-            .from('user_profiles').select('admin_wa_number')
-            .not('admin_wa_number', 'is', null).limit(1).single() as any;
+          const { data: adminProfile } = (await supabase
+            .from('user_profiles')
+            .select('admin_wa_number')
+            .not('admin_wa_number', 'is', null)
+            .limit(1)
+            .single()) as any;
           if (adminProfile && adminProfile.admin_wa_number) adminWa = adminProfile.admin_wa_number;
-        } catch (_: any) { addLog('error', `[EMERGENCY] admin_wa_number lookup failed: ${_.message}`); }
+        } catch (_: any) {
+          addLog('error', `[EMERGENCY] admin_wa_number lookup failed: ${_.message}`);
+        }
       }
       if (adminWa) {
         const adminMsg = `🚨 *[ADMIN ALERT — TATA BUSINESS SUITE]*\n\n⚠️ Server mengalami gangguan!\n\n🔧 Alasan: ${reason}\n🕐 Waktu: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' } as any)}\n🖥️ Host: ${os.hostname()}\n💾 Memory: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB\n⏱️ Uptime: ${Math.floor(process.uptime())}s\n\nSistem sedang mencoba recovery otomatis.`;
         const adminTarget = adminWa.includes('@') ? adminWa : `${adminWa.replace(/[^0-9]/g, '')}@c.us`;
-        try { await state.waClient.sendMessage(adminTarget, adminMsg); } catch (_: any) { addLog('error', `[EMERGENCY] admin alert send failed: ${_.message}`); }
+        try {
+          await state.waClient.sendMessage(adminTarget, adminMsg);
+        } catch (_: any) {
+          addLog('error', `[EMERGENCY] admin alert send failed: ${_.message}`);
+        }
       }
     }
   } catch (adminErr: any) {
@@ -32,14 +41,16 @@ async function sendEmergencyBroadcast(reason: string): Promise<void> {
 
   try {
     if (!state.waClient || !state.clientReady || !supabase) return;
-    const { data: users } = await supabase.from('users').select('id').limit(50) as any;
+    const { data: users } = (await supabase.from('users').select('id').limit(50)) as any;
     if (!users) return;
 
     for (const u of users) {
       try {
         await state.waClient.sendMessage(u.id, emergencyMsg);
-      } catch (_: any) { addLog('error', `[EMERGENCY] broadcast send to ${u.id} failed: ${_.message}`); }
-      await new Promise(r => setTimeout(r, 300));
+      } catch (_: any) {
+        addLog('error', `[EMERGENCY] broadcast send to ${u.id} failed: ${_.message}`);
+      }
+      await new Promise((r) => setTimeout(r, 300));
     }
     addLog('info', `[EMERGENCY] Broadcast sent to ${users.length} users. Reason: ${reason}`);
   } catch (err: any) {

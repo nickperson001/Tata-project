@@ -9,14 +9,15 @@ interface PaginationProps {
 export function Pagination({ meta, onPage }: PaginationProps) {
   return (
     <div className="flex items-center justify-between gap-4" style={{ padding: '0.75rem 0' }}>
-      <span className="text-sm text-muted">
+      <span className="text-sm text-muted" aria-live="polite">
         Hal {meta.page} dari {meta.totalPages} ({meta.total} total)
       </span>
-      <div className="flex gap-2">
+      <div className="flex gap-2" role="navigation" aria-label="Navigasi halaman">
         <button
           className="btn btn-secondary btn-sm"
           disabled={meta.page <= 1}
           onClick={() => onPage(meta.page - 1)}
+          aria-label="Halaman sebelumnya"
         >
           <ChevronLeft size={16} /> Sebelumnya
         </button>
@@ -24,6 +25,7 @@ export function Pagination({ meta, onPage }: PaginationProps) {
           className="btn btn-secondary btn-sm"
           disabled={meta.page >= meta.totalPages}
           onClick={() => onPage(meta.page + 1)}
+          aria-label="Halaman selanjutnya"
         >
           Selanjutnya <ChevronRight size={16} />
         </button>

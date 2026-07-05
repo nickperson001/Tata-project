@@ -5,10 +5,18 @@ import type { LogEntry, BotStatus } from '../types';
 let ioRef: SocketIOServer | null = null;
 let supabaseRef: SupabaseClient | null = null;
 
-export function setIO(io: SocketIOServer): void { ioRef = io; }
-export function setSupabase(supabase: SupabaseClient): void { supabaseRef = supabase; }
-export function getIO(): SocketIOServer | null { return ioRef; }
-export function getSupabase(): SupabaseClient | null { return supabaseRef; }
+export function setIO(io: SocketIOServer): void {
+  ioRef = io;
+}
+export function setSupabase(supabase: SupabaseClient): void {
+  supabaseRef = supabase;
+}
+export function getIO(): SocketIOServer | null {
+  return ioRef;
+}
+export function getSupabase(): SupabaseClient | null {
+  return supabaseRef;
+}
 
 export interface CircuitState {
   failures: number;
@@ -64,6 +72,10 @@ export function addLog(level: string, message: string, data?: unknown): void {
   };
   state.systemLogs.unshift(log);
   if (state.systemLogs.length > 1000) state.systemLogs.pop();
-  try { if (ioRef) (ioRef as any).emit('system_log', log); } catch { /* ignore */ }
+  try {
+    if (ioRef) (ioRef as any).emit('system_log', log);
+  } catch {
+    /* ignore */
+  }
   console.log(`[${level.toUpperCase()}] ${message}`);
 }

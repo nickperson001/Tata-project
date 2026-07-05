@@ -20,3 +20,47 @@ Sebelum kamu memberikan baris kode baru, kamu WAJIB menuliskan analisis singkat 
 
 ### 4. FORMAT OUTPUT KODE
 Tunjukkan hanya potongan kode (code snippet) sebelum dan sesudah perubahan dengan komentar yang jelas. Jangan tampilkan teks basa-basi yang tidak perlu.
+
+### 5. WILUJEUNG BACA ENGINEERING STANDARDS
+Proyek ini memiliki standar engineering yang WAJIB dibaca di `docs/engineering-standards.md`:
+- **Seksi 2 (Alur Kerja Paralel):** Backend definisikan kontrak (tipe) dulu, frontend konsumsi tipe dan boleh mock. Jangan implementasi sebelum kontrak fix.
+- **Seksi 3 (Standar Kontrak API):** Semua tipe response yang dishared BE↔FE ada di `src/types/api.ts`. DILARANG redefine di frontend.
+- **Seksi 5 (Standar Error Handling):** Wajib pakai `apiSuccess()`/`apiError()` dari `src/utils/api-response.ts`. Error codes resmi ada di seksi 12.1.
+- **Seksi 6 (Definition of Done):** Checklist BE vs FE yang HARUS dipenuhi sebelum menyelesaikan task.
+- **Seksi 10 (Log Pengerjaan):** Wajib catat progress setiap selesai task.
+- **Seksi 11 (Breaking Changes):** Jika mengubah response shape, rename field, atau auth flow, catat di sini.
+- **Seksi 12.3 (Error Codes):** Daftar error codes yang diizinkan.
+
+### 6. ROLE-AWARE CODING (BACKEND vs FRONTEND)
+Proyek ini memiliki dua peran dengan aturan berbeda. Kamu WAJIB menentukan peranmu sebelum menulis kode.
+
+**Jika BACKEND (BE):**
+- File: `src/routes/`, `src/services/`, `src/utils/`, `src/config/`, `src/handlers/`
+- WAJIB definisikan tipe kontrak di `src/types/api.ts` SEBELUM menulis route handler.
+- Route handler WAJIB menggunakan `apiSuccess()` / `apiError()` — jangan `res.json()` manual.
+- Request body WAJIB divalidasi dengan Zod schema (jangan manual if-else).
+- Setiap `catch` block harus menggunakan `sanitizeError()` dari `src/utils/errors.ts`.
+
+**Jika FRONTEND (FE):**
+- File: `src/frontend/src/`
+- WAJIB import tipe dari `src/types/api.ts` — DILARANG mendefinisikan ulang tipe backend.
+- API client: gunakan `stockApi` (token-based) atau `api` (session-based) dari `src/frontend/src/services/api.ts`.
+- State management: Zustand store di `src/frontend/src/store/`.
+- Setiap komponen WAJIB menangani 4 state: loading, empty, error, success.
+- DILARANG akses langsung ke Supabase atau database dari frontend.
+
+### 7. UPDATE LOG PENGERJAAN & BREAKING CHANGES
+Setelah selesai menulis kode, kamu WAJIB melakukan ini sebelum selesai:
+
+1. **Update Log Pengerjaan** — Tambah baris baru ke tabel di Seksi 10 `docs/engineering-standards.md`:
+   ```
+   | YYYY-MM-DD | HH:mm | agent | BE/FE | deskripsi | DONE | Xh | tim lain |
+   ```
+2. **Update Breaking Changes** — Jika perubahan tidak backward-compatible, tulis di Seksi 11 dengan format:
+   - Tanggal
+   - Pelaku
+   - Perubahan
+   - Dampak
+   - Migrasi
+3. **Commit message** — WAJIB sesuai format: `<type>: <deskripsi dalam Bahasa Indonesia>`
+   - Type yang diizinkan: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`, `hotfix`, `BREAKING`

@@ -33,7 +33,7 @@ async function callOpenRouter(messages: ChatMessage[]): Promise<string | null> {
       const resp = await fetch(OPENROUTER_BASE_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': process.env.APP_URL || 'https://localhost',
           'X-Title': 'Tata Business Suite',
@@ -73,7 +73,10 @@ function buildSummary(products: any[], trans: any[], cashierSales: any[]): strin
     const total = products.length;
     const low = products.filter((p: any) => parseFloat(p.stock_current) <= parseFloat(p.stock_min)).length;
     const habis = products.filter((p: any) => parseFloat(p.stock_current) <= 0).length;
-    const totalValue = products.reduce((s: number, p: any) => s + (parseFloat(p.stock_current) || 0) * (parseFloat(p.price_buy) || 0), 0);
+    const totalValue = products.reduce(
+      (s: number, p: any) => s + (parseFloat(p.stock_current) || 0) * (parseFloat(p.price_buy) || 0),
+      0,
+    );
     lines.push(`【 STOK 】`);
     lines.push(`Total produk: ${total}`);
     lines.push(`Stok habis: ${habis}`);
@@ -84,12 +87,14 @@ function buildSummary(products: any[], trans: any[], cashierSales: any[]): strin
   }
 
   // ── Keuangan (30 hari) ──
-  let omzet = 0, pengeluaran = 0, piutang = 0;
+  let omzet = 0,
+    pengeluaran = 0,
+    piutang = 0;
   trans.forEach((t: any) => {
     const v = Number(t.amount) || 0;
     if (t.type === 'masuk' && t.reference_type !== 'modal' && t.reference_type !== 'receivable') omzet += v;
     else if (t.type === 'keluar') pengeluaran += v;
-    if (t.reference_type === 'receivable') piutang += (t.type === 'masuk' ? v : -v);
+    if (t.reference_type === 'receivable') piutang += t.type === 'masuk' ? v : -v;
   });
   let hpp = 0;
   (cashierSales || []).forEach((t: any) => {
@@ -103,7 +108,9 @@ function buildSummary(products: any[], trans: any[], cashierSales: any[]): strin
   lines.push(`Omzet: Rp ${omzet.toLocaleString('id-ID')}`);
   lines.push(`HPP: Rp ${hpp.toLocaleString('id-ID')}`);
   lines.push(`Biaya operasional: Rp ${pengeluaran.toLocaleString('id-ID')}`);
-  lines.push(`Laba bersih: Rp ${Math.abs(labaBersih).toLocaleString('id-ID')} (${labaBersih >= 0 ? 'UNTUNG' : 'DEFISIT'})`);
+  lines.push(
+    `Laba bersih: Rp ${Math.abs(labaBersih).toLocaleString('id-ID')} (${labaBersih >= 0 ? 'UNTUNG' : 'DEFISIT'})`,
+  );
   lines.push(`Margin laba: ${profitMargin.toFixed(1)}%`);
   lines.push(`Piutang beredar: Rp ${Math.max(0, piutang).toLocaleString('id-ID')}`);
 
@@ -129,9 +136,21 @@ async function processMessage(userId: string, message: string): Promise<string> 
     const since = new Date(Date.now() - 30 * DAY_MS).toISOString();
 
     const [prodResult, transResult, cashierResult] = await Promise.all([
-      supabase.from('products').select('name, stock_current, stock_min, unit, price_buy, category').eq('user_id', userId) as any,
-      supabase.from('transactions').select('type, amount, reference_type').eq('user_id', userId).gte('created_at', since) as any,
-      supabase.from('transactions').select('price_buy, quantity').eq('user_id', userId).eq('reference_type', 'cashier').gte('created_at', since) as any,
+      supabase
+        .from('products')
+        .select('name, stock_current, stock_min, unit, price_buy, category')
+        .eq('user_id', userId) as any,
+      supabase
+        .from('transactions')
+        .select('type, amount, reference_type')
+        .eq('user_id', userId)
+        .gte('created_at', since) as any,
+      supabase
+        .from('transactions')
+        .select('price_buy, quantity')
+        .eq('user_id', userId)
+        .eq('reference_type', 'cashier')
+        .gte('created_at', since) as any,
     ]);
 
     const products = (prodResult as any).data || [];
@@ -167,10 +186,7 @@ Panduan menjawab:
   try {
     const classified = await processMessageWithGemini(message);
     if (classified && classified.intent === 'cek_stok') {
-      return (
-        'Silakan cek stok produk di halaman Produk.\n\n' +
-        'Atau ketik nama produk yang ingin ditanyakan.'
-      );
+      return 'Silakan cek stok produk di halaman Produk.\n\n' + 'Atau ketik nama produk yang ingin ditanyakan.';
     }
     return 'Maaf, saya tidak bisa memproses pertanyaan Anda saat ini. Coba lagi nanti.';
   } catch {
