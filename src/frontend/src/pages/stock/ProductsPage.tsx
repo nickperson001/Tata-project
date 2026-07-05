@@ -49,7 +49,7 @@ export function ProductsPage() {
     try {
       const data = await stockApi.get<{ categories: Category[] }>('/api/stock/categories', token);
       setCategories(data.categories || []);
-    } catch (e) { console.error('[ProductsPage] Load kategori gagal', e); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : '[ProductsPage] Load kategori gagal'); }
   }, [token]);
 
   const loadChannels = useCallback(async () => {
@@ -57,7 +57,7 @@ export function ProductsPage() {
     try {
       const s = await stockApi.get<{ settings?: { active_channels?: string[] } }>('/api/stock/settings', token);
       setActiveChannels(s.settings?.active_channels || ['offline', 'whatsapp', 'shopee', 'tokopedia', 'lazada', 'tiktok shop']);
-    } catch (e) { console.error('[ProductsPage] Load channels gagal', e); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : '[ProductsPage] Load channels gagal'); }
   }, [token]);
 
   useEffect(() => { loadProducts(); }, [loadProducts]);

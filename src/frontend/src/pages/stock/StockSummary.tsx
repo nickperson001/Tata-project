@@ -5,6 +5,7 @@ import { Skeleton } from '../../components/LoadingSkeleton';
 import { EmptyState } from '../../components/EmptyState';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtQty } from '../../lib/utils';
+import { toast } from '../../components/Toast';
 import { BarChart3, AlertTriangle, Package } from 'lucide-react';
 import type { StockSummaryData } from '../../types';
 
@@ -17,7 +18,7 @@ export function StockSummary() {
     if (!token) return;
     stockApi.get<StockSummaryData>('/api/stock/summary', token)
       .then(setData)
-      .catch((err) => console.error('[StockSummary] Fetch gagal', err))
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockSummary] Fetch gagal'))
       .finally(() => setLoading(false));
   }, [token]);
 

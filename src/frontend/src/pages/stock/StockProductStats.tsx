@@ -6,6 +6,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtQty } from '../../lib/utils';
 import { BarChart3, TrendingUp, ArrowUpDown } from 'lucide-react';
+import { toast } from '../../components/Toast';
 import type { ProductStatsData, ProductStatItem } from '../../types';
 
 type SortKey = 'name' | 'profitPerUnit' | 'margin' | 'stockValue';
@@ -21,7 +22,7 @@ export function StockProductStats() {
     if (!token) return;
     stockApi.get<ProductStatsData>('/api/stock/product-stats', token)
       .then(setData)
-      .catch((err) => console.error('[StockProductStats] Fetch gagal', err))
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockProductStats] Fetch gagal'))
       .finally(() => setLoading(false));
   }, [token]);
 

@@ -19,7 +19,11 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     throw new Error(body.error || `HTTP ${res.status}`);
   }
 
-  return res.json();
+  const body = await res.json();
+  if (body && typeof body === 'object' && 'success' in body && body.success === true && 'data' in body) {
+    return body.data as T;
+  }
+  return body as T;
 }
 
 export const api = {
@@ -60,7 +64,11 @@ async function stockRequest<T>(url: string, token: string, options?: RequestInit
     throw new Error(body.error || `HTTP ${res.status}`);
   }
 
-  return res.json();
+  const body = await res.json();
+  if (body && typeof body === 'object' && 'success' in body && body.success === true && 'data' in body) {
+    return body.data as T;
+  }
+  return body as T;
 }
 
 export const stockApi = {

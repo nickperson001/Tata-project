@@ -6,6 +6,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { InfoTip } from '../../components/InfoTip';
 import { fmtRp, fmtDate } from '../../lib/utils';
 import { FileText, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { toast } from '../../components/Toast';
 import type { JurnalData, JurnalEntryItem } from '../../types';
 
 export function StockJurnal() {
@@ -21,7 +22,7 @@ export function StockJurnal() {
     setLoading(true);
     stockApi.get<JurnalData>(`/api/stock/jurnal?page=${page}&limit=${limit}`, token)
       .then(setData)
-      .catch((err) => console.error('[StockJurnal] Fetch gagal', err))
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockJurnal] Fetch gagal'))
       .finally(() => setLoading(false));
   }, [token, page]);
 

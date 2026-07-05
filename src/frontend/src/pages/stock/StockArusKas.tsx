@@ -5,6 +5,7 @@ import { Skeleton } from '../../components/LoadingSkeleton';
 import { EmptyState } from '../../components/EmptyState';
 import { fmtRp } from '../../lib/utils';
 import { DownloadButton } from '../../components/DownloadButton';
+import { toast } from '../../components/Toast';
 import type { CashflowItem } from '../../types';
 
 const periods = [
@@ -16,7 +17,7 @@ const periods = [
 
 export function StockArusKas() {
   const { token } = useStockStore();
-  const [data, setData] = useState<CashflowItem[]>([]);
+  const [data, setData] = useState<CashflowItem[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
 
@@ -26,7 +27,7 @@ export function StockArusKas() {
     try {
       const d = await stockApi.get<CashflowItem[]>(`/api/stock/cashflow?days=${days}`, token);
       setData(d);
-    } catch (e) { console.error('[StockArusKas] Load gagal', e); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockArusKas] Load gagal'); }
     finally { setLoading(false); }
   }, [token, days]);
 
@@ -54,7 +55,7 @@ export function StockArusKas() {
     </div>
   );
 
-  if (data.length === 0) return <EmptyState icon="💳" title="Belum Ada Arus Kas" text="Arus kas akan muncul setelah ada transaksi pemasukan dan pengeluaran." />;
+  if (!data || data.length === 0) return <EmptyState icon="💳" title="Belum Ada Arus Kas" text="Arus kas akan muncul setelah ada transaksi pemasukan dan pengeluaran." />;
 
   const totalMasuk = data.reduce((s, d) => s + d.masuk, 0);
   const totalKeluar = data.reduce((s, d) => s + d.keluar, 0);

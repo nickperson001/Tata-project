@@ -6,6 +6,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { InfoTip } from '../../components/InfoTip';
 import { FilterBar } from '../../components/FilterBar';
 import type { DateRange } from '../../components/DateRangeFilter';
+import { toast } from '../../components/Toast';
 import { fmtRp } from '../../lib/utils';
 import { DownloadButton } from '../../components/DownloadButton';
 import type { NeracaData } from '../../types';
@@ -26,7 +27,7 @@ export function StockNeraca() {
       }
       const d = await stockApi.get<NeracaData>(url, token);
       setData(d);
-    } catch (e) { console.error('[StockNeraca] Load gagal', e); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockNeraca] Load gagal'); }
     finally { setLoading(false); }
   }, [token, dateRange.endDate]);
 

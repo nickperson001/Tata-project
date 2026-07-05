@@ -365,3 +365,41 @@ export interface JournalEntry {
   kredit: number;
   akun: string;
 }
+
+// ── Pembukuan ──
+export interface TransItem {
+  id: string;
+  type: 'masuk' | 'keluar';
+  amount: number;
+  description: string;
+  reference_type: string | null;
+  created_at: string;
+  channel?: string | null;
+  products?: { name: string; sku: string; unit: string } | null;
+}
+
+export interface PembukuanData {
+  transaksi: TransItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalMasuk: number;
+  totalKeluar: number;
+}
+
+// ── Stock Report ──
+export interface ReportData {
+  totalIn: number;
+  totalOut: number;
+  totalAdj: number;
+  count: number;
+  topOut: Array<{ name: string; sku: string; total: number; pct: number; unit: string }>;
+  byCategory: Record<string, { count: number; value: number }>;
+  total: number;
+}
+
+// ── Generic API Response wrapper ──
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+}

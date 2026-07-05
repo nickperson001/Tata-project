@@ -4,6 +4,7 @@ import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
 import { EmptyState } from '../../components/EmptyState';
 import { InfoTip } from '../../components/InfoTip';
+import { toast } from '../../components/Toast';
 import { fmtRp } from '../../lib/utils';
 import { GitBranch, TrendingUp } from 'lucide-react';
 import type { ChannelsData } from '../../types';
@@ -31,7 +32,7 @@ export function StockChannels() {
     setLoading(true);
     stockApi.get<ChannelsData>(`/api/stock/channels?days=${days}`, token)
       .then(setData)
-      .catch((err) => console.error('[StockChannels] Fetch gagal', err))
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockChannels] Fetch gagal'))
       .finally(() => setLoading(false));
   }, [token, days]);
 

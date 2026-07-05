@@ -3,6 +3,7 @@ import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { EmptyState } from '../../components/EmptyState';
+import { toast } from '../../components/Toast';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtQty, fmtDateTime } from '../../lib/utils';
 import { Database, Package, AlertTriangle, TrendingUp } from 'lucide-react';
@@ -17,7 +18,7 @@ export function StockBatch() {
     if (!token) return;
     stockApi.get<BatchData>('/api/stock/batch', token)
       .then(setData)
-      .catch((err) => console.error('[StockBatch] Fetch gagal', err))
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockBatch] Fetch gagal'))
       .finally(() => setLoading(false));
   }, [token]);
 

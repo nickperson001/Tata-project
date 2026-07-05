@@ -5,16 +5,8 @@ import { Skeleton } from '../../components/LoadingSkeleton';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtQty } from '../../lib/utils';
 import { TrendingUp, Package } from 'lucide-react';
-
-interface ReportData {
-  totalIn: number;
-  totalOut: number;
-  totalAdj: number;
-  count: number;
-  topOut: Array<{ name: string; sku: string; total: number; pct: number; unit: string }>;
-  byCategory: Record<string, { count: number; value: number }>;
-  total: number;
-}
+import { toast } from '../../components/Toast';
+import type { ReportData, ApiResponse } from '../../types/api';
 
 export function StockReport() {
   const { token } = useStockStore();
@@ -27,7 +19,7 @@ export function StockReport() {
     setLoading(true);
     stockApi.get<ReportData>(`/api/stock/report?days=${days}`, token)
       .then(setData)
-      .catch((err) => console.error('[StockReport] Fetch gagal', err))
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockReport] Fetch gagal'))
       .finally(() => setLoading(false));
   }, [token, days]);
 

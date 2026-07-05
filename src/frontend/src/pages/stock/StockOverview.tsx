@@ -8,6 +8,7 @@ import type { DateRange } from '../../components/DateRangeFilter';
 import { fmtRp } from '../../lib/utils';
 import { EskalasiChart } from './EskalasiChart';
 import { ExpenseChart } from './ExpenseChart';
+import { toast } from '../../components/Toast';
 import { TopProductsChart } from './TopProductsChart';
 import type { SaldoData, OverviewData, ChannelProfit } from '../../types';
 import { TrendingUp, AlertTriangle, Wallet, Users, Package, Percent, PieChart, BarChart, Bot, Globe, DollarSign } from 'lucide-react';
@@ -200,7 +201,7 @@ export function StockOverview() {
         });
       });
       setAlerts(a);
-    } catch (e) { console.error('[StockOverview] Load data gagal', e); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockOverview] Load data gagal'); }
   }, [token, chartDays, filterChannel, dateRange]);
 
   useEffect(() => {

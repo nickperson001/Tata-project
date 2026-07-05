@@ -33,7 +33,7 @@ export function StockHutang() {
     try {
       const d = await stockApi.get<HutangList>('/api/stock/hutang', token);
       setData(d);
-    } catch (e) { console.error('[StockHutang] Load gagal', e); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockHutang] Load gagal'); }
     finally { setLoading(false); }
   }
 

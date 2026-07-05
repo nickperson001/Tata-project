@@ -56,9 +56,9 @@ export function StockLayout() {
         toast.error(`${label} — Produk #${data.productId} (${data.stockLevel} tersisa)`, { duration: 5000 });
         const currentToken = token;
         if (currentToken) {
-          stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', currentToken).then((res) => {
-            if (res.data?.alerts) {
-              useNotificationStore.getState().setAlerts(res.data.alerts);
+          stockApi.get<{ alerts: StockAlert[] }>('/api/stock/alerts', currentToken).then((res) => {
+            if (res.alerts) {
+              useNotificationStore.getState().setAlerts(res.alerts);
             }
           }).catch(() => {});
         }

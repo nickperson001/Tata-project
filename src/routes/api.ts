@@ -176,7 +176,7 @@ router.get('/api/admin/users', isAdmin, async (req: Request, res: Response) => {
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
     if (error) throw error;
-    res.json({
+    apiSuccess(res, {
       users: data || [],
       meta: { page, limit, total: count || 0, totalPages: Math.ceil((count || 0) / limit) },
     });
@@ -316,7 +316,7 @@ router.post('/api/admin/pairing-code', isAdmin, validate(pairingCodeSchema), asy
         pairingCode: state.pairingCode,
         clientReady: false,
       });
-    res.json({ success: true, code });
+    apiSuccess(res, { code });
   } catch (err: any) {
     addLog('error', `Gagal pairing code: ${err.message}`);
     apiError(res, 'Gagal meminta kode pairing. Coba gunakan QR atau restart bot.', ErrorCode.INTERNAL, 500);
@@ -324,7 +324,7 @@ router.post('/api/admin/pairing-code', isAdmin, validate(pairingCodeSchema), asy
 });
 
 router.get('/api/admin/status', isAdmin, (req: Request, res: Response) => {
-  res.json({
+  apiSuccess(res, {
     botStatus: state.botStatus,
     clientReady: state.clientReady,
     currentQR: state.currentQR,
@@ -342,7 +342,7 @@ router.get('/api/admin/qr-image', isAdmin, async (req: Request, res: Response) =
   try {
     const pairingCode = await qrcode.toDataURL(raw);
     state.pairingCode = pairingCode;
-    res.json({ pairingCode });
+    apiSuccess(res, { pairingCode });
   } catch (err: any) {
     addLog('error', '[API] Gagal generate QR image: ' + (err?.message || err));
     apiError(res, 'Gagal generate QR image.', ErrorCode.INTERNAL, 500);
@@ -354,8 +354,7 @@ router.post('/api/admin/seed-demo', isAdmin, async (_req: Request, res: Response
     const { seedDemo, DEMO_SLUG, DEMO_TOKEN, DEMO_STORE } = require('../scripts/seed-demo');
     await seedDemo();
     addLog('info', '[SEED] Demo data seeded via admin panel');
-    res.json({
-      success: true,
+    apiSuccess(res, {
       log: [`URL: /stock/${DEMO_SLUG}?token=${DEMO_TOKEN}`, `Token: ${DEMO_TOKEN}`, `Store: ${DEMO_STORE}`],
     });
   } catch (err: any) {
@@ -514,8 +513,7 @@ router.post('/api/admin/test-bot', isAdmin, async (req: Request, res: Response) 
       addLog('error', `[TEST-BOT] Failed to send WA: ${e.message}`);
     }
   }
-  res.json({
-    success: true,
+  apiSuccess(res, {
     waSent,
     targetNumber,
     scenarios: selectedScenarios.length,
@@ -526,7 +524,7 @@ router.post('/api/admin/test-bot', isAdmin, async (req: Request, res: Response) 
 });
 
 router.get('/api/stock/verify', stockAuth, (req: StockRequest, res: Response) => {
-  res.json({ id: req.stockUser.id, store_name: req.stockUser.store_name, status: req.stockUser.status });
+  apiSuccess(res, { id: req.stockUser.id, store_name: req.stockUser.store_name, status: req.stockUser.status });
 });
 
 // ── WA Login: user logs in with their WA number to get their dashboard token ──
@@ -602,7 +600,7 @@ router.get('/api/stock/settings', stockAuth, async (req: StockRequest, res: Resp
       coa_code: r.coa_code,
       admin_fee_pct: Number(r.admin_fee_pct) || 0,
     }));
-    res.json({ settings, channels });
+    apiSuccess(res, { settings, channels });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -641,7 +639,7 @@ router.post('/api/stock/settings', stockAuth, async (req: StockRequest, res: Res
       }
     }
 
-    res.json({ success: true, settings: newMeta });
+    apiSuccess(res, { settings: newMeta });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -652,7 +650,7 @@ router.get('/api/stock/batch', stockAuth, async (req: StockRequest, res: Respons
   const batchCacheKey = `batch:${userId}`;
   const cached = cacheGet(batchCacheKey);
   if (cached) {
-    res.json(cached);
+    apiSuccess(res, cached);
     return;
   }
   try {
@@ -704,7 +702,7 @@ router.get('/api/stock/batch', stockAuth, async (req: StockRequest, res: Respons
       recentMovements: movements,
     };
     cacheSet(batchCacheKey, result, 45_000);
-    res.json(result);
+    apiSuccess(res, result);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -715,7 +713,7 @@ router.get('/api/stock/summary', stockAuth, async (req: StockRequest, res: Respo
   const cacheKey = `summary:${userId}`;
   const cached = cacheGet(cacheKey);
   if (cached) {
-    res.json(cached);
+    apiSuccess(res, cached);
     return;
   }
   try {
@@ -757,7 +755,7 @@ router.get('/api/stock/summary', stockAuth, async (req: StockRequest, res: Respo
       alerts: alertData || [],
     };
     cacheSet(cacheKey, result, 60_000);
-    res.json(result);
+    apiSuccess(res, result);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -797,7 +795,7 @@ router.get('/api/stock/products', stockAuth, async (req: StockRequest, res: Resp
     if (error) throw error;
     if (sort === 'value_desc' && data && page === 0)
       data.sort((a: any, b: any) => b.price_buy * b.stock_current - a.price_buy * a.stock_current);
-    res.json({ products: data || [], total: count || 0, page, limit });
+    apiSuccess(res, { products: data || [], total: count || 0, page, limit });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -938,7 +936,7 @@ router.delete('/api/stock/products/:productId', stockAuth, async (req: StockRequ
       return;
     }
     cacheInvalidate(userId);
-    res.json({ success: true });
+    apiSuccess(res, { success: true });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -954,7 +952,7 @@ router.get('/api/stock/categories', stockAuth, async (req: StockRequest, res: Re
       .eq('is_active', true)
       .order('name')) as any;
     if (error) throw error;
-    res.json({ categories: data || [] });
+    apiSuccess(res, { categories: data || [] });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -977,7 +975,7 @@ router.post('/api/stock/categories', stockAuth, requireBody('name'), async (req:
       apiError(res, error.message);
       return;
     }
-    res.json({ category: data });
+    apiSuccess(res, { category: data });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1000,7 +998,7 @@ router.put('/api/stock/categories/:id', stockAuth, async (req: StockRequest, res
       apiError(res, error.message);
       return;
     }
-    res.json({ success: true });
+    apiSuccess(res, { success: true });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1024,7 +1022,7 @@ router.delete('/api/stock/categories/:id', stockAuth, async (req: StockRequest, 
       .update({ category: '' })
       .eq('user_id', userId)
       .eq('category', req.body.categoryName || '')) as any;
-    res.json({ success: true });
+    apiSuccess(res, { success: true });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1202,7 +1200,7 @@ router.get('/api/stock/movements', stockAuth, async (req: StockRequest, res: Res
     if (req.query.type) query = query.eq('type', req.query.type);
     const { data, error, count } = await query;
     if (error) throw error;
-    res.json({ movements: data || [], total: count || 0, page, limit });
+    apiSuccess(res, { movements: data || [], total: count || 0, page, limit });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1276,7 +1274,7 @@ router.get('/api/stock/report', stockAuth, async (req: StockRequest, res: Respon
       });
       cacheSet(catCacheKey, byCategory, 120_000);
     }
-    res.json({ totalIn, totalOut, totalAdj, count: totalCount, topOut, byCategory, page, limit, total: totalCount });
+    apiSuccess(res, { totalIn, totalOut, totalAdj, count: totalCount, topOut, byCategory, page, limit, total: totalCount });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1288,7 +1286,7 @@ router.get('/api/stock/cashflow', stockAuth, async (req: StockRequest, res: Resp
   const cacheKey = `cashflow:${userId}:${days}`;
   const cached = cacheGet(cacheKey);
   if (cached) {
-    res.json(cached);
+    apiSuccess(res, cached);
     return;
   }
   try {
@@ -1337,7 +1335,7 @@ router.get('/api/stock/cashflow', stockAuth, async (req: StockRequest, res: Resp
     });
     const result = Object.values(dailyMap);
     cacheSet(cacheKey, result, 120_000);
-    res.json(result);
+    apiSuccess(res, result);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1354,7 +1352,7 @@ router.get('/api/stock/overview', stockAuth, async (req: StockRequest, res: Resp
       : `overview:${userId}:${period}`;
   const cached = cacheGet(cacheKey);
   if (cached) {
-    res.json(cached);
+    apiSuccess(res, cached);
     return;
   }
   const periods: Record<string, number> = { day: 1, week: 7, month: 30, all: 365 };
@@ -1429,7 +1427,7 @@ router.get('/api/stock/overview', stockAuth, async (req: StockRequest, res: Resp
       period: days,
     };
     cacheSet(cacheKey, result, 120_000);
-    res.json(result);
+    apiSuccess(res, result);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1444,7 +1442,7 @@ router.get('/api/stock/product-stats', stockAuth, async (req: StockRequest, res:
       .eq('user_id', userId)
       .eq('is_active', true)) as any;
     if (!products) {
-      res.json({ products: [] });
+      apiSuccess(res, { products: [] });
       return;
     }
     const result = products
@@ -1458,7 +1456,7 @@ router.get('/api/stock/product-stats', stockAuth, async (req: StockRequest, res:
         return { ...p, profitPerUnit, margin, stockValue };
       })
       .sort((a: any, b: any) => b.stockValue - a.stockValue);
-    res.json({ products: result });
+    apiSuccess(res, { products: result });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1491,7 +1489,7 @@ router.get('/api/stock/laba-rugi', stockAuth, async (req: StockRequest, res: Res
         }
       });
       const labaBersih = revenue - hpp - expense;
-      res.json({
+      apiSuccess(res, {
         rows: [
           { account_code: 'TRX', account_name: `Transaksi ${channel}`, account_type: 'revenue', total: revenue },
           { account_code: 'HPP', account_name: 'Harga Pokok Penjualan', account_type: 'cogs', total: hpp },
@@ -1510,7 +1508,7 @@ router.get('/api/stock/laba-rugi', stockAuth, async (req: StockRequest, res: Res
       apiError(res, result.error || 'Gagal memuat data', ErrorCode.INTERNAL, 500);
       return;
     }
-    res.json(result.data);
+    apiSuccess(res, result.data);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1522,7 +1520,7 @@ router.get('/api/stock/channels', stockAuth, async (req: StockRequest, res: Resp
   const cacheKey = `channels:${userId}:${days}`;
   const cached = cacheGet(cacheKey);
   if (cached) {
-    res.json(cached);
+    apiSuccess(res, cached);
     return;
   }
   try {
@@ -1540,7 +1538,7 @@ router.get('/api/stock/channels', stockAuth, async (req: StockRequest, res: Resp
       channels[ch] = (channels[ch] || 0) + v;
     });
     cacheSet(cacheKey, channels, 120_000);
-    res.json(channels);
+    apiSuccess(res, channels);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1582,7 +1580,7 @@ router.get('/api/stock/channel-profitability', stockAuth, async (req: StockReque
       })
       .sort((a, b) => b.revenue - a.revenue);
 
-    res.json(result);
+    apiSuccess(res, result);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1613,7 +1611,7 @@ router.get('/api/stock/piutang', stockAuth, async (req: StockRequest, res: Respo
     const belumLunas = filtered.filter((i) => i.status === 'unpaid').reduce((s, i) => s + i.jumlah, 0);
     const sudahLunas = filtered.filter((i) => i.status === 'paid').reduce((s, i) => s + i.jumlah, 0);
 
-    res.json({
+    apiSuccess(res, {
       totalPiutang: belumLunas,
       belumLunas,
       sudahLunas,
@@ -1747,7 +1745,7 @@ router.get('/api/stock/saldo', stockAuth, async (req: StockRequest, res: Respons
     ]);
     const saldo = (coaResult as any).data ? Number((coaResult as any).data.balance) : 0;
     const { total_masuk, total_keluar } = jlResult.rows[0];
-    res.json({ saldo, totalMasuk: Number(total_masuk), totalKeluar: Number(total_keluar) });
+    apiSuccess(res, { saldo, totalMasuk: Number(total_masuk), totalKeluar: Number(total_keluar) });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1810,7 +1808,7 @@ router.get('/api/stock/pembukuan', stockAuth, async (req: StockRequest, res: Res
     } catch {
       journal = [];
     }
-    res.json({
+    apiSuccess(res, {
       transaksi: trans || [],
       total: count || 0,
       page,
@@ -1893,7 +1891,7 @@ router.get('/api/stock/hutang', stockAuth, async (req: StockRequest, res: Respon
       .filter((i: any) => i.status_lunas)
       .reduce((s: number, i: any) => s + Number(i.nominal_hutang), 0);
 
-    res.json({
+    apiSuccess(res, {
       totalHutang: Math.max(0, totalHutang),
       belumLunas: Math.max(0, belumLunas),
       sudahLunas,
@@ -1992,10 +1990,10 @@ router.get('/api/stock/coa', stockAuth, async (req: StockRequest, res: Response)
   try {
     const result = await accountingEngine.getCoA(userId);
     if (!result.success) {
-      res.status(500).json(result);
+      apiError(res, result.error || 'Gagal memuat data', ErrorCode.INTERNAL, 500);
       return;
     }
-    res.json({ accounts: result.data });
+    apiSuccess(res, { accounts: result.data });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -2010,7 +2008,7 @@ router.get('/api/stock/neraca', stockAuth, async (req: StockRequest, res: Respon
       apiError(res, result.error || 'Gagal memuat data', ErrorCode.INTERNAL, 500);
       return;
     }
-    res.json(result.data);
+    apiSuccess(res, result.data);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -2059,7 +2057,7 @@ router.get('/api/stock/jurnal', stockAuth, async (req: StockRequest, res: Respon
       });
     }
 
-    res.json({ list: result, total: count || 0, page, limit });
+    apiSuccess(res, { list: result, total: count || 0, page, limit });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -2081,7 +2079,7 @@ router.get('/api/stock/general-ledger', stockAuth, async (req: StockRequest, res
         .single()) as any;
       account = acct;
       if (!account) {
-        res.json({ account: null, entries: [] });
+        apiSuccess(res, { account: null, entries: [] });
         return;
       }
     }
@@ -2094,7 +2092,7 @@ router.get('/api/stock/general-ledger', stockAuth, async (req: StockRequest, res
       .order('created_at', { ascending: false })
       .limit(500)) as any;
     if (!entryRows?.length) {
-      res.json({ account, entries: [] });
+      apiSuccess(res, { account, entries: [] });
       return;
     }
 
@@ -2120,7 +2118,7 @@ router.get('/api/stock/general-ledger', stockAuth, async (req: StockRequest, res
       };
     });
 
-    res.json({ account, entries });
+    apiSuccess(res, { account, entries });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -2134,7 +2132,7 @@ router.get('/api/stock/trial-balance', stockAuth, async (req: StockRequest, res:
       apiError(res, result.error || 'Gagal memuat data', ErrorCode.INTERNAL, 500);
       return;
     }
-    res.json(result.data);
+    apiSuccess(res, result.data);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -2211,7 +2209,7 @@ router.get('/api/stock/dashboard/charts', stockAuth, async (req: StockRequest, r
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
-    res.json({ labels, revenue, expense, expenseLabels, expenseValues, topProducts });
+    apiSuccess(res, { labels, revenue, expense, expenseLabels, expenseValues, topProducts });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }

@@ -73,7 +73,7 @@ export function StockSettings() {
           setChannelFees(fees);
         }
       })
-      .catch((err) => console.error('[StockSettings] Fetch settings gagal', err));
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockSettings] Fetch settings gagal'));
   }, [token]);
 
   async function handleInstall() {

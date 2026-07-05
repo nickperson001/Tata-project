@@ -5,6 +5,7 @@ import { Skeleton } from '../../components/LoadingSkeleton';
 import { EmptyState } from '../../components/EmptyState';
 import { InfoTip } from '../../components/InfoTip';
 import { fmtRp } from '../../lib/utils';
+import { toast } from '../../components/Toast';
 import type { GeneralLedgerData } from '../../types';
 
 const periods = [
@@ -26,17 +27,18 @@ export function StockBukuBesar() {
     try {
       const res = await stockApi.get<{ accounts: { code: string; name: string; type: string }[] }>('/api/stock/coa', token);
       setAccounts(res.accounts ?? []);
-    } catch (e) { console.error('[StockBukuBesar] Load accounts gagal', e); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockBukuBesar] Load accounts gagal'); }
   }, [token]);
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setData(null);
     try {
       const q = `/api/stock/general-ledger?days=${days}${selectedCode ? `&account_code=${selectedCode}` : ''}`;
       const d = await stockApi.get<GeneralLedgerData>(q, token);
       setData(d);
-    } catch (e) { console.error('[StockBukuBesar] Load gagal', e); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockBukuBesar] Load gagal'); }
     finally { setLoading(false); }
   }, [token, days, selectedCode]);
 

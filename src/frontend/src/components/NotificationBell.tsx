@@ -15,11 +15,11 @@ export function NotificationBell() {
     let cancelled = false;
     const currentToken: string = token;
     function fetchAlerts() {
-      stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', currentToken).then((res) => {
-        if (res.data?.alerts) {
-          useNotificationStore.getState().setAlerts(res.data.alerts);
+      stockApi.get<{ alerts: StockAlert[] }>('/api/stock/alerts', currentToken).then((res) => {
+        if (res.alerts) {
+          useNotificationStore.getState().setAlerts(res.alerts);
         }
-      }).catch((err) => { if (!cancelled) console.error('[NotificationBell] Fetch alerts gagal', err); });
+      }).catch(() => {});
     }
     fetchAlerts();
     const interval = setInterval(fetchAlerts, 30_000);

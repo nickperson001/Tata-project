@@ -5,6 +5,7 @@ import { Skeleton } from '../../components/LoadingSkeleton';
 import { EmptyState } from '../../components/EmptyState';
 import { InfoTip } from '../../components/InfoTip';
 import { fmtRp } from '../../lib/utils';
+import { toast } from '../../components/Toast';
 import type { TrialBalanceData } from '../../types';
 
 const typeColors: Record<string, string> = {
@@ -32,7 +33,7 @@ export function StockTrialBalance() {
       try {
         const d = await stockApi.get<TrialBalanceData>('/api/stock/trial-balance', token);
         setData(d);
-      } catch (e) { console.error('[StockTrialBalance] Load gagal', e); }
+      } catch (e) { toast.error(e instanceof Error ? e.message : '[StockTrialBalance] Load gagal'); }
       finally { setLoading(false); }
     })();
   }, [token]);

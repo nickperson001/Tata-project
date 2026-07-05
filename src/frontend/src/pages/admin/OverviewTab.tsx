@@ -29,7 +29,7 @@ export function OverviewTab() {
       .then((data) => {
         if (data) setBotState(data);
       })
-      .catch((err) => console.error('[Admin] Fetch status gagal', err));
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[Admin] Fetch status gagal'));
   }, [setBotState]);
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export function OverviewTab() {
             setBotState({ ...botState, pairingCode: data.pairingCode });
           }
         })
-        .catch((err) => console.error('[Admin] Fetch QR gagal', err));
+        .catch((err) => toast.error(err instanceof Error ? err.message : '[Admin] Fetch QR gagal'));
     }
   }, [botState?.currentQR, botState?.pairingCode]);
 
@@ -60,11 +60,9 @@ export function OverviewTab() {
     if (!phone) { toast.error('Masukkan nomor telepon'); return; }
     setPairingLoading(true);
     try {
-      const res = await api.post<{ success: boolean; code: string }>('/api/admin/pairing-code', { phoneNumber: phone });
-      if (res.success) {
-        toast.success(`Kode pairing: ${res.code}`);
-        setPairingPhone('');
-      }
+      const res = await api.post<{ code: string }>('/api/admin/pairing-code', { phoneNumber: phone });
+      toast.success(`Kode pairing: ${res.code}`);
+      setPairingPhone('');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal minta kode pairing');
     } finally {
@@ -81,11 +79,9 @@ export function OverviewTab() {
   async function testBot() {
     setTestBotLoading(true);
     try {
-      const res = await api.post<{ success: boolean; waSent: boolean; totalTests: number; message: string }>('/api/admin/test-bot', {});
-      if (res.success) {
-        toast.success(`Test bot: ${res.totalTests} skenario dikirim ke WA`);
-        if (!res.waSent) toast.warning('WA tidak terkirim (bot offline?)', { duration: 5000 });
-      }
+      const res = await api.post<{ waSent: boolean; totalTests: number; message: string }>('/api/admin/test-bot', {});
+      toast.success(`Test bot: ${res.totalTests} skenario dikirim ke WA`);
+      if (!res.waSent) toast.warning('WA tidak terkirim (bot offline?)', { duration: 5000 });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal test bot');
     } finally {
@@ -96,12 +92,11 @@ export function OverviewTab() {
   async function seedDemo() {
     setSeeding(true);
     try {
-      const res = await api.post<{ success: boolean; log: string[] }>('/api/admin/seed-demo');
-      if (res.success) {
-        toast.success('Demo data berhasil di-seed!');
-        const urlLine = res.log.find(l => l.includes('/stock/'));
-        if (urlLine) {
-          const url = urlLine.trim();
+      const res = await api.post<{ log: string[] }>('/api/admin/seed-demo');
+      toast.success('Demo data berhasil di-seed!');
+      const urlLine = res.log.find(l => l.includes('/stock/'));
+      if (urlLine) {
+        const url = urlLine.trim();
           toast.success(`URL: ${url}`, { duration: 8000 });
         }
       }

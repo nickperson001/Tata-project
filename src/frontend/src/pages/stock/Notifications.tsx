@@ -12,11 +12,11 @@ export function Notifications() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', token).then((res) => {
-      if (res.data?.alerts) {
-        setAlerts(res.data.alerts);
+    stockApi.get<{ alerts: StockAlert[] }>('/api/stock/alerts', token).then((res) => {
+      if (res.alerts) {
+        setAlerts(res.alerts);
       }
-    }).catch((err) => console.error('[Notifications] Fetch alerts gagal', err)).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [token, setAlerts]);
 
   if (loading) {

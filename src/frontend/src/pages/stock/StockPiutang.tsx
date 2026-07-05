@@ -3,6 +3,7 @@ import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
 import { Badge } from '../../components/Badge';
+import { toast } from '../../components/Toast';
 import { fmtRp, fmtDate } from '../../lib/utils';
 import { DollarSign, Eye } from 'lucide-react';
 
@@ -23,7 +24,7 @@ export function StockPiutang() {
     if (!token) return;
     stockApi.get<PiutangList>('/api/stock/piutang', token)
       .then(setData)
-      .catch((err) => console.error('[StockPiutang] Fetch gagal', err))
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockPiutang] Fetch gagal'))
       .finally(() => setLoading(false));
   }, [token]);
 

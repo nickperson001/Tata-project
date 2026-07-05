@@ -10,6 +10,7 @@ import type { DateRange } from '../../components/DateRangeFilter';
 import { toast } from '../../components/Toast';
 import { fmtRp, fmtDateTime } from '../../lib/utils';
 import type { PaginationMeta } from '../../types';
+import type { TransItem, PembukuanData, ApiResponse } from '../../types/api';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { DownloadButton } from '../../components/DownloadButton';
 
@@ -34,26 +35,6 @@ const CHANNEL_TEMPLATES: Record<string, { label: string; color: string }> = {
   tiktok:   { label: 'TikTok Shop', color: '#010101' },
 };
 
-interface TransItem {
-  id: string;
-  type: 'masuk' | 'keluar';
-  amount: number;
-  description: string;
-  reference_type: string | null;
-  created_at: string;
-  channel?: string | null;
-  products?: { name: string; sku: string; unit: string } | null;
-}
-
-interface PembukuanData {
-  transaksi: TransItem[];
-  total: number;
-  page: number;
-  limit: number;
-  totalMasuk: number;
-  totalKeluar: number;
-}
-
 export function StockPembukuan() {
   const { token } = useStockStore();
   const [data, setData] = useState<PembukuanData | null>(null);
@@ -77,7 +58,7 @@ export function StockPembukuan() {
       .then((d) => {
         if (d.settings?.active_channels) setActiveChannels(d.settings.active_channels);
       })
-      .catch((err) => console.error('[StockPembukuan] Fetch transaksi gagal', err));
+      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockPembukuan] Fetch transaksi gagal'));
   }, [token]);
 
   const load = useCallback(async () => {
