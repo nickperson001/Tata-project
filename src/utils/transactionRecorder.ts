@@ -206,6 +206,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
       const ch = await resolveChannel(userId, channel);
       const bebanAdmin = omzet * (ch.adminFeePct / 100);
       const danaBersih = omzet - bebanAdmin;
+      const netProfit = danaBersih - modal;
 
       // 1. Lock product row + read current stock
       const prod = await client.query(
@@ -252,7 +253,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
           qty,
           sell,
           buy,
-          profit,
+          netProfit,
           modal,
         ],
       );
@@ -301,7 +302,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
           bebanAdmin,
           danaBersih,
           totalModal: modal,
-          profit: danaBersih - modal,
+          profit: netProfit,
         },
       };
     });
@@ -617,8 +618,20 @@ async function recordStockAdjustment(opts: {
   note?: string;
   unitPrice?: number;
   channel?: string;
+  createdVia?: 'whatsapp' | 'dashboard';
+  recordTransaction?: boolean;
 }): Promise<RecordResult> {
-  const { userId, productId, type, quantity, note, unitPrice, channel = 'Offline' } = opts;
+  const {
+    userId,
+    productId,
+    type,
+    quantity,
+    note,
+    unitPrice,
+    channel = 'Offline',
+    createdVia = 'whatsapp',
+    recordTransaction = false,
+  } = opts;
   if (!userId) return { success: false, error: 'userId is required' };
   if (!productId) return { success: false, error: 'productId is required' };
   if (!quantity || quantity <= 0) return { success: false, error: 'quantity must be > 0' };
@@ -641,9 +654,9 @@ async function recordStockAdjustment(opts: {
       ]);
       const mov = await client.query(
         `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_via)
-         VALUES ($1, $2, $3, $4, $5, $6, 'manual', $7, 'whatsapp')
+         VALUES ($1, $2, $3, $4, $5, $6, 'manual', $7, $8)
          RETURNING id`,
-        [userId, productId, type, quantity, stockBefore, stockAfter, note || null],
+        [userId, productId, type, quantity, stockBefore, stockAfter, note || null, createdVia],
       );
       const movId = mov.rows[0].id;
       if (type === 'in') {
@@ -683,7 +696,7 @@ async function recordStockAdjustment(opts: {
             movId,
           ]);
         }
-        if (modal > 0) {
+        if (omzet > 0) {
           const lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [];
           if (bebanAdmin > 0) {
             lines.push(
@@ -702,19 +715,49 @@ async function recordStockAdjustment(opts: {
               { accountCode: ch.coaCode, debit: 0, credit: omzet, description: `Penjualan via ${channel}` },
             );
           }
-          lines.push(
-            { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${quantity} item` },
-            { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
-          );
+          if (modal > 0) {
+            lines.push(
+              { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${quantity} item` },
+              { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
+            );
+          }
           await accountingEngine.insertJournalViaClient(client, userId, {
             referenceType: 'stock_out',
             referenceId: String(movId),
-            description: `Penjualan ${quantity} ${p.unit}: ${p.name}`,
+            description: `Penjualan ${quantity} ${p.unit}: ${p.name}${channel ? ` (${channel})` : ''}`,
             lines,
           });
+
+          if (recordTransaction) {
+            const netProfit = omzet - modal - bebanAdmin;
+            await client.query(
+              `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, reference_type, product_id, quantity, price_sell, price_buy, profit, hpp)
+               VALUES ($1, 'masuk', 'tunai', $2, $3, $4, 'stock_out', $5, $6, $7, $8, $9, $10)`,
+              [
+                userId,
+                channel || 'Offline',
+                omzet,
+                `Penjualan ${quantity} ${p.unit}: ${p.name} [mov:${movId}]`,
+                productId,
+                quantity,
+                sellPrice,
+                buyPrice,
+                netProfit,
+                modal,
+              ],
+            );
+          }
         }
       }
-      return { success: true, data: { stockBefore, stockAfter, product: { name: p.name, unit: p.unit } } };
+      return {
+        success: true,
+        data: {
+          stockBefore,
+          stockAfter,
+          movId,
+          product: { id: p.id, name: p.name, unit: p.unit, stock_min: p.stock_min },
+        },
+      };
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordStockAdjustment failed: ' + err.message);

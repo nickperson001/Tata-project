@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loginSchema, broadcastSchema, productSchema, maintenanceSchema } from '../src/routes/schemas';
+import { loginSchema, broadcastSchema, productSchema, maintenanceSchema, pembukuanSchema } from '../src/routes/schemas';
 
 describe('loginSchema', () => {
   it('should accept valid credentials', () => {
@@ -61,6 +61,26 @@ describe('productSchema', () => {
       sku: '',
       name: 'Test',
       priceSell: 100,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('pembukuanSchema', () => {
+  it('should accept valid pembukuan category', () => {
+    const result = pembukuanSchema.safeParse({
+      type: 'beban_gaji',
+      amount: 5000000,
+      description: 'Gaji karyawan Mei',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject masuk/keluar as type', () => {
+    const result = pembukuanSchema.safeParse({
+      type: 'masuk',
+      amount: 100,
+      description: 'Test',
     });
     expect(result.success).toBe(false);
   });

@@ -169,7 +169,7 @@ async function processSaleExecution(
   qty: number,
   channelName = 'Offline',
 ): Promise<boolean> {
-  const res = await stockManager.executeSale(user.id, product.id, qty);
+  const res = await stockManager.executeSale(user.id, product.id, qty, channelName);
   if (!res.success) {
     await safeReply(msg, `❌ *Gagal Mencatat Penjualan*\n\n${res.error}`);
     return true;

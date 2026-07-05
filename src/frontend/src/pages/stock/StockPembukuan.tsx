@@ -132,11 +132,7 @@ export function StockPembukuan() {
     if (form.channel) body.channel = form.channel;
     try {
       if (editingId) {
-        await stockApi.put(`/api/stock/transactions/${editingId}`, token, {
-          type: form.type,
-          amount: Number(form.amount),
-          description: form.description,
-        });
+        await stockApi.put(`/api/stock/transactions/${editingId}`, token, { description: form.description });
         toast('Transaksi diupdate');
       } else {
         await stockApi.post('/api/stock/pembukuan', token, body);

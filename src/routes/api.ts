@@ -18,6 +18,7 @@ import {
   movementSchema,
   pembukuanSchema,
   hutangSchema,
+  productCreateSchema,
   pairingCodeSchema,
   maintenanceSchema,
   updateUserStatusSchema,
@@ -31,6 +32,7 @@ import * as transactionRecorder from '../utils/transactionRecorder';
 import { generateExcel } from '../utils/excelExport';
 import { setupDemoAccount } from '../utils/demoSetup';
 import { withTransaction } from '../utils/db';
+import { checkDemoTransactionLimit } from '../utils/helpers';
 
 const router = express.Router();
 
@@ -801,7 +803,7 @@ router.get('/api/stock/products', stockAuth, async (req: StockRequest, res: Resp
   }
 });
 
-router.post('/api/stock/products', stockAuth, requireBody('name'), async (req: StockRequest, res: Response) => {
+router.post('/api/stock/products', stockAuth, requireBody('name'), validate(productCreateSchema), async (req: StockRequest, res: Response) => {
   const userId = req.stockUser!.id;
 
   // Demo: maksimal 3 produk
@@ -839,6 +841,9 @@ router.post('/api/stock/products', stockAuth, requireBody('name'), async (req: S
       name,
       category,
       unit,
+      supplier,
+      location,
+      defaultChannel,
       priceBuy: parseFloat(priceBuy) || 0,
       priceSell: parseFloat(priceSell) || 0,
       stockInitial: parseFloat(stockInitial) || 0,
@@ -850,12 +855,6 @@ router.post('/api/stock/products', stockAuth, requireBody('name'), async (req: S
       return;
     }
     const newProduct = result.product as any;
-    if (supplier || location || defaultChannel)
-      (await supabase
-        .from('products')
-        .update({ supplier, location, default_channel: defaultChannel || null })
-        .eq('id', newProduct.id)
-        .eq('user_id', userId)) as any;
     // Jurnal stok awal
     const initStock = parseFloat(stockInitial) || 0;
     const initPrice = parseFloat(priceBuy) || parseFloat(newProduct.price_buy) || 0;
@@ -1034,157 +1033,40 @@ router.delete('/api/stock/categories/:id', stockAuth, async (req: StockRequest, 
 router.post('/api/stock/movement', stockAuth, validate(movementSchema), async (req: StockRequest, res: Response) => {
   const userId = req.stockUser!.id;
   const product_id = String(req.body.product_id);
-  const type = req.body.type;
+  const type = req.body.type as 'in' | 'out';
   const quantity = parseFloat(String(req.body.quantity));
   const note = sanitizeString(req.body.note, 500);
   const unit_price = req.body.unit_price;
-  const channel = req.body.channel ? String(req.body.channel) : '';
+  const channel = req.body.channel ? String(req.body.channel) : 'Offline';
   try {
-    // Resolve channel for COA revenue account & admin fee
-    let revenueCoa = '4101';
-    let adminFeePct = 0;
-    if (channel) {
-      const { data: chData } = (await supabase
-        .from('sales_channels')
-        .select('coa_code, admin_fee_pct')
-        .eq('user_id', userId)
-        .eq('name', channel)
-        .maybeSingle()) as any;
-      if (chData) {
-        revenueCoa = chData.coa_code || '4101';
-        adminFeePct = Number(chData.admin_fee_pct) || 0;
-      }
+    const demoCheck = await checkDemoTransactionLimit(userId, req.stockUser?.status || 'demo');
+    if (!demoCheck.ok) {
+      apiError(res, demoCheck.error!, ErrorCode.UPGRADE_REQUIRED, 403);
+      return;
     }
 
-    const result = await withTransaction(async (client) => {
-      const prod = await client.query(
-        `SELECT id, name, stock_current, stock_min, unit, price_buy, price_sell FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
-        [product_id, userId],
-      );
-      if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
-      const p = prod.rows[0];
-      const stockBefore = parseFloat(p.stock_current) || 0;
-      const stockAfter = type === 'in' ? stockBefore + quantity : stockBefore - quantity;
-      if (stockAfter < 0) {
-        throw new Error(`Stok tidak cukup. Stok saat ini: ${stockBefore} ${p.unit}`);
-      }
-      await client.query(`UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`, [
-        stockAfter,
-        product_id,
-        userId,
-      ]);
-      const mov = await client.query(
-        `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_via)
-         VALUES ($1, $2, $3, $4, $5, $6, 'manual', $7, 'dashboard')
-         RETURNING id`,
-        [userId, product_id, type, quantity, stockBefore, stockAfter, note || null],
-      );
-      const movId = mov.rows[0].id;
-      if (type === 'in') {
-        const buyPrice = unit_price ? parseFloat(String(unit_price)) : parseFloat(p.price_buy) || 0;
-        const totalValue = quantity * buyPrice;
-        if (unit_price || parseFloat(p.price_buy) > 0) {
-          await client.query(`UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`, [
-            buyPrice,
-            totalValue,
-            movId,
-          ]);
-        }
-        if (totalValue > 0) {
-          await accountingEngine.insertJournalViaClient(client, userId, {
-            referenceType: 'stock_in',
-            referenceId: String(movId),
-            description: `Stok Masuk ${quantity} ${p.unit}: ${p.name}`,
-            lines: [
-              { accountCode: '1201', debit: totalValue, credit: 0, description: 'Penambahan inventori' },
-              { accountCode: '3101', debit: 0, credit: totalValue, description: 'Modal inventori' },
-            ],
-          });
-        }
-      } else {
-        const sellPrice = parseFloat(p.price_sell) || 0;
-        const buyPrice = parseFloat(p.price_buy) || 0;
-        const omzet = quantity * sellPrice;
-        const modal = quantity * buyPrice;
-        const bebanAdmin = omzet * (adminFeePct / 100);
-        const danaBersih = omzet - bebanAdmin;
-
-        if (sellPrice > 0) {
-          await client.query(`UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`, [
-            sellPrice,
-            omzet,
-            movId,
-          ]);
-        }
-        // Always create journal for stock-out (revenue) if sellPrice > 0
-        if (omzet > 0) {
-          const lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [];
-          if (bebanAdmin > 0) {
-            lines.push(
-              { accountCode: '1101', debit: danaBersih, credit: 0, description: 'Penerimaan penjualan (bersih)' },
-              {
-                accountCode: '6105',
-                debit: bebanAdmin,
-                credit: 0,
-                description: `Beban admin ${channel} ${adminFeePct}%`,
-              },
-              {
-                accountCode: revenueCoa,
-                debit: 0,
-                credit: omzet,
-                description: `Penjualan via ${channel || 'Offline'}`,
-              },
-            );
-          } else {
-            lines.push(
-              { accountCode: '1101', debit: omzet, credit: 0, description: 'Penerimaan penjualan' },
-              {
-                accountCode: revenueCoa,
-                debit: 0,
-                credit: omzet,
-                description: `Penjualan via ${channel || 'Offline'}`,
-              },
-            );
-          }
-          if (modal > 0) {
-            lines.push(
-              { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${quantity} item` },
-              { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
-            );
-          }
-          await accountingEngine.insertJournalViaClient(client, userId, {
-            referenceType: 'stock_out',
-            referenceId: String(movId),
-            description: `Penjualan ${quantity} ${p.unit}: ${p.name}${channel ? ' (' + channel + ')' : ''}`,
-            lines,
-          });
-
-          const profit = omzet - modal - bebanAdmin;
-          await client.query(
-            `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, reference_type, product_id, quantity, price_sell, price_buy, profit, hpp)
-             VALUES ($1, 'masuk', 'tunai', $2, $3, $4, 'stock_out', $5, $6, $7, $8, $9, $10)`,
-            [
-              userId,
-              channel || 'Offline',
-              omzet,
-              `Penjualan ${quantity} ${p.unit}: ${p.name} [mov:${movId}]`,
-              product_id,
-              quantity,
-              sellPrice,
-              buyPrice,
-              profit,
-              modal,
-            ],
-          );
-        }
-      }
-      return { stockBefore, stockAfter, product: { id: p.id, stock_min: p.stock_min, unit: p.unit } };
+    const result = await transactionRecorder.recordStockAdjustment({
+      userId,
+      productId: product_id,
+      type,
+      quantity,
+      note: note || undefined,
+      unitPrice: unit_price != null ? parseFloat(String(unit_price)) : undefined,
+      channel,
+      createdVia: 'dashboard',
+      recordTransaction: type === 'out',
     });
-    const rp = result.product as any;
-    if (result.stockAfter <= rp.stock_min && result.stockAfter > 0) {
+    if (!result.success) {
+      apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400);
+      return;
+    }
+
+    const d = result.data as any;
+    const rp = d.product;
+    if (d.stockAfter <= rp.stock_min && d.stockAfter > 0) {
       supabase
         .from('stock_alerts')
-        .insert([{ user_id: userId, product_id, alert_type: 'low_stock', stock_level: result.stockAfter }] as any)
+        .insert([{ user_id: userId, product_id, alert_type: 'low_stock', stock_level: d.stockAfter }] as any)
         .then(() => {
           const io = getIO();
           if (io)
@@ -1192,14 +1074,14 @@ router.post('/api/stock/movement', stockAuth, validate(movementSchema), async (r
               userId,
               product_id,
               alertType: 'low_stock',
-              stockLevel: result.stockAfter,
+              stockLevel: d.stockAfter,
             });
         })
         .then(null, () => {});
-    } else if (result.stockAfter <= 0) {
+    } else if (d.stockAfter <= 0) {
       supabase
         .from('stock_alerts')
-        .insert([{ user_id: userId, product_id, alert_type: 'out_of_stock', stock_level: result.stockAfter }] as any)
+        .insert([{ user_id: userId, product_id, alert_type: 'out_of_stock', stock_level: d.stockAfter }] as any)
         .then(() => {
           const io = getIO();
           if (io)
@@ -1207,12 +1089,12 @@ router.post('/api/stock/movement', stockAuth, validate(movementSchema), async (r
               userId,
               product_id,
               alertType: 'out_of_stock',
-              stockLevel: result.stockAfter,
+              stockLevel: d.stockAfter,
             });
         })
         .then(null, () => {});
     }
-    if (type === 'in' && result.stockAfter > rp.stock_min) {
+    if (type === 'in' && d.stockAfter > rp.stock_min) {
       supabase
         .from('stock_alerts')
         .update({ resolved_at: new Date().toISOString() })
@@ -1223,7 +1105,7 @@ router.post('/api/stock/movement', stockAuth, validate(movementSchema), async (r
         .then(null, () => {});
     }
     cacheInvalidate(userId);
-    apiSuccess(res, { stockBefore: result.stockBefore, stockAfter: result.stockAfter });
+    apiSuccess(res, { stockBefore: d.stockBefore, stockAfter: d.stockAfter });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1887,9 +1769,16 @@ router.get('/api/stock/pembukuan', stockAuth, async (req: StockRequest, res: Res
     query = query.order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
     const { data: trans, error, count } = (await query) as any;
     if (error) throw error;
+
+    let aggQuery: any = supabase.from('transactions').select('type, amount').eq('user_id', userId);
+    if (startDate) aggQuery = aggQuery.gte('created_at', startDate);
+    if (endDate) aggQuery = aggQuery.lte('created_at', endDate + 'T23:59:59.999Z');
+    const { data: aggRows, error: aggError } = (await aggQuery) as any;
+    if (aggError) throw aggError;
+
     let totalMasuk = 0,
       totalKeluar = 0;
-    (trans || []).forEach((t: any) => {
+    (aggRows || []).forEach((t: any) => {
       if (t.type === 'masuk') totalMasuk += Number(t.amount) || 0;
       else totalKeluar += Number(t.amount) || 0;
     });
@@ -2020,25 +1909,35 @@ router.post('/api/stock/hutang', stockAuth, validate(hutangSchema), async (req: 
   const userId = req.stockUser!.id;
   const nama_supplier = sanitizeString(req.body.nama_supplier, 150);
   const nominal_hutang = parseFloat(req.body.nominal_hutang);
-  const deskripsi = sanitizeString(req.body.deskripsi, 500);
+  const deskripsi = sanitizeString(req.body.deskripsi, 500) || `Hutang ke ${nama_supplier}`;
   const jatuh_tempo = req.body.jatuh_tempo || null;
   try {
-    const { data, error } = (await supabase
-      .from('accounts_payable')
-      .insert([
-        {
-          user_id: userId,
-          nama_supplier,
-          nominal_hutang,
-          deskripsi,
-          jatuh_tempo: jatuh_tempo || null,
-        },
-      ])
-      .select()
-      .single()) as any;
-    if (error) throw error;
+    const result = await transactionRecorder.recordPembukuan({
+      userId,
+      tipe: 'hutang_dagang',
+      amount: nominal_hutang,
+      description: deskripsi,
+      customerName: nama_supplier,
+    });
+    if (!result.success) {
+      apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400);
+      return;
+    }
+    if (jatuh_tempo) {
+      const { data: latest } = (await supabase
+        .from('accounts_payable')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('nama_supplier', nama_supplier)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()) as any;
+      if (latest?.id) {
+        (await supabase.from('accounts_payable').update({ jatuh_tempo }).eq('id', latest.id)) as any;
+      }
+    }
     cacheInvalidate(userId);
-    apiSuccess(res, { hutang: data });
+    apiSuccess(res, { hutang: result.data });
   } catch (e: any) {
     apiError(res, e.message, 500);
   }

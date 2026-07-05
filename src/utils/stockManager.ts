@@ -16,7 +16,7 @@ function formatQty(qty: number, unit: string): string {
 // ── Product Management ──
 
 interface AddProductData {
-  sku: string;
+  sku?: string;
   name: string;
   category?: string;
   unit?: string;
@@ -25,6 +25,9 @@ interface AddProductData {
   stockInitial?: number;
   stockMin?: number;
   description?: string;
+  supplier?: string;
+  location?: string;
+  defaultChannel?: string;
 }
 
 interface UpdateProductData {
@@ -65,19 +68,20 @@ async function addProduct(
   userId: string,
   data: AddProductData,
 ): Promise<{ success: boolean; product?: unknown; error?: string }> {
-  const { sku, name, category, unit, priceBuy, priceSell, stockInitial, stockMin, description } = data;
-  if (!sku || !name) {
-    return { success: false, error: 'SKU dan nama produk wajib diisi.' };
+  const { sku, name, category, unit, priceBuy, priceSell, stockInitial, stockMin, description, supplier, location, defaultChannel } = data;
+  if (!name) {
+    return { success: false, error: 'Nama produk wajib diisi.' };
   }
+  const effectiveSku = (sku || name).toUpperCase().replace(/\s+/g, '-').slice(0, 50);
   try {
     return await withTransaction(async (client) => {
       const prod = await client.query(
-        `INSERT INTO products (user_id, sku, name, category, unit, price_buy, price_sell, stock_current, stock_min, description)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO products (user_id, sku, name, category, unit, price_buy, price_sell, stock_current, stock_min, description, supplier, location, default_channel)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING *`,
         [
           userId,
-          sku.toUpperCase(),
+          effectiveSku,
           name,
           category || 'Umum',
           unit || 'pcs',
@@ -86,6 +90,9 @@ async function addProduct(
           stockInitial || 0,
           stockMin || 0,
           description || null,
+          supplier || null,
+          location || null,
+          defaultChannel || null,
         ],
       );
       const product = prod.rows[0];
@@ -101,8 +108,8 @@ async function addProduct(
     });
   } catch (err: any) {
     if (err?.code === '23505' || (err.message && err.message.includes('duplicate key'))) {
-      addLog('warn', `[STOCK] addProduct: SKU "${sku}" sudah digunakan`);
-      return { success: false, error: `SKU "${sku}" sudah digunakan. Gunakan SKU lain.` };
+      addLog('warn', `[STOCK] addProduct: SKU "${effectiveSku}" sudah digunakan`);
+      return { success: false, error: `SKU "${effectiveSku}" sudah digunakan. Gunakan SKU lain.` };
     }
     addLog('error', '[STOCK] addProduct error: ' + (err.message || err));
     return { success: false, error: err.message || err };
@@ -221,6 +228,7 @@ async function executeSale(
   userId: string,
   productId: string,
   quantity: number,
+  channel = 'Offline',
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     const { data: product, error: prodErr } = (await supabase
@@ -252,6 +260,7 @@ async function executeSale(
       totalOmzet,
       description,
       referenceType: 'cashier',
+      channel,
     });
     if (!result.success) {
       return { success: false, error: result.error };

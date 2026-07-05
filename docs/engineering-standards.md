@@ -669,6 +669,16 @@ Hotfix diizinkan hanya untuk:
 | 2026-07-05 | 23:55 | agent | BE | [4.3] Refactor src/utils/errors.ts — AppError gunakan ErrorCode dari types/errors | DONE | 0.1h | konsistensi error |
 | 2026-07-06 | 00:30 | agent | BE | [4.4] api.ts: Zod validate middleware di 8 route + catch→sanitizeError + apiError di middleware | DONE | 1h | standar routing |
 | 2026-07-06 | 08:00 | agent | BE | Fix LabaRugi/Neraca/TrialBalance blank page: apiSuccess(res, result.data) → res.json(result.data) — konsisten dengan semua route lain yang pakai direct res.json() | DONE | 0.5h | halaman Laba Rugi, Neraca, Trial Balance |
+| 2026-07-06 | 09:00 | agent | BE | Refactor movement endpoint: ganti inline logic → transactionRecorder.recordStockAdjustment | DONE | 0.5h | stock movement |
+| 2026-07-06 | 09:15 | agent | BE | Add productCreateSchema + Zod validate di POST /api/stock/products | DONE | 0.25h | API konsistensi |
+| 2026-07-06 | 09:30 | agent | BE | Change pembukuan schema: masuk/keluar → category types (beban_gaji, modal, piutang, etc.) | DONE | 0.25h | pembukuan API |
+| 2026-07-06 | 09:45 | agent | BE | Add checkDemoTransactionLimit + demo guard di movement endpoint | DONE | 0.25h | demo akun |
+| 2026-07-06 | 10:00 | agent | BE | Hutang endpoint: pakai recordPembukuan + insert accounts_payable via transaction | DONE | 0.25h | hutang |
+| 2026-07-06 | 10:15 | agent | BE | Pembukuan GET: separate aggregation query agar total tidak terbatas pagination | DONE | 0.25h | pembukuan list |
+| 2026-07-06 | 10:30 | agent | BE | addProduct: SKU auto-generate dari name, tambah supplier/location/defaultChannel di INSERT atomic | DONE | 0.25h | add product |
+| 2026-07-06 | 10:45 | agent | FE | Fix edit pembukuan: hanya kirim description di PUT (type/amount ignored backend) | DONE | 0.25h | frontend |
+| 2026-07-06 | 11:00 | agent | BE | recordStockAdjustment: tambah createdVia + recordTransaction flag | DONE | 0.25h | transaction recorder |
+| 2026-07-06 | 11:15 | agent | BE | accountingEngine: reorder COA auto-create before journal line batch insert; split balance query for date-filtered vs unfiltered | DONE | 0.25h | accounting engine |
 
 ### Template Entri Baru
 
@@ -682,6 +692,15 @@ Hotfix diizinkan hanya untuk:
 
 > **Instruksi:** Setiap perubahan yang tidak backward-compatible dicatat di sini.  
 > **Format:** Urutkan dari yang paling baru ke paling lama.
+
+### 2026-07-06 — pembukuan schema: masuk/keluar → category types
+
+| Metadata | |
+|----------|---|
+| **Pelaku** | agent |
+| **Perubahan** | `POST /api/stock/pembukuan` schema `type` field berubah dari `'masuk'\|'keluar'` menjadi category types (`beban_gaji`, `beban_sewa`, `beban_listrik_air`, `beban_transport`, `beban_operasional`, `modal`, `prive`, `piutang`, `hutang_dagang`, `hutang_lancar`). Frontend `StockPembukuan.tsx` sudah adaptif: kategorisasi otomatis berdasarkan pemilihan Pemasukan/Pengeluaran. |
+| **Dampak** | Semua caller `POST /api/stock/pembukuan` harus kirim category type bukan `masuk`/`keluar`. |
+| **Migrasi** | Gunakan mapping: Pemasukan → `modal`/`piutang`, Pengeluaran → `beban_*`/`prive`/`hutang_*`. |
 
 ### 2026-07-06 — api.ts standardisasi response + middleware
 
