@@ -191,6 +191,7 @@ export function ProductsPage() {
                 <th>Nama</th>
                 <th>Kategori</th>
                 <th>Channel</th>
+                <th>Harga Beli</th>
                 <th>Stok</th>
                 <th>Harga Jual</th>
                 <th>Status</th>
@@ -211,6 +212,9 @@ export function ProductsPage() {
                     ) : (
                       <span style={{ color: 'var(--text-muted)' }}>Semua</span>
                     )}
+                  </td>
+                  <td style={{ fontWeight: 600, color: (p.price_buy ?? 0) === 0 ? 'var(--danger)' : 'var(--text)', fontSize: '0.8rem' }}>
+                    {fmtRp(p.price_buy ?? 0)}
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

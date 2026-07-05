@@ -36,7 +36,7 @@ export function StockMovement() {
   function handleProductChange(id: string) {
     const prod = products.find(p => p.id === id) || null;
     setSelectedProduct(prod);
-    setForm({ ...form, product_id: id });
+    setForm({ ...form, product_id: id, channel: prod?.default_channel || '' });
   }
 
   async function submit(e: React.FormEvent) {

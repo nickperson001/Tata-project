@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStockStore } from '../../store/stockStore';
-import { User, Shield, Download, Phone, Store, ShoppingBag, MessageCircle, Globe, Plus, Check, Trash2 } from 'lucide-react';
+import { User, Shield, Download, Phone, Store, ShoppingBag, MessageCircle, Globe, Plus, Check, Trash2, Percent } from 'lucide-react';
 import { toast } from '../../components/Toast';
 import { stockApi } from '../../services/api';
 
@@ -38,6 +38,7 @@ export function StockSettings() {
 
   // Sales channels state
   const [activeChannels, setActiveChannels] = useState<string[]>(['offline', 'whatsapp']);
+  const [channelFees, setChannelFees] = useState<Record<string, number>>({});
   const [customChannelName, setCustomChannelName] = useState('');
   const [savingChannels, setSavingChannels] = useState(false);
 
@@ -60,14 +61,19 @@ export function StockSettings() {
     };
   }, []);
 
-  // Load channels from user settings
+  // Load channels & fees from user settings
   useEffect(() => {
     if (!token) return;
-    stockApi.get<{ settings: any }>('/api/stock/settings', token)
+    stockApi.get<{ settings: any; channels: { name: string; admin_fee_pct: number }[] }>('/api/stock/settings', token)
       .then((d) => {
         if (d.settings?.active_channels) setActiveChannels(d.settings.active_channels);
+        if (d.channels) {
+          const fees: Record<string, number> = {};
+          d.channels.forEach((ch) => { fees[ch.name] = ch.admin_fee_pct; });
+          setChannelFees(fees);
+        }
       })
-      .catch((err) => console.error('[StockSettings] Fetch channels gagal', err));
+      .catch((err) => console.error('[StockSettings] Fetch settings gagal', err));
   }, [token]);
 
   async function handleInstall() {
@@ -92,11 +98,20 @@ export function StockSettings() {
     setCustomChannelName('');
   }
 
+  function getChannelFee(name: string): number {
+    return channelFees[name] ?? 0;
+  }
+
+  function setChannelFee(name: string, fee: number) {
+    setChannelFees(prev => ({ ...prev, [name]: Math.min(100, Math.max(0, fee)) }));
+  }
+
   async function saveChannels() {
     if (!token) return;
     setSavingChannels(true);
     try {
-      await stockApi.post('/api/stock/settings', token, { active_channels: activeChannels });
+      const channel_fees = Object.entries(channelFees).map(([name, admin_fee_pct]) => ({ name, admin_fee_pct }));
+      await stockApi.post('/api/stock/settings', token, { active_channels: activeChannels, channel_fees });
       toast.success('Channel penjualan berhasil disimpan!');
     } catch {
       toast.error('Gagal menyimpan channel. Coba lagi.');
@@ -171,36 +186,61 @@ export function StockSettings() {
         </div>
 
         {/* Channel Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
           {CHANNEL_TEMPLATES.map(ch => {
             const isActive = activeChannels.includes(ch.id);
             return (
-              <button
+              <div
                 key={ch.id}
-                onClick={() => toggleChannel(ch.id)}
                 style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem',
-                  padding: '0.875rem 1rem', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                  display: 'flex', flexDirection: 'column', gap: '0.4rem',
+                  padding: '0.875rem 1rem', borderRadius: 10,
                   border: isActive ? `2px solid ${ch.color}` : '2px solid var(--border)',
                   background: isActive ? `${ch.color}12` : 'var(--bg)',
                   transition: 'all 0.15s', fontFamily: 'var(--font)',
                   position: 'relative',
                 }}
               >
-                {isActive && (
-                  <span style={{
-                    position: 'absolute', top: 8, right: 8, width: 20, height: 20, borderRadius: '50%',
-                    background: ch.color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Check size={12} color="#fff" strokeWidth={3} />
-                  </span>
-                )}
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: `${ch.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ch.icon size={18} style={{ color: ch.color }} />
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => toggleChannel(ch.id)}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: `${ch.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ch.icon size={18} style={{ color: ch.color }} />
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)' }}>{ch.name}</span>
+                      <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>{ch.description}</span>
+                    </div>
+                  </div>
+                  {isActive && (
+                    <span style={{
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: ch.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <Check size={12} color="#fff" strokeWidth={3} />
+                    </span>
+                  )}
                 </div>
-                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)' }}>{ch.name}</span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>{ch.description}</span>
-              </button>
+                {isActive && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginTop: '0.25rem' }}>
+                    <Percent size={12} style={{ color: 'var(--text-muted)' }} />
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={getChannelFee(ch.name)}
+                      onChange={(e) => setChannelFee(ch.name, Number(e.target.value))}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        width: '100%', padding: '0.2rem 0.4rem', borderRadius: 4, border: '1px solid var(--border)',
+                        fontSize: '0.78rem', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font)',
+                      }}
+                      placeholder="Fee %"
+                    />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Admin Fee</span>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

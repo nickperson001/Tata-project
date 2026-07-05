@@ -380,10 +380,18 @@ router.post('/api/stock/auth/wa', async (req: Request, res: Response) => {
 router.get('/api/stock/settings', stockAuth, async (req: StockRequest, res: Response) => {
   const userId = req.stockUser!.id;
   try {
-    const { data, error } = await supabase.from('users').select('metadata').eq('id', userId).maybeSingle() as any;
-    if (error) throw error;
-    const settings = (data?.metadata as any) || {};
-    res.json({ settings });
+    const [{ data: userData, error: userErr }, { data: chData, error: chErr }] = await Promise.all([
+      supabase.from('users').select('metadata').eq('id', userId).maybeSingle() as any,
+      supabase.from('sales_channels').select('name, coa_code, admin_fee_pct').eq('user_id', userId).eq('is_active', true) as any,
+    ]);
+    if (userErr) throw userErr;
+    const settings = (userData?.metadata as any) || {};
+    const channels = (chData || []).map((r: any) => ({
+      name: r.name,
+      coa_code: r.coa_code,
+      admin_fee_pct: Number(r.admin_fee_pct) || 0,
+    }));
+    res.json({ settings, channels });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
@@ -392,12 +400,31 @@ router.post('/api/stock/settings', stockAuth, async (req: StockRequest, res: Res
   const updates = req.body;
   if (!updates || typeof updates !== 'object') { res.status(400).json({ error: 'Body tidak valid' }); return; }
   try {
-    // Merge with existing metadata
+    // Merge metadata
     const { data: existing } = await supabase.from('users').select('metadata').eq('id', userId).maybeSingle() as any;
     const currentMeta = (existing?.metadata as any) || {};
-    const newMeta = { ...currentMeta, ...updates };
-    const { error } = await supabase.from('users').update({ metadata: newMeta }).eq('id', userId) as any;
-    if (error) throw error;
+    const { channel_fees, ...metaUpdates } = updates;
+    const newMeta = { ...currentMeta, ...metaUpdates };
+    const { error: metaErr } = await supabase.from('users').update({ metadata: newMeta }).eq('id', userId) as any;
+    if (metaErr) throw metaErr;
+
+    // Update channel fees in sales_channels
+    if (Array.isArray(channel_fees)) {
+      for (const cf of channel_fees) {
+        if (!cf.name) continue;
+        const feePct = Math.min(100, Math.max(0, Number(cf.admin_fee_pct) || 0));
+        const { data: existing } = await supabase
+          .from('sales_channels')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('name', cf.name)
+          .maybeSingle() as any;
+        if (existing) {
+          await supabase.from('sales_channels').update({ admin_fee_pct: feePct }).eq('id', existing.id) as any;
+        }
+      }
+    }
+
     res.json({ success: true, settings: newMeta });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -506,7 +533,10 @@ router.post('/api/stock/products', stockAuth, requireBody('name'), async (req: S
   const location = sanitizeString(req.body.location, 100);
   const notes = sanitizeString(req.body.notes, 500);
   const defaultChannel = sanitizeString(req.body.default_channel, 30);
-  const { priceBuy, priceSell, stockInitial, stockMin } = req.body;
+  const priceBuy = req.body.price_buy ?? req.body.priceBuy;
+  const priceSell = req.body.price_sell ?? req.body.priceSell;
+  const stockInitial = req.body.stock_initial ?? req.body.stockInitial;
+  const stockMin = req.body.stock_min ?? req.body.stockMin;
   try {
     const result = await stockManager.addProduct(userId, { sku, name, category, unit, priceBuy: parseFloat(priceBuy) || 0, priceSell: parseFloat(priceSell) || 0, stockInitial: parseFloat(stockInitial) || 0, stockMin: parseFloat(stockMin) || 0, description: notes });
     if (!result.success) { apiError(res, result.error!); return; }
@@ -620,9 +650,26 @@ router.post('/api/stock/movement', stockAuth, requireBody('product_id', 'type', 
   const quantity = parseFloat(String(req.body.quantity));
   const note = sanitizeString(req.body.note, 500);
   const unit_price = req.body.unit_price;
+  const channel = req.body.channel ? String(req.body.channel) : '';
   if (quantity <= 0) { apiError(res, 'Jumlah harus lebih dari 0'); return; }
   if (!['in', 'out'].includes(type)) { apiError(res, 'Tipe harus in atau out'); return; }
   try {
+    // Resolve channel for COA revenue account & admin fee
+    let revenueCoa = '4101';
+    let adminFeePct = 0;
+    if (channel) {
+      const { data: chData } = await supabase
+        .from('sales_channels')
+        .select('coa_code, admin_fee_pct')
+        .eq('user_id', userId)
+        .eq('name', channel)
+        .maybeSingle() as any;
+      if (chData) {
+        revenueCoa = chData.coa_code || '4101';
+        adminFeePct = Number(chData.admin_fee_pct) || 0;
+      }
+    }
+
     const result = await withTransaction(async (client) => {
       const prod = await client.query(
         `SELECT id, name, stock_current, stock_min, unit, price_buy, price_sell FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
@@ -671,23 +718,41 @@ router.post('/api/stock/movement', stockAuth, requireBody('product_id', 'type', 
         const buyPrice = parseFloat(p.price_buy) || 0;
         const omzet = quantity * sellPrice;
         const modal = quantity * buyPrice;
+        const bebanAdmin = omzet * (adminFeePct / 100);
+        const danaBersih = omzet - bebanAdmin;
+
         if (sellPrice > 0) {
           await client.query(
             `UPDATE stock_movements SET unit_price = $1, total_value = $2 WHERE id = $3`,
             [sellPrice, omzet, movId]
           );
         }
-        if (modal > 0) {
+        // Always create journal for stock-out (revenue) if sellPrice > 0
+        if (omzet > 0) {
+          const lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [];
+          if (bebanAdmin > 0) {
+            lines.push(
+              { accountCode: '1101', debit: danaBersih, credit: 0, description: 'Penerimaan penjualan (bersih)' },
+              { accountCode: '6105', debit: bebanAdmin, credit: 0, description: `Beban admin ${channel} ${adminFeePct}%` },
+              { accountCode: revenueCoa, debit: 0, credit: omzet, description: `Penjualan via ${channel || 'Offline'}` },
+            );
+          } else {
+            lines.push(
+              { accountCode: '1101', debit: omzet, credit: 0, description: 'Penerimaan penjualan' },
+              { accountCode: revenueCoa, debit: 0, credit: omzet, description: `Penjualan via ${channel || 'Offline'}` },
+            );
+          }
+          if (modal > 0) {
+            lines.push(
+              { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${quantity} item` },
+              { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
+            );
+          }
           await accountingEngine.insertJournalViaClient(client, userId, {
             referenceType: 'stock_out',
             referenceId: String(movId),
-            description: `Penjualan ${quantity} ${p.unit}: ${p.name}`,
-            lines: [
-              { accountCode: '1101', debit: omzet, credit: 0, description: 'Penerimaan penjualan' },
-              { accountCode: '4101', debit: 0, credit: omzet, description: 'Penjualan offline' },
-              { accountCode: '5101', debit: modal, credit: 0, description: `HPP ${quantity} item` },
-              { accountCode: '1201', debit: 0, credit: modal, description: 'Pengurangan inventori' },
-            ],
+            description: `Penjualan ${quantity} ${p.unit}: ${p.name}${channel ? ' (' + channel + ')' : ''}`,
+            lines,
           });
         }
       }
@@ -734,35 +799,36 @@ router.delete('/api/stock/movement/:id', stockAuth, async (req: StockRequest, re
       await client.query(`DELETE FROM stock_movements WHERE id = $1 AND user_id = $2`, [mov.id, userId]);
       if (mov.type === 'in') {
         const totalValue = parseFloat(mov.total_value) || (mov.quantity * parseFloat(p.price_buy || 0));
-        if (totalValue > 0) {
-          await accountingEngine.insertJournalViaClient(client, userId, {
-            referenceType: 'stock_reversal',
-            referenceId: String(mov.id),
-            description: `Reverse Stok Masuk ${mov.quantity} ${p.unit}: ${p.name}`,
-            lines: [
-              { accountCode: '3101', debit: totalValue, credit: 0, description: 'Reverse modal inventori' },
-              { accountCode: '1201', debit: 0, credit: totalValue, description: 'Reverse penambahan inventori' },
-            ],
-          });
-        }
+        await accountingEngine.insertJournalViaClient(client, userId, {
+          referenceType: 'stock_reversal',
+          referenceId: String(mov.id),
+          description: `Reverse Stok Masuk ${mov.quantity} ${p.unit}: ${p.name}`,
+          lines: [
+            { accountCode: '3101', debit: totalValue, credit: 0, description: 'Reverse modal inventori' },
+            { accountCode: '1201', debit: 0, credit: totalValue, description: 'Reverse penambahan inventori' },
+          ],
+        });
       } else {
         const sellPrice = parseFloat(p.price_sell) || 0;
         const buyPrice = parseFloat(p.price_buy) || 0;
         const omzet = mov.quantity * sellPrice;
         const modal = mov.quantity * buyPrice;
+        const lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
+          { accountCode: '1101', debit: 0, credit: omzet, description: 'Reverse penerimaan penjualan' },
+          { accountCode: '4101', debit: omzet, credit: 0, description: 'Reverse penjualan' },
+        ];
         if (modal > 0) {
-          await accountingEngine.insertJournalViaClient(client, userId, {
-            referenceType: 'stock_reversal',
-            referenceId: String(mov.id),
-            description: `Reverse Penjualan ${mov.quantity} ${p.unit}: ${p.name}`,
-            lines: [
-              { accountCode: '1201', debit: modal, credit: 0, description: 'Reverse pengurangan inventori' },
-              { accountCode: '5101', debit: 0, credit: modal, description: 'Reverse HPP' },
-              { accountCode: '4101', debit: omzet, credit: 0, description: 'Reverse penjualan' },
-              { accountCode: '1101', debit: 0, credit: omzet, description: 'Reverse penerimaan' },
-            ],
-          });
+          lines.push(
+            { accountCode: '5101', debit: 0, credit: modal, description: 'Reverse HPP' },
+            { accountCode: '1201', debit: modal, credit: 0, description: 'Reverse pengurangan inventori' },
+          );
         }
+        await accountingEngine.insertJournalViaClient(client, userId, {
+          referenceType: 'stock_reversal',
+          referenceId: String(mov.id),
+          description: `Reverse Penjualan ${mov.quantity} ${p.unit}: ${p.name}`,
+          lines,
+        });
       }
     });
     cacheInvalidate(userId);

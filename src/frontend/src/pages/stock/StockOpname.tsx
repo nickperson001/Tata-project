@@ -99,8 +99,9 @@ export function StockOpname() {
       try {
         await stockApi.post('/api/stock/movement', token, {
           product_id: product.id,
-          type: 'adjustment',
+          type: diff > 0 ? 'in' : 'out',
           quantity: Math.abs(diff),
+          channel: product.default_channel || '',
           note: `Opname: sistem ${systemQty}, fisik ${actualQty} (${diff > 0 ? 'lebih' : 'kurang'} ${Math.abs(diff)})`,
         });
         count++;
