@@ -1628,7 +1628,7 @@ router.get('/api/stock/laba-rugi', stockAuth, async (req: StockRequest, res: Res
       apiError(res, result.error || 'Gagal memuat data', ErrorCode.INTERNAL, 500);
       return;
     }
-    apiSuccess(res, result.data);
+    res.json(result.data);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -2111,7 +2111,7 @@ router.get('/api/stock/neraca', stockAuth, async (req: StockRequest, res: Respon
       apiError(res, result.error || 'Gagal memuat data', ErrorCode.INTERNAL, 500);
       return;
     }
-    apiSuccess(res, result.data);
+    res.json(result.data);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -2235,7 +2235,7 @@ router.get('/api/stock/trial-balance', stockAuth, async (req: StockRequest, res:
       apiError(res, result.error || 'Gagal memuat data', ErrorCode.INTERNAL, 500);
       return;
     }
-    apiSuccess(res, result.data);
+    res.json(result.data);
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }

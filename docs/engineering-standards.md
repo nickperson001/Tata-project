@@ -649,6 +649,7 @@ Hotfix diizinkan hanya untuk:
 | _(diisi kronologis)_ | | | | | | | |
 | 2026-07-05 | 15:00 | manager | BE/FE | Membuat docs/engineering-standards.md + .github/ISSUE_TEMPLATE + PR template | DONE | 1h | semua engineer |
 | 2026-07-05 | 15:30 | manager | BE/FE | Update .agentrules: tambah seksi 5 (Engineering Standards), 6 (Role-Aware), 7 (Log Pengerjaan) | DONE | 0.5h | agent AI akan paham workflow |
+| 2026-07-05 | 16:00 | manager | BE | Fix build: tambah i18next + react-i18next ke root package.json | DONE | 0.5h | FE build di HF sekarang bisa jalan |
 | 2026-07-05 | 16:00 | agent | FE | Phase 1: Design Tokens + Layout Primitives (PageContainer, PageHeader, SectionCard, dll) | DONE | 1h | — |
 | 2026-07-05 | 17:00 | agent | FE | Phase 2: i18n (react-i18next, id/en translation, LanguageSwitcher, locale-aware utils) | DONE | 1.5h | — |
 | 2026-07-05 | 17:30 | agent | FE | Phase 3: RTL support (CSS overrides, logical properties, dir attribute) | DONE | 0.5h | — |
@@ -667,6 +668,7 @@ Hotfix diizinkan hanya untuk:
 | 2026-07-05 | 23:50 | agent | BE | [4.2] Buat src/utils/api-response.ts — apiSuccess/apiError/apiSuccessPaginated | DONE | 0.25h | BE helpers |
 | 2026-07-05 | 23:55 | agent | BE | [4.3] Refactor src/utils/errors.ts — AppError gunakan ErrorCode dari types/errors | DONE | 0.1h | konsistensi error |
 | 2026-07-06 | 00:30 | agent | BE | [4.4] api.ts: Zod validate middleware di 8 route + catch→sanitizeError + apiError di middleware | DONE | 1h | standar routing |
+| 2026-07-06 | 08:00 | agent | BE | Fix LabaRugi/Neraca/TrialBalance blank page: apiSuccess(res, result.data) → res.json(result.data) — konsisten dengan semua route lain yang pakai direct res.json() | DONE | 0.5h | halaman Laba Rugi, Neraca, Trial Balance |
 
 ### Template Entri Baru
 
