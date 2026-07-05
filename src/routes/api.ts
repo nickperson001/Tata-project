@@ -190,12 +190,6 @@ router.post('/api/admin/broadcast', isAdmin, async (req: Request, res: Response)
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.get('/api/admin/broadcast/:id', isAdmin, (req: Request, res: Response) => {
-  const job = (state.activeBroadcasts as Map<string, any>).get(req.params.id as string);
-  if (!job) { res.status(404).json({ error: 'Job tidak ditemukan' }); return; }
-  res.json(job);
-});
-
 async function processBroadcast(jobId: string, users: any[], message: string): Promise<void> {
   const ab = state.activeBroadcasts as Map<string, any>;
   const job = ab.get(jobId);
@@ -239,10 +233,6 @@ router.post('/api/admin/pairing-code', isAdmin, async (req: Request, res: Respon
     addLog('error', `Gagal pairing code: ${err.message}`);
     res.status(500).json({ error: 'Gagal meminta kode pairing. Coba gunakan QR atau restart bot.' });
   }
-});
-
-router.get('/api/admin/logs', isAdmin, (req: Request, res: Response) => {
-  res.json(state.systemLogs.slice(0, parseInt(req.query.limit as string) || 100));
 });
 
 router.get('/api/admin/status', isAdmin, (req: Request, res: Response) => {
@@ -1106,16 +1096,6 @@ router.get('/api/stock/channel-profitability', stockAuth, async (req: StockReque
 
     res.json(result);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
-});
-
-router.post('/api/admin/user/:id/dashboard-token', isAdmin, async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const token = crypto.randomBytes(32).toString('hex');
-  try {
-    const { error } = await supabase.from('users').update({ dashboard_token: token }).eq('id', id) as any;
-    if (error) throw error;
-    apiSuccess(res, { token });
-  } catch (e: any) { apiError(res, e.message, 500); }
 });
 
 router.get('/api/stock/piutang', stockAuth, async (req: StockRequest, res: Response) => {

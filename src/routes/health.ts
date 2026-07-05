@@ -34,7 +34,7 @@ router.get('/health', async (_req, res) => {
   const { state } = require('../config/state');
 
   res.status(200).json({
-    status: 'running',
+    status: 'healthy',
     wa_ready: state.clientReady,
     bot: state.botStatus,
     ready: state.clientReady,
