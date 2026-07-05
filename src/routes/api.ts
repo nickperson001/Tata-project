@@ -641,7 +641,7 @@ router.post('/api/stock/movement', stockAuth, requireBody('product_id', 'type', 
   const note = sanitizeString(req.body.note, 500);
   const unit_price = req.body.unit_price;
   const channel = req.body.channel ? String(req.body.channel) : '';
-  if (quantity <= 0) { apiError(res, 'Jumlah harus lebih dari 0'); return; }
+  if (isNaN(quantity) || quantity <= 0) { apiError(res, 'Jumlah harus lebih dari 0'); return; }
   if (!['in', 'out'].includes(type)) { apiError(res, 'Tipe harus in atau out'); return; }
   try {
     // Resolve channel for COA revenue account & admin fee
@@ -744,6 +744,13 @@ router.post('/api/stock/movement', stockAuth, requireBody('product_id', 'type', 
             description: `Penjualan ${quantity} ${p.unit}: ${p.name}${channel ? ' (' + channel + ')' : ''}`,
             lines,
           });
+
+          const profit = omzet - modal - bebanAdmin;
+          await client.query(
+            `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, reference_type, product_id, quantity, price_sell, price_buy, profit, hpp)
+             VALUES ($1, 'masuk', 'tunai', $2, $3, $4, 'stock_out', $5, $6, $7, $8, $9, $10)`,
+            [userId, channel || 'Offline', omzet, `Penjualan ${quantity} ${p.unit}: ${p.name} [mov:${movId}]`, product_id, quantity, sellPrice, buyPrice, profit, modal]
+          );
         }
       }
       return { stockBefore, stockAfter, product: { id: p.id, stock_min: p.stock_min, unit: p.unit } };
@@ -774,7 +781,7 @@ router.delete('/api/stock/movement/:id', stockAuth, async (req: StockRequest, re
     const reverseType = mov.type === 'in' ? 'out' : 'in';
     await withTransaction(async (client) => {
       const prod = await client.query(
-        `SELECT id, name, stock_current, stock_min, unit, price_buy, price_sell FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        `SELECT id, name, stock_current, stock_min, unit FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
         [mov.product_id, userId]
       );
       if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
@@ -787,39 +794,45 @@ router.delete('/api/stock/movement/:id', stockAuth, async (req: StockRequest, re
         [stockAfter, mov.product_id, userId]
       );
       await client.query(`DELETE FROM stock_movements WHERE id = $1 AND user_id = $2`, [mov.id, userId]);
-      if (mov.type === 'in') {
-        const totalValue = parseFloat(mov.total_value) || (mov.quantity * parseFloat(p.price_buy || 0));
+
+      // Reverse original journal entries by querying them
+      const refType = mov.type === 'in' ? 'stock_in' : 'stock_out';
+      const je = await client.query(
+        `SELECT id FROM journal_entries WHERE reference_type = $1 AND reference_id = $2 AND user_id = $3`,
+        [refType, String(mov.id), userId]
+      );
+      if (je.rows.length > 0) {
+        const jl = await client.query(
+          `SELECT account_code, debit, credit, description FROM journal_lines WHERE entry_id = $1`,
+          [je.rows[0].id]
+        );
+        const reversalLines = jl.rows.map((l: any) => ({
+          accountCode: l.account_code,
+          debit: parseFloat(l.credit) || 0,
+          credit: parseFloat(l.debit) || 0,
+          description: `Reverse ${l.description || ''}`,
+        }));
         await accountingEngine.insertJournalViaClient(client, userId, {
           referenceType: 'stock_reversal',
           referenceId: String(mov.id),
-          description: `Reverse Stok Masuk ${mov.quantity} ${p.unit}: ${p.name}`,
-          lines: [
-            { accountCode: '3101', debit: totalValue, credit: 0, description: 'Reverse modal inventori' },
-            { accountCode: '1201', debit: 0, credit: totalValue, description: 'Reverse penambahan inventori' },
-          ],
-        });
-      } else {
-        const sellPrice = parseFloat(p.price_sell) || 0;
-        const buyPrice = parseFloat(p.price_buy) || 0;
-        const omzet = mov.quantity * sellPrice;
-        const modal = mov.quantity * buyPrice;
-        const lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
-          { accountCode: '1101', debit: 0, credit: omzet, description: 'Reverse penerimaan penjualan' },
-          { accountCode: '4101', debit: omzet, credit: 0, description: 'Reverse penjualan' },
-        ];
-        if (modal > 0) {
-          lines.push(
-            { accountCode: '5101', debit: 0, credit: modal, description: 'Reverse HPP' },
-            { accountCode: '1201', debit: modal, credit: 0, description: 'Reverse pengurangan inventori' },
-          );
-        }
-        await accountingEngine.insertJournalViaClient(client, userId, {
-          referenceType: 'stock_reversal',
-          referenceId: String(mov.id),
-          description: `Reverse Penjualan ${mov.quantity} ${p.unit}: ${p.name}`,
-          lines,
+          description: `Reverse ${mov.type === 'in' ? 'Stok Masuk' : 'Penjualan'} ${mov.quantity} ${p.unit}: ${p.name}`,
+          lines: reversalLines,
         });
       }
+
+      // Delete linked transaction record (stock_out only)
+      if (mov.type === 'out') {
+        await client.query(
+          `DELETE FROM transactions WHERE user_id = $1 AND reference_type = 'stock_out' AND description LIKE $2`,
+          [userId, `%[mov:${mov.id}]%`]
+        );
+      }
+
+      // Resolve any stock alerts for this product
+      await client.query(
+        `UPDATE stock_alerts SET resolved_at = NOW() WHERE product_id = $1 AND user_id = $2 AND resolved_at IS NULL`,
+        [mov.product_id, userId]
+      );
     });
     cacheInvalidate(userId);
     apiSuccess(res, {});
@@ -887,9 +900,6 @@ router.get('/api/stock/cashflow', stockAuth, async (req: StockRequest, res: Resp
   if (cached) { res.json(cached); return; }
   try {
     const since = new Date(Date.now() - days * DAY_MS).toISOString();
-    // Raw transactions
-    const { data: trans } = await supabase.from('transactions').select('type, amount, created_at').eq('user_id', userId).gte('created_at', since).order('created_at', { ascending: true }) as any;
-    // Journal-based cash flow: debit to 1101 = inflow, credit from 1101 = outflow
     const { data: jeRows } = await supabase
       .from('journal_entries').select('id, entry_date').eq('user_id', userId).gte('entry_date', since) as any;
     let cashInflow: Record<string, number> = {};
@@ -915,13 +925,8 @@ router.get('/api/stock/cashflow', stockAuth, async (req: StockRequest, res: Resp
       const key = d.toISOString().slice(0, 10);
       dailyMap[key] = { date: key, masuk: 0, keluar: 0 };
     }
-    (trans || []).forEach((t: any) => {
-      const key = t.created_at.slice(0, 10);
-      if (dailyMap[key]) { const v = Number(t.amount) || 0; if (t.type === 'masuk') dailyMap[key].masuk += v; else dailyMap[key].keluar += v; }
-    });
-    // Merge journal-based cash flow
-    Object.keys(cashInflow).forEach(key => { if (dailyMap[key]) dailyMap[key].masuk += cashInflow[key]; });
-    Object.keys(cashOutflow).forEach(key => { if (dailyMap[key]) dailyMap[key].keluar += cashOutflow[key]; });
+    Object.keys(cashInflow).forEach(key => { if (dailyMap[key]) dailyMap[key].masuk = cashInflow[key]; });
+    Object.keys(cashOutflow).forEach(key => { if (dailyMap[key]) dailyMap[key].keluar = cashOutflow[key]; });
     const result = Object.values(dailyMap);
     cacheSet(cacheKey, result, 120_000);
     res.json(result);
@@ -969,7 +974,7 @@ router.get('/api/stock/overview', stockAuth, async (req: StockRequest, res: Resp
       if (stk <= 0) stokHabis++;
       else if (min > 0 && stk <= min) stokMenipis++;
     });
-    const { data: cashierSales } = await supabase.from('transactions').select('price_buy, quantity').eq('user_id', userId).eq('reference_type', 'cashier').gte('created_at', since).lte('created_at', until) as any;
+    const { data: cashierSales } = await supabase.from('transactions').select('price_buy, quantity').eq('user_id', userId).in('reference_type', ['cashier', 'stock_out']).gte('created_at', since).lte('created_at', until) as any;
     let hpp = 0; (cashierSales || []).forEach((t: any) => { hpp += (Number(t.quantity) || 0) * (Number(t.price_buy) || 0); });
     const labaBersih = omzet - hpp - pengeluaran;
     const profitMargin = omzet > 0 ? (labaBersih / omzet) * 100 : 0;
@@ -1137,15 +1142,15 @@ router.put('/api/stock/transactions/:id', stockAuth, async (req: StockRequest, r
   const { id } = req.params;
   const { type, amount, description } = req.body;
   try {
-    const updates: Record<string, unknown> = {};
-    if (type && ['masuk', 'keluar'].includes(type)) updates.type = type;
-    if (amount != null) updates.amount = parseFloat(String(amount));
-    if (description != null) updates.description = sanitizeString(description, 500);
-    if (Object.keys(updates).length === 0) { apiError(res, 'Tidak ada perubahan'); return; }
-    const { error } = await supabase.from('transactions').update(updates).eq('id', id).eq('user_id', userId) as any;
-    if (error) throw error;
-    cacheInvalidate(userId);
-    apiSuccess(res, {});
+    if (description != null) {
+      const desc = sanitizeString(description, 500);
+      const { error } = await supabase.from('transactions').update({ description: desc }).eq('id', id).eq('user_id', userId) as any;
+      if (error) throw error;
+      cacheInvalidate(userId);
+      apiSuccess(res, {});
+    } else {
+      apiError(res, 'Hanya deskripsi yang bisa diubah. Untuk mengubah nominal/tipe, hapus dan buat ulang.', 400);
+    }
   } catch (e: any) { apiError(res, e.message, 500); }
 });
 
@@ -1156,21 +1161,61 @@ router.delete('/api/stock/transactions/:id', stockAuth, async (req: StockRequest
     const { data: tx, error: txErr } = await supabase.from('transactions').select('*').eq('id', id).eq('user_id', userId).single() as any;
     if (txErr || !tx) { apiError(res, 'Transaksi tidak ditemukan', 404); return; }
 
-    // Reverse stock effect if applicable
-    if (tx.product_id && tx.quantity && Number(tx.quantity) > 0) {
-      const qty = Number(tx.quantity);
-      if (tx.reference_type === 'cashier' || tx.type === 'barang_rusak') {
-        const { error: stockErr } = await supabase.rpc('adjust_stock_atomic', {
-          p_user_id: userId, p_product_id: tx.product_id, p_type: 'in', p_quantity: qty,
-        }) as any;
-        if (stockErr) addLog('warn', `[DELETE-TX] stock rollback failed: ${stockErr.message}`);
+    await withTransaction(async (client) => {
+      // Reverse stock effect if applicable (with FOR UPDATE lock)
+      if (tx.product_id && tx.quantity && Number(tx.quantity) > 0) {
+        const prod = await client.query(
+          `SELECT id, name, stock_current FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+          [tx.product_id, userId]
+        );
+        if (prod.rows.length > 0) {
+          const newStock = parseFloat(prod.rows[0].stock_current) + Number(tx.quantity);
+          await client.query(
+            `UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`,
+            [newStock, tx.product_id, userId]
+          );
+        }
       }
-      // Delete related stock movements
-      await supabase.from('stock_movements').delete().eq('reference_id', id).eq('user_id', userId) as any;
-    }
 
-    const { error } = await supabase.from('transactions').delete().eq('id', id).eq('user_id', userId) as any;
-    if (error) throw error;
+      // Reverse journal entries linked to this transaction
+      const refTypes = ['sale', 'expense', 'manual', 'pembukuan', 'modal', 'receivable', 'stock_out', 'damaged_goods'];
+      for (const refType of refTypes) {
+        const je = await client.query(
+          `SELECT id FROM journal_entries WHERE reference_type = $1 AND reference_id = $2 AND user_id = $3`,
+          [refType, String(id), userId]
+        );
+        if (je.rows.length > 0) {
+          const jl = await client.query(
+            `SELECT account_code, debit, credit, description FROM journal_lines WHERE entry_id = $1`,
+            [je.rows[0].id]
+          );
+          const reversalLines = jl.rows.map((l: any) => ({
+            accountCode: l.account_code,
+            debit: parseFloat(l.credit) || 0,
+            credit: parseFloat(l.debit) || 0,
+            description: `Reverse ${l.description || ''}`,
+          }));
+          await accountingEngine.insertJournalViaClient(client, userId, {
+            referenceType: 'tx_reversal',
+            referenceId: String(id),
+            description: `Reverse transaksi: ${tx.description || ''}`,
+            lines: reversalLines,
+          });
+          break;
+        }
+      }
+
+      // Delete the transaction
+      await client.query(`DELETE FROM transactions WHERE id = $1 AND user_id = $2`, [id, userId]);
+
+      // Resolve stock alerts
+      if (tx.product_id) {
+        await client.query(
+          `UPDATE stock_alerts SET resolved_at = NOW() WHERE product_id = $1 AND user_id = $2 AND resolved_at IS NULL`,
+          [tx.product_id, userId]
+        );
+      }
+    });
     cacheInvalidate(userId);
     apiSuccess(res, {});
   } catch (e: any) { apiError(res, e.message, 500); }
@@ -1179,14 +1224,22 @@ router.delete('/api/stock/transactions/:id', stockAuth, async (req: StockRequest
 router.get('/api/stock/saldo', stockAuth, async (req: StockRequest, res: Response) => {
   const userId = req.stockUser!.id;
   try {
-    const { data: trans } = await supabase.from('transactions')
-      .select('type, amount').eq('user_id', userId) as any;
-    let totalMasuk = 0, totalKeluar = 0;
-    (trans || []).forEach((t: any) => {
-      const v = Number(t.amount) || 0;
-      if (t.type === 'masuk') totalMasuk += v; else totalKeluar += v;
-    });
-    res.json({ saldo: totalMasuk - totalKeluar, totalMasuk, totalKeluar });
+    if (!pgPool) { res.status(500).json({ error: 'Database tidak tersedia' }); return; }
+    const [coaResult, jlResult] = await Promise.all([
+      supabase.from('chart_of_accounts').select('balance').eq('user_id', userId).eq('code', '1101').single(),
+      pgPool.query(
+        `SELECT
+          COALESCE(SUM(jl.debit), 0) as total_masuk,
+          COALESCE(SUM(jl.credit), 0) as total_keluar
+         FROM journal_lines jl
+         JOIN journal_entries je ON je.id = jl.entry_id
+         WHERE jl.account_code = '1101' AND je.user_id = $1`,
+        [userId]
+      ),
+    ]);
+    const saldo = (coaResult as any).data ? Number((coaResult as any).data.balance) : 0;
+    const { total_masuk, total_keluar } = jlResult.rows[0];
+    res.json({ saldo, totalMasuk: Number(total_masuk), totalKeluar: Number(total_keluar) });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

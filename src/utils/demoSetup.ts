@@ -84,7 +84,7 @@ export async function setupDemoAccount() {
         ['modal',             '1101', '3101'],
         ['prive',             '3102', '1101'],
         ['piutang',           '1102', '4101'],
-        ['hutang_dagang',     '5101', '2101'],
+        ['hutang_dagang',     '1201', '2101'],
         ['hutang_lancar',     '6105', '2101'],
       ];
       for (const [tipe, debit, credit] of mapping) {

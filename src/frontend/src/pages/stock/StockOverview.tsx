@@ -10,7 +10,7 @@ import { EskalasiChart } from './EskalasiChart';
 import { ExpenseChart } from './ExpenseChart';
 import { TopProductsChart } from './TopProductsChart';
 import type { SaldoData, OverviewData, ChannelProfit } from '../../types';
-import { TrendingUp, AlertTriangle, Wallet, Users, Package, Percent, PieChart, BarChart, Bot, Globe } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Wallet, Users, Package, Percent, PieChart, BarChart, Bot, Globe, DollarSign } from 'lucide-react';
 
 interface AlertItem {
   id: string;
@@ -313,6 +313,7 @@ export function StockOverview() {
           { icon: PieChart, label: 'Rasio Biaya', value: expenseRatio.toFixed(1), unit: '%', color: 'var(--danger)' },
           { icon: Package, label: 'Stok Habis', value: habisPct.toFixed(1), unit: '%', color: habisPct > 0 ? 'var(--danger)' : 'var(--text-muted)' },
           { icon: AlertTriangle, label: 'Stok Menipis', value: menipisPct.toFixed(1), unit: '%', color: menipisPct > 0 ? 'var(--warning)' : 'var(--text-muted)' },
+          { icon: DollarSign, label: 'Nilai Inventori', value: overview ? fmtRp(overview.nilai_inventori) : '0', unit: '', color: 'var(--primary)' },
           { icon: Users, label: 'Piutang vs Omzet', value: piutangRatio.toFixed(1), unit: '%', color: piutangRatio > 10 ? 'var(--warning)' : 'var(--text-muted)' },
         ].map((kpi, i) => (
           <div key={kpi.label} className={`ov-kpi-card ${overview ? 'data-enter' : ''}`} style={{ animationDelay: `${i * 0.06}s` }}>

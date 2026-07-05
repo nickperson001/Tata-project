@@ -386,7 +386,7 @@ const PEMBUKUAN_COA_MAP: Record<string, { debit: string; credit: string; label: 
   modal:             { debit: '1101', credit: '3101', label: 'Modal Pemilik' },
   prive:             { debit: '3102', credit: '1101', label: 'Prive' },
   piutang:           { debit: '1102', credit: '4101', label: 'Piutang Dagang' },
-  hutang_dagang:     { debit: '5101', credit: '2101', label: 'Hutang Dagang' },
+  hutang_dagang:     { debit: '1201', credit: '2101', label: 'Hutang Dagang' },
   hutang_lancar:     { debit: '6105', credit: '2101', label: 'Hutang Lancar' },
 };
 
