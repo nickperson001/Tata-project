@@ -95,7 +95,9 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 async function ensureAssets(): Promise<void> {
   const fs = await import('fs');
-  const gifPath = path.join(__dirname, '..', 'public', 'stock', 'motion.gif');
+  const gifDir = path.join(__dirname, '..', 'public', 'stock');
+  const gifPath = path.join(gifDir, 'motion.gif');
+  if (!fs.existsSync(gifDir)) fs.mkdirSync(gifDir, { recursive: true });
   if (!fs.existsSync(gifPath)) {
     addLog('info', '[ASSETS] motion.gif not found — downloading from GitHub');
     try {

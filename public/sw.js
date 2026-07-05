@@ -31,6 +31,8 @@ self.addEventListener('fetch', function (e) {
           caches.open(CACHE).then(function (c) { c.put(e.request, clone); });
         }
         return res;
+      }).catch(function () {
+        return new Response('Offline', { status: 503 });
       });
     })
   );
