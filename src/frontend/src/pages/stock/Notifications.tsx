@@ -16,7 +16,7 @@ export function Notifications() {
       if (res.data?.alerts) {
         setAlerts(res.data.alerts);
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch((err) => console.error('[Notifications] Fetch alerts gagal', err)).finally(() => setLoading(false));
   }, [token, setAlerts]);
 
   if (loading) {

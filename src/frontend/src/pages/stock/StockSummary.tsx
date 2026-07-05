@@ -17,7 +17,7 @@ export function StockSummary() {
     if (!token) return;
     stockApi.get<StockSummaryData>('/api/stock/summary', token)
       .then(setData)
-      .catch(() => {})
+      .catch((err) => console.error('[StockSummary] Fetch gagal', err))
       .finally(() => setLoading(false));
   }, [token]);
 

@@ -21,7 +21,7 @@ export function StockProductStats() {
     if (!token) return;
     stockApi.get<ProductStatsData>('/api/stock/product-stats', token)
       .then(setData)
-      .catch(() => {})
+      .catch((err) => console.error('[StockProductStats] Fetch gagal', err))
       .finally(() => setLoading(false));
   }, [token]);
 

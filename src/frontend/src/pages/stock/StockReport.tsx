@@ -27,7 +27,7 @@ export function StockReport() {
     setLoading(true);
     stockApi.get<ReportData>(`/api/stock/report?days=${days}`, token)
       .then(setData)
-      .catch(() => {})
+      .catch((err) => console.error('[StockReport] Fetch gagal', err))
       .finally(() => setLoading(false));
   }, [token, days]);
 

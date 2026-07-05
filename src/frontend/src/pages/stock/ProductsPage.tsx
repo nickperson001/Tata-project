@@ -49,7 +49,7 @@ export function ProductsPage() {
     try {
       const data = await stockApi.get<{ categories: Category[] }>('/api/stock/categories', token);
       setCategories(data.categories || []);
-    } catch {}
+    } catch (e) { console.error('[ProductsPage] Load kategori gagal', e); }
   }, [token]);
 
   const loadChannels = useCallback(async () => {
@@ -57,7 +57,7 @@ export function ProductsPage() {
     try {
       const s = await stockApi.get<{ settings?: { active_channels?: string[] } }>('/api/stock/settings', token);
       setActiveChannels(s.settings?.active_channels || ['offline', 'whatsapp', 'shopee', 'tokopedia', 'lazada', 'tiktok shop']);
-    } catch {}
+    } catch (e) { console.error('[ProductsPage] Load channels gagal', e); }
   }, [token]);
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
@@ -233,7 +233,7 @@ export function ProductsPage() {
                     </Badge>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    <div className="row-actions">
                       <button className="btn btn-ghost btn-sm" onClick={() => openEdit(p)}>
                         <Edit2 size={14} />
                       </button>

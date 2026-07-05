@@ -4,6 +4,7 @@ import {
   LayoutDashboard, BookOpen, TrendingUp, Scale, BookText, Wallet,
   Package, ArrowUpDown, ClipboardCheck, History, CreditCard, DollarSign,
   BarChart3, ChevronLeft, ChevronRight, ClipboardList, GitBranch, FileText, Database,
+  Bell, HelpCircle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useStockStore } from '../../store/stockStore';
@@ -70,7 +71,15 @@ export function getNavGroups(status?: string): NavGroup[] {
     // Demo: only show Inventori group
     return [allGroups[1]];
   }
-  return allGroups;
+  return allGroups.concat([
+    {
+      label: 'Lainnya', icon: HelpCircle,
+      children: [
+        { to: '/stock/notifications', label: 'Notifikasi', icon: Bell },
+        { to: '/stock/bantuan', label: 'Bantuan', icon: HelpCircle },
+      ],
+    },
+  ]);
 }
 
 // Default for backward compatibility

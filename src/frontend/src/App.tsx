@@ -35,6 +35,8 @@ const StockSummary = lazy(() => import('./pages/stock/StockSummary').then(m => (
 const StockProductStats = lazy(() => import('./pages/stock/StockProductStats').then(m => ({ default: m.StockProductStats })));
 const StockChannels = lazy(() => import('./pages/stock/StockChannels').then(m => ({ default: m.StockChannels })));
 const StockJurnal = lazy(() => import('./pages/stock/StockJurnal').then(m => ({ default: m.StockJurnal })));
+const StockNotifications = lazy(() => import('./pages/stock/Notifications').then(m => ({ default: m.Notifications })));
+const StockBantuan = lazy(() => import('./pages/stock/StockBantuan').then(m => ({ default: m.StockBantuan })));
 const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
 export function App() {
@@ -72,6 +74,8 @@ export function App() {
             <Route path="jurnal" element={<StockJurnal />} />
             <Route path="categories" element={<StockCategories />} />
             <Route path="settings" element={<StockSettings />} />
+            <Route path="notifications" element={<StockNotifications />} />
+            <Route path="bantuan" element={<StockBantuan />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

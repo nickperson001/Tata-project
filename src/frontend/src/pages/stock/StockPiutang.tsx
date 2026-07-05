@@ -23,7 +23,7 @@ export function StockPiutang() {
     if (!token) return;
     stockApi.get<PiutangList>('/api/stock/piutang', token)
       .then(setData)
-      .catch(() => {})
+      .catch((err) => console.error('[StockPiutang] Fetch gagal', err))
       .finally(() => setLoading(false));
   }, [token]);
 

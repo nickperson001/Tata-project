@@ -67,7 +67,7 @@ export function StockSettings() {
       .then((d) => {
         if (d.settings?.active_channels) setActiveChannels(d.settings.active_channels);
       })
-      .catch(() => {}); // silently fail, use defaults
+      .catch((err) => console.error('[StockSettings] Fetch channels gagal', err));
   }, [token]);
 
   async function handleInstall() {

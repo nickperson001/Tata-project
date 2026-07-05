@@ -4,7 +4,8 @@ import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
 import { InfoTip } from '../../components/InfoTip';
 import { EmptyState } from '../../components/EmptyState';
-import { FilterBar, type DateRange } from '../../components/FilterBar';
+import { FilterBar } from '../../components/FilterBar';
+import type { DateRange } from '../../components/DateRangeFilter';
 import { fmtRp } from '../../lib/utils';
 import type { LabaRugiData } from '../../types';
 import { TrendingUp, TrendingDown } from 'lucide-react';
@@ -56,7 +57,7 @@ export function StockLabaRugi() {
       ]);
       setData(d);
       if (settings.settings?.active_channels) setActiveChannels(settings.settings.active_channels);
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[StockLabaRugi] Load gagal', e); }
     finally { setLoading(false); }
   }, [token, days, filterChannel]);
 

@@ -77,7 +77,7 @@ export function StockPembukuan() {
       .then((d) => {
         if (d.settings?.active_channels) setActiveChannels(d.settings.active_channels);
       })
-      .catch(() => {});
+      .catch((err) => console.error('[StockPembukuan] Fetch transaksi gagal', err));
   }, [token]);
 
   const load = useCallback(async () => {

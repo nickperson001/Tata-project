@@ -17,7 +17,7 @@ export function StockBatch() {
     if (!token) return;
     stockApi.get<BatchData>('/api/stock/batch', token)
       .then(setData)
-      .catch(() => {})
+      .catch((err) => console.error('[StockBatch] Fetch gagal', err))
       .finally(() => setLoading(false));
   }, [token]);
 

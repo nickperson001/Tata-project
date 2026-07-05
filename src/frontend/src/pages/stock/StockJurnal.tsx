@@ -21,7 +21,7 @@ export function StockJurnal() {
     setLoading(true);
     stockApi.get<JurnalData>(`/api/stock/jurnal?page=${page}&limit=${limit}`, token)
       .then(setData)
-      .catch(() => {})
+      .catch((err) => console.error('[StockJurnal] Fetch gagal', err))
       .finally(() => setLoading(false));
   }, [token, page]);
 

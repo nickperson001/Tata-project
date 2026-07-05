@@ -8,7 +8,7 @@ import { UserMenu } from '../../components/UserMenu';
 import { StockSidebar, getNavGroups, isActive } from './StockSidebar';
 import { ChatbotWidget } from './ChatbotWidget';
 import { StockLogin } from './StockLogin';
-import { getSocket } from '../../services/socket';
+import { getSocket, disconnectSocket } from '../../services/socket';
 import { useNotificationStore } from '../../store/notificationStore';
 import {
   LayoutDashboard, BookOpen, Package, CreditCard, BarChart3, Settings,
@@ -64,6 +64,12 @@ export function StockLayout() {
     getSocket().on('stock_alert', handler);
     return () => { getSocket().off('stock_alert', handler); };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!token) {
+      disconnectSocket();
+    }
+  }, [token]);
 
   if (isLoading) {
     return (

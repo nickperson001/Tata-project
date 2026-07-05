@@ -33,7 +33,7 @@ export function StockHutang() {
     try {
       const d = await stockApi.get<HutangList>('/api/stock/hutang', token);
       setData(d);
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[StockHutang] Load gagal', e); }
     finally { setLoading(false); }
   }
 
@@ -127,7 +127,7 @@ export function StockHutang() {
       <div className="grid grid-3" style={{ gap: '1rem' }}>
         {Array.from({ length: 3 }).map((_, i) => <div key={i} className="card card-p"><Skeleton count={2} /></div>)}
       </div>
-      <div className="tbl-wrap"><table><thead><tr>{['Supplier','Jumlah','Sisa','Jatuh Tempo','Status','Aksi'].map(h => <th key={h}><Skeleton width="70%" height="0.8rem" /></th>)}</tr></thead><tbody>{Array.from({ length: 5 }).map((_, r) => <tr key={r}>{Array.from({ length: 6 }).map((_, c) => <td key={c}><Skeleton width={`${50 + Math.random() * 40}%`} height="0.8rem" /></td>)}</tr>)}</tbody></table></div>
+      <div className="tbl-wrap"><table><thead><tr>{['Supplier','Jumlah','Sisa','Jatuh Tempo','Status','Aksi'].map(h => <th key={h}><Skeleton width="70%" height="0.8rem" /></th>)}</tr></thead><tbody>{Array.from({ length: 5 }).map((_, r) => <tr key={r}>{Array.from({ length: 6 }).map((_, c) => <td key={c}><Skeleton width={['60%','80%','40%','70%','50%','30%'][c]} height="0.8rem" /></td>)}</tr>)}</tbody></table></div>
     </div>
   );
 
@@ -202,7 +202,7 @@ export function StockHutang() {
                           </Badge>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: '0.25rem' }}>
+                          <div className="row-actions">
                             {!item.status_lunas && (
                               <button className="btn btn-success btn-sm" onClick={() => setShowBayar(item)}>
                                 Bayar

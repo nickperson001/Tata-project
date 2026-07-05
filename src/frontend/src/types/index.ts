@@ -116,15 +116,6 @@ export interface ChannelProfit {
   margin: number;
 }
 
-export interface FinancialData {
-  labels: string[];
-  omzet: number[];
-  pengeluaran: number[];
-  cashflow: number[];
-  inventori: number[];
-  piutang: number[];
-}
-
 export interface LabaRugiRow {
   account_code: string;
   account_name: string;

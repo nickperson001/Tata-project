@@ -83,7 +83,7 @@ export function StockOpname() {
         }
       },
     );
-    return () => { scanner.clear().catch(() => {}); };
+    return () => { scanner.clear().catch((err) => console.error('[StockOpname] Scanner clear gagal', err)); };
   }, [showScanner, products]);
 
   async function submit(e: React.FormEvent) {

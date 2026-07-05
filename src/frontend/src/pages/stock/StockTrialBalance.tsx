@@ -32,7 +32,7 @@ export function StockTrialBalance() {
       try {
         const d = await stockApi.get<TrialBalanceData>('/api/stock/trial-balance', token);
         setData(d);
-      } catch { /* ignore */ }
+      } catch (e) { console.error('[StockTrialBalance] Load gagal', e); }
       finally { setLoading(false); }
     })();
   }, [token]);
@@ -43,7 +43,7 @@ export function StockTrialBalance() {
         <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Neraca Saldo</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Daftar saldo seluruh akun — digunakan untuk memverifikasi keseimbangan debit dan kredit</p>
       </div>
-      <div className="tbl-wrap"><table><thead><tr>{['Kode','Nama Akun','Tipe','Debit','Kredit'].map(h => <th key={h}><Skeleton width="70%" height="0.8rem" /></th>)}</tr></thead><tbody>{Array.from({ length: 8 }).map((_, r) => <tr key={r}>{Array.from({ length: 5 }).map((_, c) => <td key={c}><Skeleton width={`${50 + Math.random() * 40}%`} height="0.8rem" /></td>)}</tr>)}</tbody></table></div>
+      <div className="tbl-wrap"><table><thead><tr>{['Kode','Nama Akun','Tipe','Debit','Kredit'].map(h => <th key={h}><Skeleton width="70%" height="0.8rem" /></th>)}</tr></thead><tbody>{Array.from({ length: 8 }).map((_, r) => <tr key={r}>{Array.from({ length: 5 }).map((_, c) => <td key={c}><Skeleton width={['60%','80%','40%','70%','50%'][c]} height="0.8rem" /></td>)}</tr>)}</tbody></table></div>
     </div>
   );
 

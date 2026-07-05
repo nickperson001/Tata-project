@@ -26,7 +26,7 @@ export function StockNeraca() {
       }
       const d = await stockApi.get<NeracaData>(url, token);
       setData(d);
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[StockNeraca] Load gagal', e); }
     finally { setLoading(false); }
   }, [token, dateRange.endDate]);
 

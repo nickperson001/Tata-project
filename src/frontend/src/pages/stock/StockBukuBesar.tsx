@@ -26,7 +26,7 @@ export function StockBukuBesar() {
     try {
       const res = await stockApi.get<{ accounts: { code: string; name: string; type: string }[] }>('/api/stock/coa', token);
       setAccounts(res.accounts ?? []);
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[StockBukuBesar] Load accounts gagal', e); }
   }, [token]);
 
   const load = useCallback(async () => {
@@ -36,7 +36,7 @@ export function StockBukuBesar() {
       const q = `/api/stock/general-ledger?days=${days}${selectedCode ? `&account_code=${selectedCode}` : ''}`;
       const d = await stockApi.get<GeneralLedgerData>(q, token);
       setData(d);
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[StockBukuBesar] Load gagal', e); }
     finally { setLoading(false); }
   }, [token, days, selectedCode]);
 
@@ -56,7 +56,7 @@ export function StockBukuBesar() {
         </div>
       </div>
       <div className="card card-p"><div style={{ display: 'flex', justifyContent: 'space-between' }}><div><Skeleton width="180px" height="1.2rem" /><Skeleton width="120px" height="0.8rem" style={{ marginTop: 4 }} /></div><Skeleton width="120px" height="1.4rem" /></div></div>
-      <div className="tbl-wrap"><table><thead><tr>{['Tanggal','Tipe','Deskripsi','Debit','Kredit'].map(h => <th key={h}><Skeleton width="70%" height="0.8rem" /></th>)}</tr></thead><tbody>{Array.from({ length: 5 }).map((_, r) => <tr key={r}>{Array.from({ length: 5 }).map((_, c) => <td key={c}><Skeleton width={`${50 + Math.random() * 40}%`} height="0.8rem" /></td>)}</tr>)}</tbody></table></div>
+      <div className="tbl-wrap"><table><thead><tr>{['Tanggal','Tipe','Deskripsi','Debit','Kredit'].map(h => <th key={h}><Skeleton width="70%" height="0.8rem" /></th>)}</tr></thead><tbody>{Array.from({ length: 5 }).map((_, r) => <tr key={r}>{Array.from({ length: 5 }).map((_, c) => <td key={c}><Skeleton width={['60%','80%','40%','70%','50%'][c]} height="0.8rem" /></td>)}</tr>)}</tbody></table></div>
     </div>
   );
 

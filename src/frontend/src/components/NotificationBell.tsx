@@ -20,7 +20,7 @@ export function NotificationBell() {
       if (res.data?.alerts) {
         useNotificationStore.getState().setAlerts(res.data.alerts);
       }
-    }).catch(() => {});
+    }).catch((err) => console.error('[NotificationBell] Fetch alerts gagal', err));
   }, [token]);
 
   useEffect(() => {

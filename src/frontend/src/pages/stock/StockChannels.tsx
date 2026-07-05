@@ -31,7 +31,7 @@ export function StockChannels() {
     setLoading(true);
     stockApi.get<ChannelsData>(`/api/stock/channels?days=${days}`, token)
       .then(setData)
-      .catch(() => {})
+      .catch((err) => console.error('[StockChannels] Fetch gagal', err))
       .finally(() => setLoading(false));
   }, [token, days]);
 

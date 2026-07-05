@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
-import { FilterBar, type DateRange } from '../../components/FilterBar';
+import { FilterBar } from '../../components/FilterBar';
+import type { DateRange } from '../../components/DateRangeFilter';
 import { fmtRp } from '../../lib/utils';
 import { EskalasiChart } from './EskalasiChart';
 import { ExpenseChart } from './ExpenseChart';
@@ -199,7 +200,7 @@ export function StockOverview() {
         });
       });
       setAlerts(a);
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[StockOverview] Load data gagal', e); }
   }, [token, chartDays, filterChannel, dateRange]);
 
   useEffect(() => {

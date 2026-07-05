@@ -64,7 +64,7 @@ async function stockAuth(req: StockRequest, res: Response, next: NextFunction): 
 const RESTRICTED_REPORT_PATHS = [
   '/api/stock/laba-rugi', '/api/stock/neraca', '/api/stock/general-ledger',
   '/api/stock/trial-balance', '/api/stock/cashflow', '/api/stock/report',
-  '/api/stock/financial-overview', '/api/stock/channels', '/api/stock/jurnal',
+  '/api/stock/channels', '/api/stock/jurnal',
   '/api/stock/coa', '/api/stock/pembukuan', '/api/stock/piutang', '/api/stock/hutang',
 ];
 
@@ -86,7 +86,6 @@ router.use('/api/stock/general-ledger', stockAuth, checkDemoAccess);
 router.use('/api/stock/trial-balance', stockAuth, checkDemoAccess);
 router.use('/api/stock/cashflow', stockAuth, checkDemoAccess);
 router.use('/api/stock/report', stockAuth, checkDemoAccess);
-router.use('/api/stock/financial-overview', stockAuth, checkDemoAccess);
 router.use('/api/stock/channels', stockAuth, checkDemoAccess);
 router.use('/api/stock/jurnal', stockAuth, checkDemoAccess);
 router.use('/api/stock/coa', stockAuth, checkDemoAccess);
@@ -1381,44 +1380,6 @@ router.get('/api/stock/general-ledger', stockAuth, async (req: StockRequest, res
     });
 
     res.json({ account, entries });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
-});
-
-router.get('/api/stock/financial-overview', stockAuth, async (req: StockRequest, res: Response) => {
-  const userId = req.stockUser!.id;
-  const days = Math.min(90, parseInt(req.query.days as string) || 30);
-  const cacheKey = `foverview:${userId}:${days}`;
-  const cached = cacheGet(cacheKey);
-  if (cached) { res.json(cached); return; }
-  try {
-    const since = new Date(Date.now() - days * DAY_MS).toISOString();
-    const [transResult, prodResult] = await Promise.all([
-      supabase.from('transactions').select('type, amount, reference_type, description, created_at').eq('user_id', userId).gte('created_at', since).order('created_at', { ascending: false }),
-      supabase.from('products').select('id, name, stock_current, price_buy, price_sell').eq('user_id', userId).eq('is_active', true),
-    ]);
-    const trans = (transResult as any).data || [];
-    const products = (prodResult as any).data || [];
-    let omzet = 0, pengeluaran = 0, piutang = 0;
-    trans.forEach((t: any) => {
-      const v = Number(t.amount) || 0;
-      if (t.type === 'masuk' && t.reference_type !== 'modal' && t.reference_type !== 'receivable') omzet += v;
-      else if (t.type === 'keluar') pengeluaran += v;
-      if (t.reference_type === 'receivable') piutang += (t.type === 'masuk' ? v : -v);
-    });
-    const { data: cashierSales } = await supabase.from('transactions').select('price_buy, quantity').eq('user_id', userId).eq('reference_type', 'cashier').gte('created_at', since) as any;
-    let hpp = 0; (cashierSales || []).forEach((t: any) => { hpp += (Number(t.quantity) || 0) * (Number(t.price_buy) || 0); });
-    const laba = omzet - hpp - pengeluaran;
-    const profitMargin = omzet > 0 ? (laba / omzet) * 100 : 0;
-    const totalInventory = products.reduce((s: number, p: any) => s + (parseFloat(p.stock_current) || 0) * (parseFloat(p.price_buy) || 0), 0);
-    const channelData: Record<string, number> = {};
-    trans.filter((t: any) => t.type === 'masuk').forEach((t: any) => {
-      const chMatch = t.description?.match(/\((Tokopedia|TikTok Shop|Lazada|Shopee)\)/i);
-      const ch = chMatch ? chMatch[1] : 'Offline';
-      channelData[ch] = (channelData[ch] || 0) + (Number(t.amount) || 0);
-    });
-    const result = { totalOmzet: omzet, totalPengeluaran: pengeluaran, profitMargin, nilaiInventori: totalInventory, piutangOutstanding: Math.max(0, piutang), channels: channelData, period: days };
-    cacheSet(cacheKey, result, 120_000);
-    res.json(result);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

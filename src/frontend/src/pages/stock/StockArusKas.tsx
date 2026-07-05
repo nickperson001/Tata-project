@@ -26,7 +26,7 @@ export function StockArusKas() {
     try {
       const d = await stockApi.get<CashflowItem[]>(`/api/stock/cashflow?days=${days}`, token);
       setData(d);
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[StockArusKas] Load gagal', e); }
     finally { setLoading(false); }
   }, [token, days]);
 
