@@ -58,14 +58,46 @@ export const movementSchema = z.object({
   channel: z.string().max(50).optional(),
 });
 
+const PEMBUKUAN_TYPES = [
+  'beban_gaji',
+  'beban_sewa',
+  'beban_listrik_air',
+  'beban_transport',
+  'beban_operasional',
+  'modal',
+  'prive',
+  'piutang',
+  'hutang_dagang',
+  'hutang_lancar',
+] as const;
+
 export const pembukuanSchema = z.object({
-  type: z.enum(['masuk', 'keluar'], { message: 'Tipe harus masuk atau keluar' }),
+  type: z.enum(PEMBUKUAN_TYPES, { message: 'Tipe pembukuan tidak valid' }),
   amount: z.coerce.number().positive('Nominal harus lebih dari 0'),
   description: z.string().min(1, 'Deskripsi wajib diisi').max(500),
   customerName: z.string().max(100).optional(),
   coaDebit: z.string().max(10).optional(),
   coaCredit: z.string().max(10).optional(),
   channel: z.string().max(50).optional(),
+});
+
+export const productCreateSchema = z.object({
+  name: z.string().min(1, 'Nama produk wajib diisi').max(150),
+  sku: z.string().max(50).optional().default(''),
+  category: z.string().max(50).optional(),
+  unit: z.string().max(20).optional(),
+  price_buy: z.coerce.number().nonnegative().optional(),
+  priceBuy: z.coerce.number().nonnegative().optional(),
+  price_sell: z.coerce.number().nonnegative().optional(),
+  priceSell: z.coerce.number().nonnegative().optional(),
+  stock_initial: z.coerce.number().nonnegative().optional(),
+  stockInitial: z.coerce.number().nonnegative().optional(),
+  stock_min: z.coerce.number().nonnegative().optional(),
+  stockMin: z.coerce.number().nonnegative().optional(),
+  notes: z.string().max(500).optional(),
+  supplier: z.string().max(100).optional(),
+  location: z.string().max(100).optional(),
+  default_channel: z.string().max(30).optional(),
 });
 
 export const hutangSchema = z.object({

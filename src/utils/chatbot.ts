@@ -149,7 +149,7 @@ async function processMessage(userId: string, message: string): Promise<string> 
         .from('transactions')
         .select('price_buy, quantity')
         .eq('user_id', userId)
-        .eq('reference_type', 'cashier')
+        .in('reference_type', ['cashier', 'stock_out'])
         .gte('created_at', since) as any,
     ]);
 

@@ -109,23 +109,7 @@ class AccountingEngine {
     );
     const journalId = je.rows[0].id;
 
-    // Batch insert journal lines
-    if (lines.length > 0) {
-      const values: string[] = [];
-      const params: any[] = [];
-      let paramIdx = 1;
-      for (const l of lines) {
-        values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4})`);
-        params.push(journalId, l.accountCode, Number(l.debit) || 0, Number(l.credit) || 0, l.description || '');
-        paramIdx += 5;
-      }
-      await client.query(
-        `INSERT INTO journal_lines (entry_id, account_code, debit, credit, description) VALUES ${values.join(', ')}`,
-        params,
-      );
-    }
-
-    // Batch check & auto-create missing COA accounts
+    // Auto-create missing COA accounts before journal lines (trigger requires accounts to exist)
     const codes = [...new Set(lines.map((l) => l.accountCode).filter(Boolean))];
     if (codes.length > 0) {
       const { rows: existing } = await client.query(
@@ -172,6 +156,21 @@ class AccountingEngine {
         );
         addLog('info', `[ACCTG-ENGINE] Auto-created missing accounts: ${missingCodes.join(', ')} for user ${userId}`);
       }
+    }
+
+    if (lines.length > 0) {
+      const values: string[] = [];
+      const params: any[] = [];
+      let paramIdx = 1;
+      for (const l of lines) {
+        values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4})`);
+        params.push(journalId, l.accountCode, Number(l.debit) || 0, Number(l.credit) || 0, l.description || '');
+        paramIdx += 5;
+      }
+      await client.query(
+        `INSERT INTO journal_lines (entry_id, account_code, debit, credit, description) VALUES ${values.join(', ')}`,
+        params,
+      );
     }
 
     return { journalId };
@@ -462,28 +461,44 @@ class AccountingEngine {
       let accounts: any[];
 
       if (pgPool) {
-        const { rows } = await pgPool.query(
-          `SELECT a.code, a.name, a.type, a.normal_balance, a.balance,
-                  COALESCE(jn.journal_net, 0) AS journal_net
-           FROM chart_of_accounts a
-           LEFT JOIN (
-             SELECT jl.account_code, SUM(jl.debit - jl.credit) AS journal_net
-             FROM journal_lines jl
-             JOIN journal_entries je ON je.id = jl.entry_id
-             WHERE je.user_id = $1 AND je.is_posted = true
-               AND ($2::date IS NULL OR je.entry_date <= $2::date)
-             GROUP BY jl.account_code
-           ) jn ON jn.account_code = a.code
-           WHERE a.user_id = $1 AND a.is_active = true
-           ORDER BY a.code`,
-          [userId, endDate || null],
-        );
-        accounts = rows.map((r: any) => {
-          const net = parseFloat(r.journal_net) || 0;
-          const storedBalance = parseFloat(r.balance) || 0;
-          const adjusted = r.normal_balance === 'credit' ? storedBalance - net : storedBalance + net;
-          return { code: r.code, name: r.name, type: r.type, normal_balance: r.normal_balance, balance: adjusted };
-        });
+        if (endDate) {
+          const { rows } = await pgPool.query(
+            `SELECT a.code, a.name, a.type, a.normal_balance,
+                    COALESCE(jn.journal_net, 0) AS journal_net
+             FROM chart_of_accounts a
+             LEFT JOIN (
+               SELECT jl.account_code, SUM(jl.debit - jl.credit) AS journal_net
+               FROM journal_lines jl
+               JOIN journal_entries je ON je.id = jl.entry_id
+               WHERE je.user_id = $1 AND je.is_posted = true
+                 AND je.entry_date <= $2::date
+               GROUP BY jl.account_code
+             ) jn ON jn.account_code = a.code
+             WHERE a.user_id = $1 AND a.is_active = true
+             ORDER BY a.code`,
+            [userId, endDate],
+          );
+          accounts = rows.map((r: any) => {
+            const raw = parseFloat(r.journal_net) || 0;
+            const bal = r.normal_balance === 'credit' ? -raw : raw;
+            return { code: r.code, name: r.name, type: r.type, normal_balance: r.normal_balance, balance: bal };
+          });
+        } else {
+          const { rows } = await pgPool.query(
+            `SELECT code, name, type, normal_balance, balance
+             FROM chart_of_accounts
+             WHERE user_id = $1 AND is_active = true
+             ORDER BY code`,
+            [userId],
+          );
+          accounts = rows.map((r: any) => ({
+            code: r.code,
+            name: r.name,
+            type: r.type,
+            normal_balance: r.normal_balance,
+            balance: parseFloat(r.balance) || 0,
+          }));
+        }
       } else {
         const { data: accData, error } = await supabase
           .from('chart_of_accounts')

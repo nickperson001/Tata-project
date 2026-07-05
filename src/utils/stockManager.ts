@@ -221,6 +221,7 @@ async function executeSale(
   userId: string,
   productId: string,
   quantity: number,
+  channel = 'Offline',
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     const { data: product, error: prodErr } = (await supabase
@@ -252,6 +253,7 @@ async function executeSale(
       totalOmzet,
       description,
       referenceType: 'cashier',
+      channel,
     });
     if (!result.success) {
       return { success: false, error: result.error };

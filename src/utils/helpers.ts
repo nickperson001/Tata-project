@@ -106,6 +106,18 @@ async function getDailyTransactionCount(userId: string): Promise<number> {
   return count ?? 0;
 }
 
+async function checkDemoTransactionLimit(
+  userId: string,
+  status: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (status !== 'demo') return { ok: true };
+  const count = await getDailyTransactionCount(userId);
+  if (count >= 5) {
+    return { ok: false, error: 'Limit harian demo habis (5 transaksi/hari). Upgrade ke PRO untuk transaksi tanpa batas.' };
+  }
+  return { ok: true };
+}
+
 interface UserInfo {
   status?: string;
   subscription_expires_at?: string;
@@ -148,6 +160,7 @@ export {
   formatPhone,
   formatRupiah,
   getDailyTransactionCount,
+  checkDemoTransactionLimit,
   getEffectiveStatus,
   getDaysRemaining,
   buildStatusMessage,
