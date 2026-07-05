@@ -108,10 +108,26 @@ class AccountingEngine {
         [journalId, l.accountCode, Number(l.debit) || 0, Number(l.credit) || 0, l.description || '']
       );
       const acct = await client.query(
-        `SELECT code FROM chart_of_accounts WHERE user_id = $1 AND code = $2`,
+        `SELECT type, normal_balance FROM chart_of_accounts WHERE user_id = $1 AND code = $2`,
         [userId, l.accountCode]
       );
-      if (acct.rows.length === 0) throw new Error(`Akun ${l.accountCode} tidak ditemukan`);
+      if (acct.rows.length === 0) {
+        const prefix = l.accountCode.charAt(0);
+        let type: string, normalBalance: string;
+        if (prefix === '1') { type = 'asset'; normalBalance = 'debit'; }
+        else if (prefix === '2') { type = 'liability'; normalBalance = 'credit'; }
+        else if (prefix === '3') { type = 'equity'; normalBalance = 'credit'; }
+        else if (prefix === '4') { type = 'revenue'; normalBalance = 'credit'; }
+        else if (prefix === '5') { type = 'cogs'; normalBalance = 'debit'; }
+        else { type = 'expense'; normalBalance = 'debit'; }
+        await client.query(
+          `INSERT INTO chart_of_accounts (user_id, code, name, type, normal_balance, is_active)
+           VALUES ($1, $2, $3, $4, $5, true)
+           ON CONFLICT (user_id, code) DO NOTHING`,
+          [userId, l.accountCode, `Akun ${l.accountCode}`, type, normalBalance]
+        );
+        addLog('info', `[ACCTG-ENGINE] Auto-created missing account ${l.accountCode} for user ${userId}`);
+      }
     }
     return { journalId };
   }

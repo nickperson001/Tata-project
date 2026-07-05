@@ -9,7 +9,8 @@ import { StockSidebar, getNavGroups, isActive } from './StockSidebar';
 import { ChatbotWidget } from './ChatbotWidget';
 import { StockLogin } from './StockLogin';
 import { getSocket, disconnectSocket } from '../../services/socket';
-import { useNotificationStore } from '../../store/notificationStore';
+import { useNotificationStore, StockAlert } from '../../store/notificationStore';
+import { stockApi } from '../../services/api';
 import {
   LayoutDashboard, BookOpen, Package, CreditCard, BarChart3, Settings,
 } from 'lucide-react';
@@ -52,14 +53,11 @@ export function StockLayout() {
       if (userIdRef.current !== data.userId) return;
       const label = data.alertType === 'out_of_stock' ? 'Stok Habis' : 'Stok Menipis';
       toast.error(`${label} — Produk #${data.productId} (${data.stockLevel} tersisa)`, { duration: 5000 });
-      useNotificationStore.getState().addAlert({
-        id: Date.now(),
-        product_id: Number(data.productId),
-        alert_type: data.alertType as any,
-        stock_level: data.stockLevel,
-        alerted_at: new Date().toISOString(),
-        resolved_at: null,
-      });
+      stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', token).then((res) => {
+        if (res.data?.alerts) {
+          useNotificationStore.getState().setAlerts(res.data.alerts);
+        }
+      }).catch(() => {});
     };
     getSocket().on('stock_alert', handler);
     return () => { getSocket().off('stock_alert', handler); };

@@ -271,7 +271,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
           bebanAdmin,
           danaBersih,
           totalModal: modal,
-          profit: danaBersih - modal - bebanAdmin,
+          profit: danaBersih - modal,
         },
       };
     });
@@ -353,9 +353,9 @@ async function recordDamagedGoods(opts: DamagedGoodsOpts): Promise<RecordResult>
 
       const trx = await client.query(
         `INSERT INTO transactions (user_id, type, status_bayar, channel, amount, description, reference_type, product_id, quantity, price_buy, beban_operasional)
-         VALUES ($1, 'barang_rusak', 'tunai', 'Offline', 0, $2, 'manual', $3, $4, $5, $6)
+         VALUES ($1, 'keluar', 'tunai', 'Offline', $2, $3, 'manual', $4, $5, $6, $7)
          RETURNING id`,
-        [userId, description || `Barang rusak/susut ${qty} item`, productId, qty, buy, loss]
+        [userId, loss, description || `Barang rusak/susut ${qty} item`, productId, qty, buy, loss]
       );
       const trxId = trx.rows[0].id;
 
@@ -428,6 +428,15 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
           description: `${coaMap ? coaMap.label : tipe}: ${description}`,
           lines,
         });
+
+        if (tipe === 'hutang_dagang') {
+          await client.query(
+            `INSERT INTO accounts_payable (user_id, nama_supplier, nominal_hutang, deskripsi, status_lunas)
+             VALUES ($1, $2, $3, $4, false)`,
+            [userId, customerName || 'Unknown', Number(amount), description]
+          );
+        }
+
         return { success: true, data: { journalId: jr.journalId } };
       });
     } catch (err: any) {
@@ -471,6 +480,14 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
         description: `${coaMap ? coaMap.label : tipe}: ${description}`,
         lines,
       });
+
+      if (tipe === 'piutang') {
+        await client.query(
+          `INSERT INTO debts (user_id, transaction_id, nama_pelanggan, nominal_piutang, status_lunas)
+           VALUES ($1, $2, $3, $4, false)`,
+          [userId, trxId, customerName || 'Unknown', Number(amount)]
+        );
+      }
 
       return { success: true, data: { transaction: { id: trxId }, journalId: jr.journalId } };
     });

@@ -281,12 +281,15 @@ async function sendEveningReminder(client: any): Promise<void> {
   } catch (err: any) { logError(`[CRON] Pengingat Sore error: ${err.message}`); }
 }
 
+const stockAlertNotified = new Set<string>();
+
 async function checkStockAlerts(client: any): Promise<void> {
   logInfo('[CRON] Stock Alert Checker...');
   try {
     const result = await stockManager.getPendingAlerts(null!);
     const byUser: Record<string, any[]> = {};
     (result.alerts || []).forEach((alert: any) => {
+      if (stockAlertNotified.has(String(alert.id))) return;
       if (!byUser[alert.user_id]) byUser[alert.user_id] = [];
       byUser[alert.user_id].push(alert);
     });
@@ -309,7 +312,12 @@ async function checkStockAlerts(client: any): Promise<void> {
           } else {
             msg += `⚠️ *${p.name}* (${p.sku})\n   Stock: ${stockManager.formatQty(p.stock_current, p.unit)} ${p.unit} (min: ${stockManager.formatQty(p.stock_min, p.unit)})\n\n`;
           }
+          stockAlertNotified.add(String(a.id));
         });
+        if (stockAlertNotified.size > 1000) {
+          const toDelete = Array.from(stockAlertNotified).slice(0, 500);
+          toDelete.forEach(k => stockAlertNotified.delete(k));
+        }
         const appUrl = (process.env.APP_URL || 'https://nickridwan-tata-business-suite.hf.space').replace(/\/+$/, '');
         if (user.dashboard_token) {
           const slug = user.store_slug || userId.replace('@', '%40');

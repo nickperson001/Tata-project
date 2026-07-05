@@ -536,26 +536,24 @@ router.post('/api/stock/products', stockAuth, requireBody('name'), async (req: S
     const initStock = parseFloat(stockInitial) || 0;
     const initPrice = parseFloat(priceBuy) || parseFloat(newProduct.price_buy) || 0;
     if (initStock > 0 && initPrice > 0) {
-      (async () => {
-        try {
-          const { data: initMov } = await supabase.from('stock_movements').select('id').eq('user_id', userId).eq('product_id', newProduct.id).eq('reference_type', 'initial').order('created_at', { ascending: false }).limit(1).single() as any;
-          if (initMov) {
-            await withTransaction(async (client) => {
-              await accountingEngine.insertJournalViaClient(client, userId, {
-                referenceType: 'stock_initial',
-                referenceId: String(initMov.id),
-                description: `Stok Awal ${initStock} ${newProduct.unit}: ${newProduct.name}`,
-                lines: [
-                  { accountCode: '1201', debit: initStock * initPrice, credit: 0, description: 'Penambahan inventori' },
-                  { accountCode: '3101', debit: 0, credit: initStock * initPrice, description: 'Modal inventori' },
-                ],
-              });
+      try {
+        const { data: initMov } = await supabase.from('stock_movements').select('id').eq('user_id', userId).eq('product_id', newProduct.id).eq('reference_type', 'initial').order('created_at', { ascending: false }).limit(1).maybeSingle() as any;
+        if (initMov) {
+          await withTransaction(async (client) => {
+            await accountingEngine.insertJournalViaClient(client, userId, {
+              referenceType: 'stock_initial',
+              referenceId: String(initMov.id),
+              description: `Stok Awal ${initStock} ${newProduct.unit}: ${newProduct.name}`,
+              lines: [
+                { accountCode: '1201', debit: initStock * initPrice, credit: 0, description: 'Penambahan inventori' },
+                { accountCode: '3101', debit: 0, credit: initStock * initPrice, description: 'Modal inventori' },
+              ],
             });
-          }
-        } catch (jErr: any) {
-          addLog('error', '[PRODUCT] Gagal bikin jurnal stok awal: ' + jErr.message);
+          });
         }
-      })();
+      } catch (jErr: any) {
+        addLog('error', '[PRODUCT] Gagal bikin jurnal stok awal: ' + jErr.message);
+      }
     }
     cacheInvalidate(userId);
     apiSuccess(res, { product: result.product });
@@ -962,7 +960,7 @@ router.get('/api/stock/overview', stockAuth, async (req: StockRequest, res: Resp
     trans.forEach((t: any) => {
       const v = Number(t.amount) || 0;
       if (t.type === 'masuk' && t.reference_type !== 'modal' && t.reference_type !== 'receivable') omzet += v;
-      else if (t.type === 'keluar') pengeluaran += v;
+      else if (t.type === 'keluar' || t.type === 'barang_rusak') pengeluaran += v;
       if (t.reference_type === 'receivable') piutang += (t.type === 'masuk' ? v : -v);
     });
     let totalNilaiStok = 0;
@@ -1086,7 +1084,7 @@ router.get('/api/stock/channel-profitability', stockAuth, async (req: StockReque
       if (t.type === 'masuk' && t.reference_type !== 'modal' && t.reference_type !== 'receivable') {
         channelMap[ch].revenue += v;
       }
-      if (t.reference_type === 'cashier') {
+      if (t.reference_type === 'cashier' || t.reference_type === 'stock_out') {
         const qty = Number(t.quantity) || 0;
         const buy = Number(t.price_buy) || 0;
         channelMap[ch].hpp += qty * buy;

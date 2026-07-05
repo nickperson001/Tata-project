@@ -273,7 +273,7 @@ async function createStockAlert(userId: string, productId: string, alertType: st
     const { data: recent } = await supabase
       .from('stock_alerts').select('id').eq('product_id', productId).eq('user_id', userId)
       .eq('alert_type', alertType).is('resolved_at', null)
-      .gte('alerted_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()).single() as any;
+      .gte('alerted_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()).maybeSingle() as any;
     if (recent) return;
     await supabase.from('stock_alerts').insert([{
       user_id: userId, product_id: productId,

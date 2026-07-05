@@ -11,16 +11,17 @@ export function NotificationBell() {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    useNotificationStore.getState().setAlerts(alerts);
-  }, []);
-
-  useEffect(() => {
     if (!token) return;
-    stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', token).then((res) => {
-      if (res.data?.alerts) {
-        useNotificationStore.getState().setAlerts(res.data.alerts);
-      }
-    }).catch((err) => console.error('[NotificationBell] Fetch alerts gagal', err));
+    function fetchAlerts() {
+      stockApi.get<{ data: { alerts: StockAlert[] } }>('/api/stock/alerts', token).then((res) => {
+        if (res.data?.alerts) {
+          useNotificationStore.getState().setAlerts(res.data.alerts);
+        }
+      }).catch((err) => console.error('[NotificationBell] Fetch alerts gagal', err));
+    }
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 30_000);
+    return () => clearInterval(interval);
   }, [token]);
 
   useEffect(() => {
