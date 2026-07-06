@@ -97,8 +97,7 @@ export function OverviewTab() {
       const urlLine = res.log.find(l => l.includes('/stock/'));
       if (urlLine) {
         const url = urlLine.trim();
-          toast.success(`URL: ${url}`, { duration: 8000 });
-        }
+        toast.success(`URL: ${url}`, { duration: 8000 });
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal seed demo');
