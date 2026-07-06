@@ -41,7 +41,7 @@ const responseSchema = {
     intent: {
       type: 'string',
       description:
-        "Tujuan atau intent dari input. Pilih salah satu: 'pemasukan', 'pengeluaran', 'barang_rusak', 'cek_stok', 'laporan_laba', 'buat_invoice', 'beban_gaji', 'beban_sewa', 'beban_listrik_air', 'beban_transport', 'beban_operasional', 'modal', 'prive', 'piutang', 'hutang_dagang', 'hutang_lancar', 'hutang', 'lainnya'",
+        "Tujuan atau intent dari input. Pilih salah satu: 'pemasukan', 'pengeluaran', 'barang_rusak', 'cek_stok', 'laporan_laba', 'buat_invoice', 'beban_gaji', 'beban_sewa', 'beban_listrik_air', 'beban_transport', 'beban_operasional', 'modal', 'prive', 'piutang', 'hutang_dagang', 'hutang_lancar', 'hutang_gaji', 'hutang_sewa', 'hutang_listrik_air', 'hutang_transport', 'hutang_operasional', 'hutang', 'lainnya'",
       enum: [
         'pemasukan',
         'pengeluaran',
@@ -59,6 +59,11 @@ const responseSchema = {
         'piutang',
         'hutang_dagang',
         'hutang_lancar',
+        'hutang_gaji',
+        'hutang_sewa',
+        'hutang_listrik_air',
+        'hutang_transport',
+        'hutang_operasional',
         'hutang',
         'lainnya',
       ],
@@ -113,7 +118,13 @@ PANDUAN KLASIFIKASI INTENT:
 - 'prive' — Penarikan pribadi pemilik. Contoh: "ambil prive 1jt", "tarik untuk pribadi 500rb".
 - 'piutang' — Penjualan yang belum dibayar (dibayar belakangan). Contoh: "jual ke Budi 2 dus mie 50rb piutang", "tagih nanti".
 - 'hutang_dagang' — Hutang ke supplier untuk pembelian stok barang dagangan. Contoh: "beli stok dari Toko X 500rb hutang dagang".
-- 'hutang_lancar' — Hutang jangka pendek non-dagang seperti pinjaman. Contoh: "pinjam 2jt untuk operasional".
+- 'hutang_dagang' — Hutang ke supplier untuk pembelian stok barang dagangan. Contoh: "beli stok dari Toko X 500rb hutang dagang".
+- 'hutang_lancar' — Hutang jangka pendek non-dagang (general). Contoh: "pinjam 2jt untuk operasional".
+- 'hutang_gaji' — Hutang gaji/upah karyawan yang belum dibayar. Contoh: "gaji 3 orang 4,5jt belum dibayar".
+- 'hutang_sewa' — Hutang sewa tempat yang belum dibayar. Contoh: "sewa ruko 2jt hutang".
+- 'hutang_listrik_air' — Hutang listrik/air yang belum dibayar. Contoh: "listrik 500rb hutang".
+- 'hutang_transport' — Hutang transportasi yang belum dibayar. Contoh: "ongkir 50rb hutang".
+- 'hutang_operasional' — Hutang biaya operasional lainnya. Contoh: "operasional 300rb hutang".
 - 'hutang' — Pembelian yang belum dibayar ke supplier (sinonim hutang_dagang). Contoh: "beli stok dari Toko X 500rb hutang".
 - 'lainnya' — Input yang tidak masuk kategori di atas.
 

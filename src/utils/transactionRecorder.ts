@@ -31,6 +31,8 @@ interface RecordSaleOpts {
   channel?: string;
   description?: string;
   referenceType?: string;
+  statusBayar?: string;
+  customerName?: string;
 }
 
 interface ExpenseOpts {
@@ -187,6 +189,8 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
     channel = 'Offline',
     description,
     referenceType = 'cashier',
+    statusBayar,
+    customerName,
   } = opts;
 
   if (!userId) return { success: false, error: 'userId is required' };
@@ -237,14 +241,16 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
       );
 
       // 4. Insert transaction
+      const bayar = statusBayar || 'tunai';
       const trx = await client.query(
         `INSERT INTO transactions (user_id, type, status_bayar, channel,
          amount, description, reference_type, product_id, quantity,
-         price_sell, price_buy, profit, hpp)
-         VALUES ($1, 'masuk', 'tunai', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         price_sell, price_buy, profit, hpp, customer_name)
+         VALUES ($1, 'masuk', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING id`,
         [
           userId,
+          bayar,
           channel,
           omzet,
           description || `Penjualan ${qty} item`,
@@ -255,6 +261,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
           buy,
           netProfit,
           modal,
+          customerName || null,
         ],
       );
       const trxId = trx.rows[0].id;
@@ -291,6 +298,29 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
         description: description || `Penjualan ${qty} item via ${channel}`,
         lines: allLines,
       });
+
+      // 6. Auto-create piutang for credit sales
+      if (bayar !== 'tunai' && bayar !== 'lunas' && customerName) {
+        try {
+          const piutangLines = [
+            { accountCode: '1102', debit: omzet, credit: 0, description: 'Piutang Dagang' },
+            { accountCode: '4101', debit: 0, credit: omzet, description: 'Penjualan kredit' },
+          ];
+          await accountingEngine.insertJournalViaClient(client, userId, {
+            referenceType: 'receivable',
+            referenceId: String(trxId),
+            description: `Piutang penjualan ${description || `${qty} item`} (Customer: ${customerName})`,
+            lines: piutangLines,
+          });
+          await client.query(
+            `INSERT INTO debts (user_id, transaction_id, nama_pelanggan, nominal_piutang, status_lunas)
+             VALUES ($1, $2, $3, $4, false)`,
+            [userId, trxId, customerName, omzet],
+          );
+        } catch (piutangErr: any) {
+          addLog('warn', '[TRX-RECORDER] Gagal buat piutang (non-blocking): ' + (piutangErr.message || piutangErr));
+        }
+      }
 
       return {
         success: true,
@@ -427,6 +457,11 @@ const PEMBUKUAN_COA_MAP: Record<string, { debit: string; credit: string; label: 
   piutang: { debit: '1102', credit: '4101', label: 'Piutang Dagang' },
   hutang_dagang: { debit: '1201', credit: '2101', label: 'Hutang Dagang' },
   hutang_lancar: { debit: '6105', credit: '2101', label: 'Hutang Lancar' },
+  hutang_gaji: { debit: '6101', credit: '2103', label: 'Hutang Gaji' },
+  hutang_sewa: { debit: '6102', credit: '2103', label: 'Hutang Sewa' },
+  hutang_listrik_air: { debit: '6103', credit: '2103', label: 'Hutang Listrik & Air' },
+  hutang_transport: { debit: '6104', credit: '2103', label: 'Hutang Transport' },
+  hutang_operasional: { debit: '6105', credit: '2103', label: 'Hutang Operasional Lainnya' },
 };
 
 async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
@@ -448,7 +483,7 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
   // Override credit account for piutang based on sales channel
   const effectiveCredit = tipe === 'piutang' && channel ? (await resolveChannel(userId, channel)).coaCode : creditCode;
 
-  if (['piutang', 'hutang_dagang', 'hutang_lancar'].includes(tipe) && !customerName) {
+  if (['piutang', 'hutang_dagang', 'hutang_lancar', 'hutang_gaji', 'hutang_sewa', 'hutang_listrik_air', 'hutang_transport', 'hutang_operasional'].includes(tipe) && !customerName) {
     return { success: false, error: 'customerName is required for piutang/hutang' };
   }
 
@@ -463,7 +498,8 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
   ];
 
   // Hutang dagang/lancar: journal only (no cash transaction)
-  if (tipe === 'hutang_dagang' || tipe === 'hutang_lancar') {
+  const hutangTypes = ['hutang_dagang', 'hutang_lancar', 'hutang_gaji', 'hutang_sewa', 'hutang_listrik_air', 'hutang_transport', 'hutang_operasional'];
+  if (hutangTypes.includes(tipe)) {
     try {
       return await withTransaction(async (client) => {
         const jr = await accountingEngine.insertJournalViaClient(client, userId, {

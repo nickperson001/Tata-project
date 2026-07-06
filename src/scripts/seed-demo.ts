@@ -298,6 +298,7 @@ export async function seedDemo(pool: Pool | null = pgPool) {
     const prodRows = await client.query('SELECT id, name, stock_current, price_buy FROM products WHERE user_id = $1', [
       DEMO_ID,
     ]);
+    let totalInventoryValue = 0;
     for (const row of prodRows.rows) {
       const stk = Number(row.stock_current);
       if (stk > 0) {
@@ -306,9 +307,23 @@ export async function seedDemo(pool: Pool | null = pgPool) {
            VALUES ($1, $2, 'in', $3, 0, $3, 'Stok awal (seed)', 'system')`,
           [DEMO_ID, row.id, stk],
         );
+        totalInventoryValue += stk * (Number(row.price_buy) || 0);
       }
     }
     console.log('[SEED] Initial stock movements created');
+    // Opening balance journal: Inventori (1201) Dr / Modal (3101) Cr
+    if (totalInventoryValue > 0) {
+      await accountingEngine.insertJournalViaClient(client, DEMO_ID, {
+        referenceType: 'opening_balance',
+        referenceId: 'seed-init-stock',
+        description: 'Saldo awal inventori (seed)',
+        lines: [
+          { accountCode: '1201', debit: totalInventoryValue, credit: 0, description: 'Inventori awal' },
+          { accountCode: '3101', debit: 0, credit: totalInventoryValue, description: 'Modal awal inventori' },
+        ],
+      });
+      console.log(`[SEED] Opening journal created for inventory: Rp${totalInventoryValue.toLocaleString()}`);
+    }
 
     // ── 5. Sample sales transactions (last 30 days) ──
     const now = new Date();
