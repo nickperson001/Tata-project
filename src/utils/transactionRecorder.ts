@@ -2,6 +2,7 @@ import supabase from '../config/supabase';
 import { addLog } from '../config/state';
 import accountingEngine from './accountingEngine';
 import { withTransaction } from './db';
+import { syncInventory } from './inventory';
 
 interface RecordOpts {
   userId: string;
@@ -231,6 +232,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
         productId,
         userId,
       ]);
+      await syncInventory(userId, String(productId), stockAfter, 'Utama', client);
 
       // 3. Insert stock_movements
       await client.query(
@@ -313,7 +315,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
             lines: piutangLines,
           });
           await client.query(
-            `INSERT INTO debts (user_id, transaction_id, nama_pelanggan, nominal_piutang, status_lunas)
+            `INSERT INTO receivables (user_id, transaction_id, nama_pelanggan, nominal_piutang, status_lunas)
              VALUES ($1, $2, $3, $4, false)`,
             [userId, trxId, customerName, omzet],
           );
@@ -413,6 +415,7 @@ async function recordDamagedGoods(opts: DamagedGoodsOpts): Promise<RecordResult>
         productId,
         userId,
       ]);
+      await syncInventory(userId, String(productId), stockAfter, 'Utama', client);
 
       await client.query(
         `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, created_via)
@@ -446,6 +449,52 @@ async function recordDamagedGoods(opts: DamagedGoodsOpts): Promise<RecordResult>
   }
 }
 
+interface SalesReturnOpts {
+  userId: string;
+  originalTransactionId: string | number;
+  productId: string;
+  quantity: number;
+  priceSell: number;
+  priceBuy: number;
+  returnReason: string;
+  statusBayar: 'tunai' | 'piutang';
+  channel?: string;
+  customerName?: string;
+}
+
+interface PurchaseReturnOpts {
+  userId: string;
+  originalTransactionId: string | number;
+  productId: string;
+  quantity: number;
+  priceBuy: number;
+  returnReason: string;
+  statusBayar: 'tunai' | 'hutang';
+  supplierName?: string;
+}
+
+interface InventoryAdjustmentOpts {
+  userId: string;
+  opnameId?: string | number;
+  items: Array<{
+    productId: string;
+    systemQty: number;
+    actualQty: number;
+    priceBuy: number;
+    varianceType: 'shortage' | 'overage';
+  }>;
+  notes?: string;
+}
+
+interface WarehouseTransferOpts {
+  userId: string;
+  productId: string;
+  quantity: number;
+  fromWarehouse: string;
+  toWarehouse: string;
+  notes?: string;
+}
+
 const PEMBUKUAN_COA_MAP: Record<string, { debit: string; credit: string; label: string }> = {
   beban_gaji: { debit: '6101', credit: '1101', label: 'Beban Gaji' },
   beban_sewa: { debit: '6102', credit: '1101', label: 'Beban Sewa' },
@@ -462,6 +511,8 @@ const PEMBUKUAN_COA_MAP: Record<string, { debit: string; credit: string; label: 
   hutang_listrik_air: { debit: '6103', credit: '2103', label: 'Hutang Listrik & Air' },
   hutang_transport: { debit: '6104', credit: '2103', label: 'Hutang Transport' },
   hutang_operasional: { debit: '6105', credit: '2103', label: 'Hutang Operasional Lainnya' },
+  sales_return: { debit: '4102', credit: '1101', label: 'Retur Penjualan' },
+  purchase_return: { debit: '2101', credit: '1201', label: 'Retur Pembelian' },
 };
 
 async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
@@ -511,7 +562,7 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
 
         if (tipe === 'hutang_dagang') {
           await client.query(
-            `INSERT INTO accounts_payable (user_id, nama_supplier, nominal_hutang, deskripsi, status_lunas)
+            `INSERT INTO payables (user_id, nama_supplier, nominal_hutang, deskripsi, status_lunas)
              VALUES ($1, $2, $3, $4, false)`,
             [userId, customerName || 'Unknown', Number(amount), description],
           );
@@ -565,7 +616,7 @@ async function recordPembukuan(opts: PembukuanOpts): Promise<RecordResult> {
 
       if (tipe === 'piutang') {
         await client.query(
-          `INSERT INTO debts (user_id, transaction_id, nama_pelanggan, nominal_piutang, status_lunas)
+          `INSERT INTO receivables (user_id, transaction_id, nama_pelanggan, nominal_piutang, status_lunas)
            VALUES ($1, $2, $3, $4, false)`,
           [userId, trxId, customerName || 'Unknown', Number(amount)],
         );
@@ -688,6 +739,7 @@ async function recordStockAdjustment(opts: {
         productId,
         userId,
       ]);
+      await syncInventory(userId, String(productId), stockAfter, 'Utama', client);
       const mov = await client.query(
         `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_via)
          VALUES ($1, $2, $3, $4, $5, $6, 'manual', $7, $8)
@@ -801,6 +853,447 @@ async function recordStockAdjustment(opts: {
   }
 }
 
+interface PayPayableOpts {
+  userId: string;
+  payableId: string;
+  amount: number;
+  description?: string;
+}
+
+interface ReceiveReceivableOpts {
+  userId: string;
+  debtId: string;
+  amount: number;
+  description?: string;
+}
+
+async function recordPayPayable(opts: PayPayableOpts): Promise<RecordResult> {
+  const { userId, payableId, amount, description } = opts;
+  if (!userId) return { success: false, error: 'userId is required' };
+  if (!payableId) return { success: false, error: 'payableId is required' };
+  if (!amount || amount <= 0) return { success: false, error: 'amount must be > 0' };
+
+  try {
+    return await withTransaction(async (client) => {
+      const pay = await client.query(
+        `SELECT id, nominal_hutang, jumlah_dibayar, status_lunas, nama_supplier
+         FROM payables WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [payableId, userId],
+      );
+      if (pay.rows.length === 0) throw new Error('Hutang tidak ditemukan');
+
+      const p = pay.rows[0];
+      if (p.status_lunas) throw new Error('Hutang sudah lunas');
+
+      const paidSoFar = parseFloat(p.jumlah_dibayar) || 0;
+      const totalHutang = parseFloat(p.nominal_hutang) || 0;
+      const sisa = totalHutang - paidSoFar;
+      if (amount > sisa) throw new Error(`Jumlah bayar (${amount}) melebihi sisa hutang (${sisa})`);
+
+      await lockAndCheckCashBalance(client, userId, amount);
+
+      const newPaid = paidSoFar + amount;
+      const isLunas = Math.abs(newPaid - totalHutang) < 0.01;
+
+      await client.query(
+        `UPDATE payables SET jumlah_dibayar = $1, status_lunas = $2 WHERE id = $3`,
+        [newPaid, isLunas, payableId],
+      );
+
+      await accountingEngine.insertJournalViaClient(client, userId, {
+        referenceType: 'pay_payable',
+        referenceId: payableId,
+        description: description || `Pembayaran hutang ke ${p.nama_supplier} ${isLunas ? '(LUNAS)' : `(sisa Rp${sisa - amount})`}`,
+        lines: [
+          { accountCode: '2101', debit: amount, credit: 0, description: `Bayar hutang: ${p.nama_supplier}` },
+          { accountCode: '1101', debit: 0, credit: amount, description: 'Pembayaran hutang' },
+        ],
+      });
+
+      return { success: true, data: { payableId, sisaBaru: totalHutang - newPaid, lunas: isLunas } };
+    });
+  } catch (err: any) {
+    addLog('error', '[TRX-RECORDER] recordPayPayable failed: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+async function recordReceiveReceivable(opts: ReceiveReceivableOpts): Promise<RecordResult> {
+  const { userId, debtId, amount, description } = opts;
+  if (!userId) return { success: false, error: 'userId is required' };
+  if (!debtId) return { success: false, error: 'debtId is required' };
+  if (!amount || amount <= 0) return { success: false, error: 'amount must be > 0' };
+
+  try {
+    return await withTransaction(async (client) => {
+      const d = await client.query(
+        `SELECT id, nominal_piutang, status_lunas, nama_pelanggan
+         FROM receivables WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [debtId, userId],
+      );
+      if (d.rows.length === 0) throw new Error('Piutang tidak ditemukan');
+
+      const debt = d.rows[0];
+      if (debt.status_lunas) throw new Error('Piutang sudah lunas');
+
+      const totalPiutang = parseFloat(debt.nominal_piutang) || 0;
+      const sisa = totalPiutang;
+      if (amount > sisa) throw new Error(`Jumlah diterima (${amount}) melebihi sisa piutang (${sisa})`);
+
+      // Check if there's an existing paid amount via transaction.status_bayar flow
+      const isLunas = Math.abs(amount - totalPiutang) < 0.01;
+
+      await client.query(
+        `UPDATE receivables SET status_lunas = $1 WHERE id = $2`,
+        [isLunas, debtId],
+      );
+
+      await accountingEngine.insertJournalViaClient(client, userId, {
+        referenceType: 'receive_receivable',
+        referenceId: debtId,
+        description: description || `Penerimaan piutang dari ${debt.nama_pelanggan} ${isLunas ? '(LUNAS)' : `(sisa Rp${totalPiutang - amount})`}`,
+        lines: [
+          { accountCode: '1101', debit: amount, credit: 0, description: `Terima piutang: ${debt.nama_pelanggan}` },
+          { accountCode: '1102', debit: 0, credit: amount, description: 'Pelunasan piutang' },
+        ],
+      });
+
+      return { success: true, data: { debtId, sisaBaru: totalPiutang - amount, lunas: isLunas } };
+    });
+  } catch (err: any) {
+    addLog('error', '[TRX-RECORDER] recordReceiveReceivable failed: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// ===== SALES RETURN =====
+async function recordSalesReturn(opts: SalesReturnOpts): Promise<RecordResult> {
+  const { userId, originalTransactionId, productId, quantity, priceSell, priceBuy, returnReason, statusBayar, channel, customerName } = opts;
+  if (!userId) return { success: false, error: 'userId is required' };
+  if (!originalTransactionId) return { success: false, error: 'originalTransactionId is required' };
+  if (!quantity || quantity <= 0) return { success: false, error: 'quantity must be > 0' };
+
+  const qty = parseFloat(String(quantity));
+  const sell = parseFloat(String(priceSell)) || 0;
+  const buy = parseFloat(String(priceBuy)) || 0;
+  const returnAmount = qty * sell;
+  const cogsValue = qty * buy;
+
+  try {
+    return await withTransaction(async (client) => {
+      // 1. Lock product row
+      const prod = await client.query(
+        `SELECT stock_current FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [productId, userId],
+      );
+      if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
+
+      // 2. Update inventory (return adds stock back)
+      const stockBefore = parseFloat(prod.rows[0].stock_current) || 0;
+      const stockAfter = stockBefore + qty;
+      await client.query(`UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`, [
+        stockAfter,
+        productId,
+        userId,
+      ]);
+      await syncInventory(userId, String(productId), stockAfter, 'Utama', client);
+
+      // 3. Insert stock_movements
+      await client.query(
+        `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_by)
+         VALUES ($1, $2, 'in', $3, $4, $5, 'sales_return', $6, 'system')`,
+        [userId, productId, qty, stockBefore, stockAfter, returnReason],
+      );
+
+      // 4. Create return transaction
+      const trx = await client.query(
+        `INSERT INTO transactions (user_id, type, status_bayar, amount, description, reference_type, product_id, quantity, price_sell, price_buy, customer_name, original_transaction_id, return_reason)
+         VALUES ($1, 'sales_return', $2, $3, $4, 'sales_return', $5, $6, $7, $8, $9, $10, $11)
+         RETURNING id`,
+        [
+          userId,
+          statusBayar,
+          returnAmount,
+          returnReason,
+          productId,
+          qty,
+          sell,
+          buy,
+          customerName || null,
+          originalTransactionId,
+          returnReason,
+        ],
+      );
+      const trxId = trx.rows[0].id;
+
+      // 5. Journal Entry 1: Reverse Revenue
+      const isPiutang = statusBayar === 'piutang';
+      await accountingEngine.insertJournalViaClient(client, userId, {
+        referenceType: 'sales_return',
+        referenceId: String(trxId),
+        description: `Retur penjualan: ${returnReason}`,
+        lines: [
+          { accountCode: '4102', debit: returnAmount, credit: 0, description: 'Retur Penjualan' },
+          { accountCode: isPiutang ? '1102' : '1101', debit: 0, credit: returnAmount, description: isPiutang ? 'Pengurangan piutang' : 'Refund retur' },
+        ],
+      });
+
+      // 6. Journal Entry 2: Reverse HPP
+      await accountingEngine.insertJournalViaClient(client, userId, {
+        referenceType: 'sales_return_hpp',
+        referenceId: String(trxId),
+        description: `HPP retur: ${returnReason}`,
+        lines: [
+          { accountCode: '1201', debit: cogsValue, credit: 0, description: 'Barang retur masuk' },
+          { accountCode: '5101', debit: 0, credit: cogsValue, description: 'Reverse HPP retur' },
+        ],
+      });
+
+      // 7. If original was piutang, reduce receivable
+      if (isPiutang && customerName) {
+        const debtRows = await client.query(
+          `SELECT id, nominal_piutang FROM receivables WHERE transaction_id = $1 AND user_id = $2 AND status_lunas = false FOR UPDATE`,
+          [originalTransactionId, userId],
+        );
+        if (debtRows.rows.length > 0) {
+          const debt = debtRows.rows[0];
+          const sisa = parseFloat(debt.nominal_piutang) - returnAmount;
+          if (sisa <= 0) {
+            await client.query(`UPDATE receivables SET nominal_piutang = 0, status_lunas = true WHERE id = $1`, [debt.id]);
+          } else {
+            await client.query(`UPDATE receivables SET nominal_piutang = $1 WHERE id = $2`, [sisa, debt.id]);
+          }
+        }
+      }
+
+      return { success: true, data: { trxId, stockAfter } };
+    });
+  } catch (err: any) {
+    addLog('error', '[TRX-RECORDER] recordSalesReturn failed: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// ===== PURCHASE RETURN =====
+async function recordPurchaseReturn(opts: PurchaseReturnOpts): Promise<RecordResult> {
+  const { userId, originalTransactionId, productId, quantity, priceBuy, returnReason, statusBayar, supplierName } = opts;
+  if (!userId) return { success: false, error: 'userId is required' };
+  if (!originalTransactionId) return { success: false, error: 'originalTransactionId is required' };
+  if (!quantity || quantity <= 0) return { success: false, error: 'quantity must be > 0' };
+
+  const qty = parseFloat(String(quantity));
+  const buy = parseFloat(String(priceBuy)) || 0;
+  const returnAmount = qty * buy;
+
+  try {
+    return await withTransaction(async (client) => {
+      // 1. Lock product row
+      const prod = await client.query(
+        `SELECT stock_current FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [productId, userId],
+      );
+      if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
+
+      // 2. Update inventory (return reduces stock)
+      const stockBefore = parseFloat(prod.rows[0].stock_current) || 0;
+      if (stockBefore < qty) throw new Error(`Stok tidak cukup untuk retur. Stok: ${stockBefore}`);
+      const stockAfter = stockBefore - qty;
+      await client.query(`UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`, [
+        stockAfter,
+        productId,
+        userId,
+      ]);
+      await syncInventory(userId, String(productId), stockAfter, 'Utama', client);
+
+      // 3. Insert stock_movements
+      await client.query(
+        `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_by)
+         VALUES ($1, $2, 'out', $3, $4, $5, 'purchase_return', $6, 'system')`,
+        [userId, productId, qty, stockBefore, stockAfter, returnReason],
+      );
+
+      // 4. Create return transaction
+      const trx = await client.query(
+        `INSERT INTO transactions (user_id, type, status_bayar, amount, description, reference_type, product_id, quantity, price_buy, customer_name, original_transaction_id, return_reason)
+         VALUES ($1, 'purchase_return', $2, $3, $4, 'purchase_return', $5, $6, $7, $8, $9, $10)
+         RETURNING id`,
+        [
+          userId,
+          statusBayar,
+          returnAmount,
+          returnReason,
+          productId,
+          qty,
+          buy,
+          supplierName || null,
+          originalTransactionId,
+          returnReason,
+        ],
+      );
+      const trxId = trx.rows[0].id;
+
+      // 5. Journal Entry: Reverse Purchase
+      const isHutang = statusBayar === 'hutang';
+      await accountingEngine.insertJournalViaClient(client, userId, {
+        referenceType: 'purchase_return',
+        referenceId: String(trxId),
+        description: `Retur pembelian: ${returnReason}`,
+        lines: [
+          { accountCode: isHutang ? '2101' : '1101', debit: returnAmount, credit: 0, description: isHutang ? 'Pengurangan hutang' : 'Refund retur beli' },
+          { accountCode: '1201', debit: 0, credit: returnAmount, description: 'Barang retur keluar' },
+        ],
+      });
+
+      // 6. If original was hutang, reduce payable
+      if (isHutang && supplierName) {
+        const payRows = await client.query(
+          `SELECT id, nominal_hutang, jumlah_dibayar FROM payables WHERE transaction_id = $1 AND user_id = $2 AND status_lunas = false FOR UPDATE`,
+          [originalTransactionId, userId],
+        );
+        if (payRows.rows.length > 0) {
+          const pay = payRows.rows[0];
+          const sisa = parseFloat(pay.nominal_hutang) - returnAmount - parseFloat(pay.jumlah_dibayar || 0);
+          if (sisa <= 0) {
+            await client.query(`UPDATE payables SET nominal_hutang = 0, status_lunas = true WHERE id = $1`, [pay.id]);
+          } else {
+            await client.query(`UPDATE payables SET nominal_hutang = nominal_hutang - $1 WHERE id = $2`, [returnAmount, pay.id]);
+          }
+        }
+      }
+
+      return { success: true, data: { trxId, stockAfter } };
+    });
+  } catch (err: any) {
+    addLog('error', '[TRX-RECORDER] recordPurchaseReturn failed: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// ===== INVENTORY ADJUSTMENT (Opname) =====
+async function recordInventoryAdjustment(opts: InventoryAdjustmentOpts): Promise<RecordResult> {
+  const { userId, opnameId, items, notes } = opts;
+  if (!userId) return { success: false, error: 'userId is required' };
+  if (!items || items.length === 0) return { success: false, error: 'items is required' };
+
+  try {
+    return await withTransaction(async (client) => {
+      const results: Array<{ productId: string; stockAfter: number }> = [];
+
+      for (const item of items) {
+        const { productId, systemQty, actualQty, priceBuy } = item;
+        const variance = actualQty - systemQty;
+        const varianceValue = Math.abs(variance) * priceBuy;
+
+        // Lock product row
+        const prod = await client.query(
+          `SELECT stock_current FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+          [productId, userId],
+        );
+        if (prod.rows.length === 0) throw new Error(`Produk ${productId} tidak ditemukan`);
+
+        // Update inventory to actual
+        await client.query(`UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`, [
+          actualQty,
+          productId,
+          userId,
+        ]);
+        await syncInventory(userId, String(productId), actualQty, 'Utama', client);
+
+        // Insert stock_movements
+        await client.query(
+          `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_by)
+           VALUES ($1, $2, 'adjustment', $3, $4, $5, 'inventory_adjustment', $6, 'system')`,
+          [userId, productId, variance, systemQty, actualQty, notes || `Penyesuaian opname: ${variance > 0 ? 'kelebihan' : 'kekurangan'} ${Math.abs(variance)}`],
+        );
+
+        // Create journal for variance
+        if (variance !== 0) {
+          const isShortage = variance < 0;
+          const adjAmt = Math.abs(variance) * priceBuy;
+          if (adjAmt > 0) {
+            await accountingEngine.insertJournalViaClient(client, userId, {
+              referenceType: 'inventory_adjustment',
+              referenceId: `${productId}_${opnameId || 'manual'}`,
+              description: `Penyesuaian inventori: ${isShortage ? 'shortage' : 'overage'} ${Math.abs(variance)} ${notes || ''}`,
+              lines: isShortage
+                ? [
+                    { accountCode: '6101', debit: adjAmt, credit: 0, description: `Shortage ${Math.abs(variance)} x ${priceBuy}` },
+                    { accountCode: '1201', debit: 0, credit: adjAmt, description: 'Pengurangan inventori' },
+                  ]
+                : [
+                    { accountCode: '1201', debit: adjAmt, credit: 0, description: `Overage ${variance} x ${priceBuy}` },
+                    { accountCode: '4104', debit: 0, credit: adjAmt, description: 'Keuntungan persediaan' },
+                  ],
+            });
+          }
+        }
+
+        results.push({ productId, stockAfter: actualQty });
+      }
+
+      return { success: true, data: { results, count: items.length } };
+    });
+  } catch (err: any) {
+    addLog('error', '[TRX-RECORDER] recordInventoryAdjustment failed: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// ===== WAREHOUSE TRANSFER =====
+async function recordWarehouseTransfer(opts: WarehouseTransferOpts): Promise<RecordResult> {
+  const { userId, productId, quantity, fromWarehouse, toWarehouse, notes } = opts;
+  if (!userId) return { success: false, error: 'userId is required' };
+  if (!quantity || quantity <= 0) return { success: false, error: 'quantity must be > 0' };
+  if (fromWarehouse === toWarehouse) return { success: false, error: 'Gudang asal dan tujuan harus berbeda' };
+
+  const qty = parseFloat(String(quantity));
+
+  try {
+    return await withTransaction(async (client) => {
+      // 1. Read product stock_current (single source of truth)
+      const prod = await client.query(
+        `SELECT stock_current FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [productId, userId],
+      );
+      if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
+
+      // 2. Update inventory per warehouse
+      const fromCurrent = await client.query(
+        `SELECT quantity FROM inventory WHERE user_id = $1 AND product_id = $2 AND warehouse = $3 FOR UPDATE`,
+        [userId, productId, fromWarehouse],
+      );
+      const fromQty = parseFloat(fromCurrent.rows[0]?.quantity) || 0;
+      if (fromQty < qty) throw new Error(`Stok di ${fromWarehouse} tidak cukup. Tersedia: ${fromQty}`);
+
+      await client.query(
+        `INSERT INTO inventory (user_id, product_id, quantity, warehouse)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, product_id, warehouse)
+         DO UPDATE SET quantity = inventory.quantity + $3, updated_at = now()`,
+        [userId, productId, qty, toWarehouse],
+      );
+
+      await client.query(
+        `UPDATE inventory SET quantity = quantity - $1, updated_at = now()
+         WHERE user_id = $2 AND product_id = $3 AND warehouse = $4`,
+        [qty, userId, productId, fromWarehouse],
+      );
+
+      // 3. Insert stock_movements
+      await client.query(
+        `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_by, from_warehouse, to_warehouse)
+         VALUES ($1, $2, 'adjustment', $3, $4, $5, 'warehouse_transfer', $6, 'system', $7, $8)`,
+        [userId, productId, qty, fromQty, fromQty - qty, notes || `Transfer ${fromWarehouse} → ${toWarehouse}`, fromWarehouse, toWarehouse],
+      );
+
+      return { success: true, data: { productId, quantity: qty, fromWarehouse, toWarehouse } };
+    });
+  } catch (err: any) {
+    addLog('error', '[TRX-RECORDER] recordWarehouseTransfer failed: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 export {
   recordTransaction,
   recordTransactionWithJournal,
@@ -809,6 +1302,12 @@ export {
   recordDamagedGoods,
   recordPembukuan,
   recordStockAdjustment,
+  recordPayPayable,
+  recordReceiveReceivable,
+  recordSalesReturn,
+  recordPurchaseReturn,
+  recordInventoryAdjustment,
+  recordWarehouseTransfer,
   PEMBUKUAN_COA_MAP,
   invalidateChannelCache,
 };

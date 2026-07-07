@@ -107,6 +107,52 @@ export const hutangSchema = z.object({
   jatuh_tempo: z.string().optional(),
 });
 
+export const salesReturnSchema = z.object({
+  originalTransactionId: z.string().min(1, 'ID transaksi original wajib diisi'),
+  productId: z.string().min(1, 'ID produk wajib diisi'),
+  quantity: z.coerce.number().positive('Jumlah retur harus lebih dari 0'),
+  priceSell: z.coerce.number().nonnegative(),
+  priceBuy: z.coerce.number().nonnegative(),
+  returnReason: z.string().min(1, 'Alasan retur wajib diisi').max(500),
+  statusBayar: z.enum(['tunai', 'piutang']).default('tunai'),
+  channel: z.string().max(50).optional(),
+});
+
+export const purchaseReturnSchema = z.object({
+  originalTransactionId: z.string().min(1, 'ID transaksi original wajib diisi'),
+  productId: z.string().min(1, 'ID produk wajib diisi'),
+  quantity: z.coerce.number().positive('Jumlah retur harus lebih dari 0'),
+  priceBuy: z.coerce.number().nonnegative(),
+  returnReason: z.string().min(1, 'Alasan retur wajib diisi').max(500),
+  statusBayar: z.enum(['tunai', 'hutang']).default('tunai'),
+});
+
+export const opnameCreateSchema = z.object({
+  warehouse: z.string().max(100).optional().default('Utama'),
+  notes: z.string().max(500).optional(),
+});
+
+export const opnameDetailSchema = z.object({
+  productId: z.string().min(1, 'ID produk wajib diisi'),
+  actualQty: z.coerce.number().nonnegative('Jumlah fisik tidak boleh negatif'),
+  systemQty: z.coerce.number().nonnegative().optional(),
+  notes: z.string().max(500).optional(),
+});
+
+export const warehouseTransferSchema = z.object({
+  productId: z.string().min(1, 'ID produk wajib diisi'),
+  quantity: z.coerce.number().positive('Jumlah transfer harus lebih dari 0'),
+  fromWarehouse: z.string().min(1, 'Gudang asal wajib diisi'),
+  toWarehouse: z.string().min(1, 'Gudang tujuan wajib diisi'),
+  notes: z.string().max(500).optional(),
+});
+
+export const warehouseCreateSchema = z.object({
+  name: z.string().min(1, 'Nama gudang wajib diisi').max(100),
+  code: z.string().min(1, 'Kode gudang wajib diisi').max(20),
+  isDefault: z.boolean().optional().default(false),
+});
+
 export const settingUpdateSchema = z
   .object({
     channel_fees: z

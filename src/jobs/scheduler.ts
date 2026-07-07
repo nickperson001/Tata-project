@@ -333,7 +333,7 @@ async function checkOverduePiutang(client: any): Promise<void> {
     today.setHours(0, 0, 0, 0);
 
     const { data: debts, error } = await supabase
-      .from('debts').select('id, user_id, nama_pelanggan, nominal_piutang, jatuh_tempo')
+      .from('receivables').select('id, user_id, nama_pelanggan, nominal_piutang, jatuh_tempo')
       .eq('status_lunas', false).not('jatuh_tempo', 'is', null).lt('jatuh_tempo', today.toISOString()) as any;
     if (error) { logError(`[CRON] checkOverduePiutang query: ${error.message}`); return; }
     if (!debts || debts.length === 0) { logInfo('[CRON] Tidak ada piutang overdue'); return; }
@@ -419,7 +419,7 @@ async function checkOverdueHutang(client: any): Promise<void> {
     today.setHours(0, 0, 0, 0);
 
     const { data: hutangs, error } = await supabase
-      .from('accounts_payable').select('id, user_id, nama_supplier, nominal_hutang, jumlah_dibayar, jatuh_tempo')
+      .from('payables').select('id, user_id, nama_supplier, nominal_hutang, jumlah_dibayar, jatuh_tempo')
       .eq('status_lunas', false).not('jatuh_tempo', 'is', null).lt('jatuh_tempo', today.toISOString()) as any;
     if (error) { logError(`[CRON] checkOverdueHutang query: ${error.message}`); return; }
     if (!hutangs || hutangs.length === 0) { logInfo('[CRON] Tidak ada hutang overdue'); return; }

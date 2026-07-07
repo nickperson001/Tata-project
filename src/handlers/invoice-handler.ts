@@ -419,7 +419,7 @@ async function handleInvoiceCommand(
     .then(async (invResult: any) => {
       if (invResult.error) return;
       try {
-        await supabase.from('debts').insert([
+        await supabase.from('receivables').insert([
           {
             user_id: sender,
             transaction_id: null,

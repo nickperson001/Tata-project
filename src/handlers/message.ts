@@ -254,6 +254,10 @@ async function classifyTransactionWithGemini(text: string): Promise<any> {
     else if (result.intent === 'pengeluaran') type = 'keluar';
     else if (result.intent === 'buat_invoice') return { type: '__invoice__', intent: 'buat_invoice', raw: result };
     else if (result.intent === 'hutang') pembukuan = 'hutang_dagang';
+    else if (result.intent === 'bayar_hutang') return { type: '__bayar_hutang__', intent: 'bayar_hutang', raw: result };
+    else if (result.intent === 'terima_piutang') return { type: '__terima_piutang__', intent: 'terima_piutang', raw: result };
+    else if (result.intent === 'retur_jual') return { type: '__retur_jual__', intent: 'retur_jual', raw: result };
+    else if (result.intent === 'retur_beli') return { type: '__retur_beli__', intent: 'retur_beli', raw: result };
     else if (Object.keys(transactionRecorder.PEMBUKUAN_COA_MAP).includes(result.intent)) pembukuan = result.intent;
     else return null;
 
@@ -314,6 +318,18 @@ async function handleTransaction(msg: any, sender: string, user: any, effectiveS
   if (!type && amount) {
     const geminiResult = await classifyTransactionWithGemini(body);
     if (geminiResult && geminiResult.type === '__invoice__') return await handleInvoiceCommand(msg, sender, user, rawBody, client);
+    if (geminiResult && geminiResult.intent === 'bayar_hutang') {
+      return await handlePayHutang(msg, sender, user, amount!, geminiResult, rawBody, client);
+    }
+    if (geminiResult && geminiResult.intent === 'terima_piutang') {
+      return await handleTerimaPiutang(msg, sender, user, amount!, geminiResult, rawBody, client);
+    }
+    if (geminiResult && geminiResult.intent === 'retur_jual') {
+      return await handleReturJual(msg, sender, user, amount!, geminiResult, rawBody, client);
+    }
+    if (geminiResult && geminiResult.intent === 'retur_beli') {
+      return await handleReturBeli(msg, sender, user, amount!, geminiResult, rawBody, client);
+    }
     if (geminiResult && geminiResult.pembukuan) {
       const finalDesc = (geminiResult.catatan || geminiResult.items?.map((i: any) => i.nama_barang).filter(Boolean).join(', ') || rawBody).trim() || 'Tanpa keterangan';
       const coaMap = transactionRecorder.PEMBUKUAN_COA_MAP[geminiResult.pembukuan];
@@ -674,6 +690,100 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       }
     }
 
+    if (pendingHutang.has(sender) && !shouldBypassDialogs(body)) {
+      const h = pendingHutang.get(sender)!;
+      if (Date.now() - h.timestamp > 5 * 60 * 1000) { pendingHutang.delete(sender); }
+      else {
+        if (KW_BATAL.some((k: string) => body === k)) { pendingHutang.delete(sender); await safeReply(msg, '✅ Pembayaran hutang dibatalkan.'); return; }
+        const isYes = ['ya', 'iya', 'oke', 'ok', 'yes', 'y', '1'].includes(body);
+        if (isYes) {
+          pendingHutang.delete(sender);
+          const result = await transactionRecorder.recordPayPayable({ userId: sender, payableId: h.payableId, amount: h.amount });
+          if (!result.success) throw new Error(`Gagal bayar hutang: ${result.error}`);
+          const dt = result.data as any;
+          await safeReply(msg, `✅ *Pembayaran Hutang Berhasil!*\n\n🏢 Supplier : ${h.supplier}\n💵 Dibayar : ${formatRupiah(h.amount)}${dt.lunas ? '\n✅ *LUNAS!*' : `\n⚠️ Sisa : ${formatRupiah(dt.sisaBaru)}`}`);
+          return;
+        }
+        await safeReply(msg, '⚠️ Balas *Ya* untuk membayar atau *Batal* untuk membatalkan.');
+        return;
+      }
+    }
+
+    if (pendingPiutang.has(sender) && !shouldBypassDialogs(body)) {
+      const p = pendingPiutang.get(sender)!;
+      if (Date.now() - p.timestamp > 5 * 60 * 1000) { pendingPiutang.delete(sender); }
+      else {
+        if (KW_BATAL.some((k: string) => body === k)) { pendingPiutang.delete(sender); await safeReply(msg, '✅ Penerimaan piutang dibatalkan.'); return; }
+        const isYes = ['ya', 'iya', 'oke', 'ok', 'yes', 'y', '1'].includes(body);
+        if (isYes) {
+          pendingPiutang.delete(sender);
+          const result = await transactionRecorder.recordReceiveReceivable({ userId: sender, debtId: p.debtId, amount: p.amount });
+          if (!result.success) throw new Error(`Gagal terima piutang: ${result.error}`);
+          const dt = result.data as any;
+          await safeReply(msg, `✅ *Penerimaan Piutang Berhasil!*\n\n👤 Customer : ${p.customer}\n💵 Diterima : ${formatRupiah(p.amount)}${dt.lunas ? '\n✅ *LUNAS!*' : `\n⚠️ Sisa : ${formatRupiah(dt.sisaBaru)}`}`);
+          return;
+        }
+        await safeReply(msg, '⚠️ Balas *Ya* untuk menerima atau *Batal* untuk membatalkan.');
+        return;
+      }
+    }
+
+    if (pendingReturJual.has(sender) && !shouldBypassDialogs(body)) {
+      const rj = pendingReturJual.get(sender)!;
+      if (Date.now() - rj.timestamp > 5 * 60 * 1000) { pendingReturJual.delete(sender); }
+      else {
+        if (KW_BATAL.some((k: string) => body === k)) { pendingReturJual.delete(sender); await safeReply(msg, '✅ Retur penjualan dibatalkan.'); return; }
+        const isYes = ['ya', 'iya', 'oke', 'ok', 'yes', 'y', '1'].includes(body);
+        if (isYes) {
+          pendingReturJual.delete(sender);
+          const result = await transactionRecorder.recordSalesReturn({
+            userId: sender,
+            originalTransactionId: rj.originalTransactionId,
+            productId: rj.productId,
+            quantity: rj.quantity,
+            priceSell: rj.priceSell,
+            priceBuy: rj.priceBuy,
+            returnReason: rj.returnReason,
+            statusBayar: rj.statusBayar as 'tunai' | 'piutang',
+            channel: rj.channel,
+            customerName: rj.customerName,
+          });
+          if (!result.success) throw new Error(`Gagal retur penjualan: ${result.error}`);
+          await safeReply(msg, `✅ *Retur Penjualan Berhasil!*\n\n📦 Produk : ${rj.productName} × ${rj.quantity}\n💵 Nilai : ${formatRupiah(rj.quantity * rj.priceSell)}\n📝 Alasan : ${rj.returnReason}`);
+          return;
+        }
+        await safeReply(msg, '⚠️ Balas *Ya* untuk memproses retur atau *Batal* untuk membatalkan.');
+        return;
+      }
+    }
+
+    if (pendingReturBeli.has(sender) && !shouldBypassDialogs(body)) {
+      const rb = pendingReturBeli.get(sender)!;
+      if (Date.now() - rb.timestamp > 5 * 60 * 1000) { pendingReturBeli.delete(sender); }
+      else {
+        if (KW_BATAL.some((k: string) => body === k)) { pendingReturBeli.delete(sender); await safeReply(msg, '✅ Retur pembelian dibatalkan.'); return; }
+        const isYes = ['ya', 'iya', 'oke', 'ok', 'yes', 'y', '1'].includes(body);
+        if (isYes) {
+          pendingReturBeli.delete(sender);
+          const result = await transactionRecorder.recordPurchaseReturn({
+            userId: sender,
+            originalTransactionId: rb.originalTransactionId,
+            productId: rb.productId,
+            quantity: rb.quantity,
+            priceBuy: rb.priceBuy,
+            returnReason: rb.returnReason,
+            statusBayar: rb.statusBayar as 'tunai' | 'hutang',
+            supplierName: rb.supplierName,
+          });
+          if (!result.success) throw new Error(`Gagal retur pembelian: ${result.error}`);
+          await safeReply(msg, `✅ *Retur Pembelian Berhasil!*\n\n📦 Produk : ${rb.productName} × ${rb.quantity}\n💵 Nilai : ${formatRupiah(rb.quantity * rb.priceBuy)}\n📝 Alasan : ${rb.returnReason}`);
+          return;
+        }
+        await safeReply(msg, '⚠️ Balas *Ya* untuk memproses retur atau *Batal* untuk membatalkan.');
+        return;
+      }
+    }
+
     if (pendingProductSelections.has(sender) && !shouldBypassDialogs(body)) {
       const sel = pendingProductSelections.get(sender);
       if (Date.now() - sel.timestamp > 5 * 60 * 1000) { pendingProductSelections.delete(sender); }
@@ -952,7 +1062,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         const rekapSaldo = totalMasuk - totalKeluar;
 
         const { data: hutangData } = await supabase
-          .from('accounts_payable').select('nominal_hutang, jumlah_dibayar')
+          .from('payables').select('nominal_hutang, jumlah_dibayar')
           .eq('user_id', sender).eq('status_lunas', false) as any;
         const totalHutang = (hutangData || []).reduce((s: number, h: any) => s + Number(h.nominal_hutang) - Number(h.jumlah_dibayar || 0), 0);
 
@@ -1016,7 +1126,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
           return;
         }
         const { data: list } = await supabase
-          .from('accounts_payable').select('*').eq('user_id', sender)
+          .from('payables').select('*').eq('user_id', sender)
           .eq('status_lunas', false).order('jatuh_tempo', { ascending: true }) as any;
         if (!list || list.length === 0) {
           await safeReply(msg, `✅ *Hutang — ${user.store_name}*\n\nTidak ada hutang ke supplier saat ini.`);
@@ -1220,3 +1330,197 @@ async function handleMessage(msg: any, client: any): Promise<any> {
 }
 
 export { handleMessage, invalidateMaintenanceCache };
+
+// ── Retur Jual / Retur Beli Handlers ──
+
+const pendingReturJual = new Map<string, { originalTransactionId: string; productId: string; productName: string; quantity: number; priceSell: number; priceBuy: number; returnReason: string; customerName: string; statusBayar: string; channel: string; timestamp: number }>();
+const pendingReturBeli = new Map<string, { originalTransactionId: string; productId: string; productName: string; quantity: number; priceBuy: number; returnReason: string; supplierName: string; statusBayar: string; timestamp: number }>();
+
+async function handleReturJual(msg: any, sender: string, user: any, amount: number, geminiResult: any, rawBody: string, client: any): Promise<boolean> {
+  const items = geminiResult?.raw?.items || geminiResult?.items || [];
+  const item = items[0] || {};
+  const productName = item.nama_barang || '';
+  const qty = item.qty || 0;
+  const reason = geminiResult?.raw?.catatan || geminiResult?.catatan || 'Retur penjualan';
+
+  if (!productName || !qty) {
+    await safeReply(msg, '❌ Format retur tidak jelas. Contoh: *retur 2 kopi dari Pak Budi rusak*');
+    return true;
+  }
+
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, name, price_buy, price_sell')
+    .eq('user_id', sender)
+    .eq('is_active', true)
+    .ilike('name', `%${productName}%`)
+    .limit(5) as any;
+
+  if (!products || products.length === 0) {
+    await safeReply(msg, `❌ Produk "${productName}" tidak ditemukan. Pastikan nama produk benar.`);
+    return true;
+  }
+
+  const product = products[0];
+  const customerName = geminiResult?.raw?.customer_name || geminiResult?.customerName || 'Customer';
+  const priceSell = parseFloat(product.price_sell) || 0;
+  const priceBuy = parseFloat(product.price_buy) || 0;
+  const returnAmount = qty * priceSell;
+
+  const { data: transactions } = await supabase
+    .from('transactions')
+    .select('id, status_bayar, customer_name')
+    .eq('user_id', sender)
+    .eq('product_id', product.id)
+    .eq('type', 'masuk')
+    .order('created_at', { ascending: false })
+    .limit(5) as any;
+
+  const originalTx = transactions?.find((t: any) => {
+    if (customerName !== 'Customer' && t.customer_name) {
+      return t.customer_name.toLowerCase().includes(customerName.toLowerCase());
+    }
+    return true;
+  }) || transactions?.[0];
+
+  if (!originalTx) {
+    await safeReply(msg, `❌ Transaksi penjualan original untuk ${product.name} tidak ditemukan.`);
+    return true;
+  }
+
+  const statusBayar = originalTx.status_bayar === 'piutang' ? 'piutang' : 'tunai';
+
+  pendingReturJual.set(sender, {
+    originalTransactionId: String(originalTx.id),
+    productId: String(product.id),
+    productName: product.name,
+    quantity: qty,
+    priceSell,
+    priceBuy,
+    returnReason: reason,
+    customerName,
+    statusBayar,
+    channel: 'Offline',
+    timestamp: Date.now(),
+  });
+
+  await safeReply(msg,
+    `📋 *Konfirmasi Retur Penjualan*\n\n📦 Produk : ${product.name} × ${qty}\n💵 Nilai Retur : ${formatRupiah(returnAmount)}\n📝 Alasan : ${reason}\n👤 Customer : ${customerName}\n💳 Status : ${statusBayar === 'piutang' ? 'Piutang' : 'Tunai (refund)'}\n\nBalas *Ya* untuk memproses retur.\nBalas *Batal* untuk membatalkan.`
+  );
+  return true;
+}
+
+async function handleReturBeli(msg: any, sender: string, user: any, amount: number, geminiResult: any, rawBody: string, client: any): Promise<boolean> {
+  const items = geminiResult?.raw?.items || geminiResult?.items || [];
+  const item = items[0] || {};
+  const productName = item.nama_barang || '';
+  const qty = item.qty || 0;
+  const reason = geminiResult?.raw?.catatan || geminiResult?.catatan || 'Retur pembelian';
+
+  if (!productName || !qty) {
+    await safeReply(msg, '❌ Format retur tidak jelas. Contoh: *retur beli 5 kopi kualitas buruk*');
+    return true;
+  }
+
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, name, price_buy')
+    .eq('user_id', sender)
+    .eq('is_active', true)
+    .ilike('name', `%${productName}%`)
+    .limit(5) as any;
+
+  if (!products || products.length === 0) {
+    await safeReply(msg, `❌ Produk "${productName}" tidak ditemukan.`);
+    return true;
+  }
+
+  const product = products[0];
+  const supplierName = geminiResult?.raw?.customer_name || geminiResult?.customerName || 'Supplier';
+  const priceBuy = parseFloat(product.price_buy) || 0;
+  const returnAmount = qty * priceBuy;
+
+  const { data: transactions } = await supabase
+    .from('transactions')
+    .select('id, status_bayar')
+    .eq('user_id', sender)
+    .eq('product_id', product.id)
+    .eq('type', 'keluar')
+    .order('created_at', { ascending: false })
+    .limit(5) as any;
+
+  const originalTx = transactions?.[0];
+  if (!originalTx) {
+    await safeReply(msg, `❌ Transaksi pembelian original untuk ${product.name} tidak ditemukan.`);
+    return true;
+  }
+
+  const statusBayar = originalTx.status_bayar === 'hutang' ? 'hutang' : 'tunai';
+
+  pendingReturBeli.set(sender, {
+    originalTransactionId: String(originalTx.id),
+    productId: String(product.id),
+    productName: product.name,
+    quantity: qty,
+    priceBuy,
+    returnReason: reason,
+    supplierName,
+    statusBayar,
+    timestamp: Date.now(),
+  });
+
+  await safeReply(msg,
+    `📋 *Konfirmasi Retur Pembelian*\n\n📦 Produk : ${product.name} × ${qty}\n💵 Nilai Retur : ${formatRupiah(returnAmount)}\n📝 Alasan : ${reason}\n🏢 Supplier : ${supplierName}\n💳 Status : ${statusBayar === 'hutang' ? 'Hutang (kurangi hutang)' : 'Tunai (refund)'}\n\nBalas *Ya* untuk memproses retur.\nBalas *Batal* untuk membatalkan.`
+  );
+  return true;
+}
+
+// ── Pay Hutang / Receive Piutang Handlers ──
+
+const pendingHutang = new Map<string, { payableId: string; amount: number; supplier: string; timestamp: number }>();
+const pendingPiutang = new Map<string, { debtId: string; amount: number; customer: string; timestamp: number }>();
+
+async function handlePayHutang(msg: any, sender: string, user: any, amount: number, geminiResult: any, rawBody: string, client: any): Promise<boolean> {
+  const { data: hutangs, error } = await supabase
+    .from('payables')
+    .select('id, nama_supplier, nominal_hutang, jumlah_dibayar, status_lunas')
+    .eq('user_id', sender)
+    .eq('status_lunas', false)
+    .order('jatuh_tempo', { ascending: true }) as any;
+  if (error || !hutangs?.length) {
+    await safeReply(msg, '✅ Tidak ada hutang yang perlu dibayar.');
+    return true;
+  }
+  // Find exact match or pick the first unpaid
+  const supplierName = geminiResult.raw?.customer_name || geminiResult.customerName || hutangs[0].nama_supplier;
+  const target = hutangs.find((h: any) => h.nama_supplier.toLowerCase().includes(supplierName.toLowerCase())) || hutangs[0];
+  const sisa = (parseFloat(target.nominal_hutang) || 0) - (parseFloat(target.jumlah_dibayar) || 0);
+  const bayar = Math.min(amount, sisa);
+  pendingHutang.set(sender, { payableId: target.id, amount: bayar, supplier: target.nama_supplier, timestamp: Date.now() });
+  await safeReply(msg,
+    `📋 *Konfirmasi Bayar Hutang*\n\n🏢 Supplier : ${target.nama_supplier}\n💵 Sisa Hutang : ${formatRupiah(sisa)}\n💳 Akan Dibayar : ${formatRupiah(bayar)}${bayar < sisa ? `\n⚠️ Sisa setelah bayar: ${formatRupiah(sisa - bayar)}` : '\n✅ *LUNAS!*'}\n\nBalas *Ya* untuk mengonfirmasi.\nBalas *Batal* untuk membatalkan.`
+  );
+  return true;
+}
+
+async function handleTerimaPiutang(msg: any, sender: string, user: any, amount: number, geminiResult: any, rawBody: string, client: any): Promise<boolean> {
+  const { data: piutangs, error } = await supabase
+    .from('receivables')
+    .select('id, nama_pelanggan, nominal_piutang, status_lunas')
+    .eq('user_id', sender)
+    .eq('status_lunas', false)
+    .order('jatuh_tempo', { ascending: true }) as any;
+  if (error || !piutangs?.length) {
+    await safeReply(msg, '✅ Tidak ada piutang yang perlu ditagih.');
+    return true;
+  }
+  const customerName = geminiResult.raw?.customer_name || geminiResult.customerName || piutangs[0].nama_pelanggan;
+  const target = piutangs.find((d: any) => d.nama_pelanggan.toLowerCase().includes(customerName.toLowerCase())) || piutangs[0];
+  const sisa = parseFloat(target.nominal_piutang) || 0;
+  const terima = Math.min(amount, sisa);
+  pendingPiutang.set(sender, { debtId: target.id, amount: terima, customer: target.nama_pelanggan, timestamp: Date.now() });
+  await safeReply(msg,
+    `📋 *Konfirmasi Terima Piutang*\n\n👤 Customer : ${target.nama_pelanggan}\n💵 Sisa Piutang : ${formatRupiah(sisa)}\n💳 Akan Diterima : ${formatRupiah(terima)}${terima < sisa ? `\n⚠️ Sisa setelah bayar: ${formatRupiah(sisa - terima)}` : '\n✅ *LUNAS!*'}\n\nBalas *Ya* untuk mengonfirmasi.\nBalas *Batal* untuk membatalkan.`
+  );
+  return true;
+}

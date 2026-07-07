@@ -95,6 +95,67 @@ export interface StockMovement {
   products?: { id: string; sku: string; name: string; unit: string };
 }
 
+export interface InventoryItem {
+  id: string;
+  user_id: string;
+  product_id: string;
+  quantity: number;
+  warehouse: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Warehouse {
+  id: string;
+  user_id: string;
+  name: string;
+  code: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface ReturnTransaction {
+  id: string;
+  user_id: string;
+  type: 'sales_return' | 'purchase_return';
+  amount: number;
+  product_id: string;
+  quantity: number;
+  description: string;
+  original_transaction_id: string;
+  return_reason: string;
+  status: string;
+  created_at: string;
+  products?: { id: string; sku: string; name: string; unit: string };
+}
+
+export interface StockOpname {
+  id: string;
+  user_id: string;
+  opname_date: string;
+  status: 'draft' | 'in_progress' | 'completed' | 'cancelled';
+  warehouse: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  completed_at: string | null;
+  details?: OpnameDetail[];
+}
+
+export interface OpnameDetail {
+  id: string;
+  opname_id: string;
+  product_id: string;
+  system_qty: number;
+  actual_qty: number;
+  variance_qty: number;
+  variance_type: 'shortage' | 'overage' | 'matched';
+  variance_value: number;
+  notes: string | null;
+  created_at: string;
+  products?: { id: string; sku: string; name: string; unit: string };
+}
+
 // ── Overview / Dashboard ──
 export interface OverviewData {
   total_omzet: number;

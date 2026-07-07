@@ -2,6 +2,7 @@ import supabase from '../config/supabase';
 import { addLog, getIO } from '../config/state';
 import { recordSale } from './transactionRecorder';
 import { withTransaction } from './db';
+import { syncInventory } from './inventory';
 import type { PoolClient } from 'pg';
 
 // ── Helpers ──
@@ -104,6 +105,7 @@ async function addProduct(
           [userId, product.id, initialStock],
         );
       }
+      await syncInventory(userId, String(product.id), initialStock, 'Utama', client);
       return { success: true, product, error: undefined };
     });
   } catch (err: any) {

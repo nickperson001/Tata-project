@@ -9,6 +9,7 @@ import { DAY_MS } from '../config/constants';
 import { cacheGet, cacheSet, cacheInvalidate } from '../config/cache';
 import { circuitIsOpen, circuitRecordSuccess, circuitRecordFailure } from '../services/circuit-breaker';
 import { sanitizeError } from '../utils/errors';
+import { syncInventory } from '../utils/inventory';
 import { apiSuccess, apiError, apiSuccessPaginated } from '../utils/api-response';
 import { ErrorCode } from '../types/errors';
 import { validate } from '../middleware/validate';
@@ -24,6 +25,12 @@ import {
   updateUserStatusSchema,
   broadcastSchema,
   settingUpdateSchema,
+  salesReturnSchema,
+  purchaseReturnSchema,
+  opnameCreateSchema,
+  opnameDetailSchema,
+  warehouseTransferSchema,
+  warehouseCreateSchema,
 } from './schemas';
 import qrcode from 'qrcode';
 import * as stockManager from '../utils/stockManager';
@@ -1138,6 +1145,7 @@ router.delete('/api/stock/movement/:id', stockAuth, async (req: StockRequest, re
         mov.product_id,
         userId,
       ]);
+      await syncInventory(userId, String(mov.product_id), stockAfter, 'Utama', client);
       await client.query(`DELETE FROM stock_movements WHERE id = $1 AND user_id = $2`, [mov.id, userId]);
 
       // Reverse original journal entries by querying them
@@ -1591,7 +1599,7 @@ router.get('/api/stock/piutang', stockAuth, async (req: StockRequest, res: Respo
   const statusFilter = (req.query.status as string) || 'all';
   try {
     const { data: debtsData } = await supabase
-      .from('debts')
+      .from('receivables')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
@@ -1675,6 +1683,7 @@ router.delete('/api/stock/transactions/:id', stockAuth, async (req: StockRequest
             tx.product_id,
             userId,
           ]);
+          await syncInventory(userId, String(tx.product_id), newStock, 'Utama', client);
         }
       }
 
@@ -1860,7 +1869,7 @@ router.get('/api/stock/hutang', stockAuth, async (req: StockRequest, res: Respon
   const statusFilter = (req.query.status as string) || 'all';
   try {
     let query: any = supabase
-      .from('accounts_payable')
+      .from('payables')
       .select('*')
       .eq('user_id', userId)
       .order('jatuh_tempo', { ascending: true })
@@ -1923,7 +1932,7 @@ router.post('/api/stock/hutang', stockAuth, validate(hutangSchema), async (req: 
     }
     if (jatuh_tempo) {
       const { data: latest } = (await supabase
-        .from('accounts_payable')
+        .from('payables')
         .select('id')
         .eq('user_id', userId)
         .eq('nama_supplier', nama_supplier)
@@ -1931,7 +1940,7 @@ router.post('/api/stock/hutang', stockAuth, validate(hutangSchema), async (req: 
         .limit(1)
         .maybeSingle()) as any;
       if (latest?.id) {
-        (await supabase.from('accounts_payable').update({ jatuh_tempo }).eq('id', latest.id)) as any;
+        (await supabase.from('payables').update({ jatuh_tempo }).eq('id', latest.id)) as any;
       }
     }
     cacheInvalidate(userId);
@@ -1957,7 +1966,7 @@ router.put('/api/stock/hutang/:id', stockAuth, async (req: StockRequest, res: Re
       return;
     }
     const { error } = (await supabase
-      .from('accounts_payable')
+      .from('payables')
       .update(updates)
       .eq('id', id)
       .eq('user_id', userId)) as any;
@@ -1973,7 +1982,7 @@ router.delete('/api/stock/hutang/:id', stockAuth, async (req: StockRequest, res:
   const userId = req.stockUser!.id;
   try {
     const { error } = (await supabase
-      .from('accounts_payable')
+      .from('payables')
       .delete()
       .eq('id', req.params.id)
       .eq('user_id', userId)) as any;
@@ -1983,6 +1992,230 @@ router.delete('/api/stock/hutang/:id', stockAuth, async (req: StockRequest, res:
   } catch (e: any) {
     apiError(res, e.message, 500);
   }
+});
+
+router.post('/api/stock/hutang/:id/bayar', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const amount = parseFloat(req.body.amount);
+  if (!amount || amount <= 0) { apiError(res, 'Jumlah bayar harus > 0'); return; }
+  try {
+    const result = await transactionRecorder.recordPayPayable({
+      userId, payableId: String(req.params.id), amount,
+      description: String(req.body.description || ''),
+    });
+    if (!result.success) { apiError(res, result.error!, 400); return; }
+    cacheInvalidate(userId);
+    apiSuccess(res, result.data);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+router.post('/api/stock/piutang/:id/terima', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const amount = parseFloat(req.body.amount);
+  if (!amount || amount <= 0) { apiError(res, 'Jumlah terima harus > 0'); return; }
+  try {
+    const result = await transactionRecorder.recordReceiveReceivable({
+      userId, debtId: String(req.params.id), amount,
+      description: String(req.body.description || ''),
+    });
+    if (!result.success) { apiError(res, result.error!, 400); return; }
+    cacheInvalidate(userId);
+    apiSuccess(res, result.data);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+// ── Returns ──
+router.post('/api/stock/return/sales', stockAuth, validate(salesReturnSchema), async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  try {
+    const result = await transactionRecorder.recordSalesReturn({ ...req.body, userId });
+    if (!result.success) { apiError(res, result.error!, 400); return; }
+    cacheInvalidate(userId);
+    apiSuccess(res, result.data);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+router.post('/api/stock/return/purchase', stockAuth, validate(purchaseReturnSchema), async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  try {
+    const result = await transactionRecorder.recordPurchaseReturn({ ...req.body, userId });
+    if (!result.success) { apiError(res, result.error!, 400); return; }
+    cacheInvalidate(userId);
+    apiSuccess(res, result.data);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+router.get('/api/stock/returns', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const type = req.query.type as string || 'all';
+  try {
+    let query: any = supabase
+      .from('transactions')
+      .select('*, products(id, sku, name, unit)')
+      .eq('user_id', userId)
+      .in('type', ['sales_return', 'purchase_return'])
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (type === 'sales_return') query = query.eq('type', 'sales_return');
+    if (type === 'purchase_return') query = query.eq('type', 'purchase_return');
+    const { data, error } = await query;
+    if (error) throw error;
+    apiSuccess(res, (data as any[]) || []);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+// ── Warehouses ──
+router.get('/api/stock/warehouses', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  try {
+    const { data, error } = await supabase
+      .from('warehouses')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name', { ascending: true });
+    if (error) throw error;
+    apiSuccess(res, (data as any[]) || []);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+router.post('/api/stock/warehouses', stockAuth, validate(warehouseCreateSchema), async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const { name, code, isDefault } = req.body;
+  try {
+    const { data, error } = await supabase.from('warehouses').insert([{ user_id: userId, name, code, is_default: isDefault || false }]).select().single();
+    if (error) throw error;
+    apiSuccess(res, data, 201);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+router.delete('/api/stock/warehouses/:id', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  try {
+    const { error } = await supabase.from('warehouses').delete().eq('id', req.params.id).eq('user_id', userId);
+    if (error) throw error;
+    apiSuccess(res, { deleted: true });
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+// ── Warehouse Transfer ──
+router.post('/api/stock/transfer', stockAuth, validate(warehouseTransferSchema), async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  try {
+    const result = await transactionRecorder.recordWarehouseTransfer({ ...req.body, userId });
+    if (!result.success) { apiError(res, result.error!, 400); return; }
+    cacheInvalidate(userId);
+    apiSuccess(res, result.data);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+// ── Stock Opname ──
+router.post('/api/stock/opname', stockAuth, validate(opnameCreateSchema), async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const { warehouse, notes } = req.body;
+  try {
+    const { data, error } = await supabase.from('stock_opnames').insert([
+      { user_id: userId, warehouse: warehouse || 'Utama', notes, status: 'draft', created_by: req.stockUser!.name || 'system' },
+    ]).select().single();
+    if (error) throw error;
+    apiSuccess(res, data, 201);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+router.get('/api/stock/opname', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  try {
+    const { data, error } = await supabase
+      .from('stock_opnames')
+      .select('*, details:opname_details(*)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    apiSuccess(res, (data as any[]) || []);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+router.get('/api/stock/opname/:id', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  try {
+    const { data, error } = await supabase
+      .from('stock_opnames')
+      .select('*, details:opname_details(*, products(id, sku, name, unit))')
+      .eq('id', req.params.id)
+      .eq('user_id', userId)
+      .single();
+    if (error) throw error;
+    apiSuccess(res, data);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+router.post('/api/stock/opname/:id/details', stockAuth, validate(opnameDetailSchema), async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const opnameId = req.params.id;
+  const { productId, actualQty, systemQty: reqSystemQty, notes } = req.body;
+  try {
+    const { data: opname } = await supabase.from('stock_opnames').select('status').eq('id', opnameId).eq('user_id', userId).single();
+    if (!opname) { apiError(res, 'Opname tidak ditemukan', 404); return; }
+    if (opname.status === 'completed') { apiError(res, 'Opname sudah selesai', 400); return; }
+
+    const actualSystemQty = reqSystemQty != null ? reqSystemQty : await (async () => {
+      const { data: prod } = await supabase.from('products').select('stock_current').eq('id', productId).eq('user_id', userId).single();
+      return (prod as any)?.stock_current || 0;
+    })();
+
+    const { data, error } = await supabase.from('opname_details').insert([
+      { opname_id: opnameId, product_id: productId, system_qty: actualSystemQty, actual_qty: actualQty, notes },
+    ]).select().single();
+    if (error) throw error;
+    apiSuccess(res, data, 201);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+router.post('/api/stock/opname/:id/complete', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const opnameId = req.params.id;
+  try {
+    const { data: opname } = await supabase.from('stock_opnames').select('status, warehouse').eq('id', opnameId).eq('user_id', userId).single();
+    if (!opname) { apiError(res, 'Opname tidak ditemukan', 404); return; }
+    if (opname.status === 'completed') { apiError(res, 'Opname sudah selesai', 400); return; }
+
+    const { data: details } = await supabase
+      .from('opname_details')
+      .select('*, products(id, price_buy)')
+      .eq('opname_id', opnameId);
+
+    if (!details || details.length === 0) { apiError(res, 'Tidak ada detail opname', 400); return; }
+
+    const items = (details as any[]).map((d: any) => ({
+      productId: d.product_id,
+      systemQty: d.system_qty,
+      actualQty: d.actual_qty,
+      priceBuy: d.products?.price_buy || 0,
+      varianceType: d.actual_qty < d.system_qty ? 'shortage' as const : 'overage' as const,
+    }));
+
+    const result = await transactionRecorder.recordInventoryAdjustment({
+      userId, opnameId: String(opnameId), items, notes: `Opname ${opname.warehouse}`,
+    });
+    if (!result.success) { apiError(res, result.error!, 400); return; }
+
+    await supabase.from('stock_opnames').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', opnameId);
+    cacheInvalidate(userId);
+    apiSuccess(res, result.data);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
+// ── Inventory Adjustment (quick, without opname session) ──
+router.post('/api/stock/adjustment', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const { items, notes } = req.body;
+  if (!items || !Array.isArray(items) || items.length === 0) { apiError(res, 'items required'); return; }
+  try {
+    const result = await transactionRecorder.recordInventoryAdjustment({ userId, items, notes });
+    if (!result.success) { apiError(res, result.error!, 400); return; }
+    cacheInvalidate(userId);
+    apiSuccess(res, result.data);
+  } catch (e: any) { apiError(res, e.message, 500); }
 });
 
 router.get('/api/stock/coa', stockAuth, async (req: StockRequest, res: Response) => {

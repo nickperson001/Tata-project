@@ -311,6 +311,19 @@ export async function seedDemo(pool: Pool | null = pgPool) {
       }
     }
     console.log('[SEED] Initial stock movements created');
+    // Sync inventory table
+    for (const row of prodRows.rows) {
+      const stk = Number(row.stock_current);
+      if (stk > 0) {
+        await client.query(
+          `INSERT INTO inventory (user_id, product_id, quantity, warehouse)
+           VALUES ($1, $2, $3, 'Utama')
+           ON CONFLICT (user_id, product_id, warehouse)
+           DO UPDATE SET quantity = EXCLUDED.quantity`,
+          [DEMO_ID, row.id, stk],
+        );
+      }
+    }
     // Opening balance journal: Inventori (1201) Dr / Modal (3101) Cr
     if (totalInventoryValue > 0) {
       await accountingEngine.insertJournalViaClient(client, DEMO_ID, {
@@ -392,7 +405,7 @@ export async function seedDemo(pool: Pool | null = pgPool) {
     }
     console.log('[SEED] Sample expense transactions created');
 
-    // ── 9. Hutang (accounts_payable) ──
+    // ── 9. Hutang (payables) ──
     const debts = [
       { supplier: 'PT Sembako Sejahtera', amount: 2500000, paid: 1000000, dueDays: 14 },
       { supplier: 'UD Kopi Nusantara', amount: 1200000, paid: 0, dueDays: 7 },
@@ -401,12 +414,12 @@ export async function seedDemo(pool: Pool | null = pgPool) {
       const dueDate = new Date(now);
       dueDate.setDate(dueDate.getDate() + d.dueDays);
       await client.query(
-        `INSERT INTO accounts_payable (user_id, nama_supplier, nominal_hutang, jumlah_dibayar, status_lunas, jatuh_tempo)
+        `INSERT INTO payables (user_id, nama_supplier, nominal_hutang, jumlah_dibayar, status_lunas, jatuh_tempo)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [DEMO_ID, d.supplier, d.amount, d.paid, false, dueDate.toISOString()],
       );
     }
-    console.log('[SEED] Hutang (accounts_payable) created');
+    console.log('[SEED] Hutang (payables) created');
 
     // ── 10. Piutang (debts) ──
     const receivables = [
@@ -417,7 +430,7 @@ export async function seedDemo(pool: Pool | null = pgPool) {
       const dueDate = new Date(now);
       dueDate.setDate(dueDate.getDate() + r.dueDays);
       await client.query(
-        `INSERT INTO debts (user_id, nama_pelanggan, nominal_piutang, status_lunas, jatuh_tempo)
+        `INSERT INTO receivables (user_id, nama_pelanggan, nominal_piutang, status_lunas, jatuh_tempo)
          VALUES ($1, $2, $3, false, $4)`,
         [DEMO_ID, r.customer, r.amount, dueDate.toISOString()],
       );
