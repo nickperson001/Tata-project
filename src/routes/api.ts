@@ -2108,6 +2108,21 @@ router.post('/api/stock/transfer', stockAuth, validate(warehouseTransferSchema),
   } catch (e: any) { apiError(res, e.message, 500); }
 });
 
+router.get('/api/stock/transfers', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  try {
+    const { data, error } = await supabase
+      .from('stock_movements')
+      .select('*, products(id, sku, name, unit)')
+      .eq('user_id', userId)
+      .eq('reference_type', 'warehouse_transfer')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    apiSuccess(res, (data as any[]) || []);
+  } catch (e: any) { apiError(res, e.message, 500); }
+});
+
 // ── Stock Opname ──
 router.post('/api/stock/opname', stockAuth, validate(opnameCreateSchema), async (req: StockRequest, res: Response) => {
   const userId = req.stockUser!.id;

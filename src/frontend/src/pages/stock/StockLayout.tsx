@@ -1,11 +1,11 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from '../../components/Toast';
 import { useStockToken } from '../../hooks/useStockToken';
 import { useStockStore } from '../../store/stockStore';
 import { NotificationBell } from '../../components/NotificationBell';
 import { UserMenu } from '../../components/UserMenu';
-import { LanguageSwitcher } from '../../components/LanguageSwitcher';
+import { HelpCircle } from 'lucide-react';
 import { StockSidebar, getNavGroups, isActive } from './StockSidebar';
 import { ChatbotWidget } from './ChatbotWidget';
 import { StockLogin } from './StockLogin';
@@ -18,9 +18,8 @@ import {
 
 const BOTTOM_NAV_ALL = [
   { to: '/stock', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/stock/pembukuan', label: 'Keuangan', icon: BookOpen },
+  { to: '/stock/keuangan', label: 'Keuangan', icon: BookOpen },
   { to: '/stock/products', label: 'Inventori', icon: Package },
-  { to: '/stock/piutang', label: 'Piutang', icon: CreditCard },
   { to: '/stock/report', label: 'Laporan', icon: BarChart3 },
 ];
 
@@ -35,6 +34,8 @@ export function StockLayout() {
   const { token, user } = useStockStore();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const navigate = useNavigate();
 
   const navGroups = useMemo(() => getNavGroups(user?.status), [user?.status]);
 
@@ -96,8 +97,35 @@ export function StockLayout() {
             <span className="topbar-brand">Tata Business Suite</span>
             {user && <span className="topbar-store">— {user.store_name}</span>}
           </div>
-          <div className="topbar-right">
-            <LanguageSwitcher />
+          <div className="topbar-right" style={{ position: 'relative' }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setHelpOpen(!helpOpen)}
+              title="Bantuan"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
+            >
+              <HelpCircle size={18} />
+            </button>
+            {helpOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setHelpOpen(false)} />
+                <div style={{
+                  position: 'absolute', right: 80, top: '100%', marginTop: 6,
+                  width: 180, background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 8, boxShadow: '0 4px 24px rgba(0,0,0,.15)',
+                  zIndex: 1000, overflow: 'hidden',
+                }}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ width: '100%', justifyContent: 'flex-start', gap: '0.5rem', padding: '0.6rem 0.75rem', borderRadius: 0, fontSize: '0.85rem' }}
+                    onClick={() => { navigate('/stock/bantuan'); setHelpOpen(false); }}
+                  >
+                    <HelpCircle size={16} />
+                    Bantuan & Panduan
+                  </button>
+                </div>
+              </>
+            )}
             <NotificationBell />
             <UserMenu />
           </div>

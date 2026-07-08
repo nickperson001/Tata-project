@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { PageLoader } from './components/PageLoader';
 
 // Static Layouts
@@ -21,21 +21,16 @@ const StockReport = lazy(() => import('./pages/stock/StockReport').then(m => ({ 
 const StockHistory = lazy(() => import('./pages/stock/StockHistory').then(m => ({ default: m.StockHistory })));
 const StockPiutang = lazy(() => import('./pages/stock/StockPiutang').then(m => ({ default: m.StockPiutang })));
 const StockHutang = lazy(() => import('./pages/stock/StockHutang').then(m => ({ default: m.StockHutang })));
-const StockPembukuan = lazy(() => import('./pages/stock/StockPembukuan').then(m => ({ default: m.StockPembukuan })));
-const StockLabaRugi = lazy(() => import('./pages/stock/StockLabaRugi').then(m => ({ default: m.StockLabaRugi })));
-const StockNeraca = lazy(() => import('./pages/stock/StockNeraca').then(m => ({ default: m.StockNeraca })));
-const StockBukuBesar = lazy(() => import('./pages/stock/StockBukuBesar').then(m => ({ default: m.StockBukuBesar })));
-const StockArusKas = lazy(() => import('./pages/stock/StockArusKas').then(m => ({ default: m.StockArusKas })));
-const StockTrialBalance = lazy(() => import('./pages/stock/StockTrialBalance').then(m => ({ default: m.StockTrialBalance })));
+const StockFinance = lazy(() => import('./pages/stock/StockFinance').then(m => ({ default: m.StockFinance })));
 const StockSlugRedirect = lazy(() => import('./pages/stock/StockSlugRedirect').then(m => ({ default: m.StockSlugRedirect })));
 const StockSettings = lazy(() => import('./pages/stock/StockSettings').then(m => ({ default: m.StockSettings })));
 const StockCategories = lazy(() => import('./pages/stock/StockCategories').then(m => ({ default: m.StockCategories })));
 const StockBatch = lazy(() => import('./pages/stock/StockBatch').then(m => ({ default: m.StockBatch })));
-const StockSummary = lazy(() => import('./pages/stock/StockSummary').then(m => ({ default: m.StockSummary })));
 const StockProductStats = lazy(() => import('./pages/stock/StockProductStats').then(m => ({ default: m.StockProductStats })));
-const StockChannels = lazy(() => import('./pages/stock/StockChannels').then(m => ({ default: m.StockChannels })));
-const StockJurnal = lazy(() => import('./pages/stock/StockJurnal').then(m => ({ default: m.StockJurnal })));
 const StockNotifications = lazy(() => import('./pages/stock/Notifications').then(m => ({ default: m.Notifications })));
+const StockReturn = lazy(() => import('./pages/stock/StockReturn').then(m => ({ default: m.StockReturn })));
+const StockPurchaseReturn = lazy(() => import('./pages/stock/StockPurchaseReturn').then(m => ({ default: m.StockPurchaseReturn })));
+const StockTransfer = lazy(() => import('./pages/stock/StockTransfer').then(m => ({ default: m.StockTransfer })));
 const StockBantuan = lazy(() => import('./pages/stock/StockBantuan').then(m => ({ default: m.StockBantuan })));
 const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
@@ -57,21 +52,25 @@ export function App() {
             <Route path="products" element={<ProductsPage />} />
             <Route path="movement" element={<StockMovement />} />
             <Route path="opname" element={<StockOpname />} />
+            <Route path="transfer" element={<StockTransfer />} />
+            <Route path="retur" element={<StockReturn />} />
+            <Route path="retur-beli" element={<StockPurchaseReturn />} />
             <Route path="report" element={<StockReport />} />
             <Route path="history" element={<StockHistory />} />
             <Route path="piutang" element={<StockPiutang />} />
             <Route path="hutang" element={<StockHutang />} />
-            <Route path="pembukuan" element={<StockPembukuan />} />
-            <Route path="laba-rugi" element={<StockLabaRugi />} />
-            <Route path="neraca" element={<StockNeraca />} />
-            <Route path="buku-besar" element={<StockBukuBesar />} />
-            <Route path="arus-kas" element={<StockArusKas />} />
-            <Route path="neraca-saldo" element={<StockTrialBalance />} />
+            <Route path="keuangan" element={<StockFinance />} />
+            <Route path="pembukuan" element={<Navigate to="/stock/keuangan" replace />} />
+            <Route path="laba-rugi" element={<Navigate to="/stock/keuangan" replace />} />
+            <Route path="neraca" element={<Navigate to="/stock/keuangan" replace />} />
+            <Route path="buku-besar" element={<Navigate to="/stock/keuangan" replace />} />
+            <Route path="arus-kas" element={<Navigate to="/stock/keuangan" replace />} />
+            <Route path="neraca-saldo" element={<Navigate to="/stock/keuangan" replace />} />
+            <Route path="channels" element={<Navigate to="/stock/keuangan" replace />} />
+            <Route path="jurnal" element={<Navigate to="/stock/keuangan" replace />} />
+            <Route path="summary" element={<Navigate to="/stock/keuangan" replace />} />
             <Route path="batch" element={<StockBatch />} />
-            <Route path="summary" element={<StockSummary />} />
             <Route path="product-stats" element={<StockProductStats />} />
-            <Route path="channels" element={<StockChannels />} />
-            <Route path="jurnal" element={<StockJurnal />} />
             <Route path="categories" element={<StockCategories />} />
             <Route path="settings" element={<StockSettings />} />
             <Route path="notifications" element={<StockNotifications />} />

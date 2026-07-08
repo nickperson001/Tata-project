@@ -736,6 +736,7 @@ tr:hover .row-actions { opacity: 1; }
 @media (max-width: 900px) {
   .ov-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .ov-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .ov-chart-row { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
   .ov-stats-grid { grid-template-columns: 1fr; }
@@ -743,6 +744,9 @@ tr:hover .row-actions { opacity: 1; }
   .ov-hero-body { padding: 1.25rem; flex-direction: column; text-align: center; }
   .ov-hero-stats { justify-content: center; }
   .ov-hero-icon { display: none; }
+  .ov-chart-main { padding: 1rem; }
+  .ov-charts { gap: 0.75rem; }
+  .ov-labarugi { padding: 1rem; }
 }
 
 /* ── Content ── */

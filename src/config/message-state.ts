@@ -54,29 +54,7 @@ export async function withSenderLock<T>(sender: string, fn: () => Promise<T>): P
   return next;
 }
 
-// ── Dialog States ──
-export const pendingSaleDialogs = new Map<string, any>();
-export const pendingClassificationDialogs = new Map<string, any>();
-export const pendingTxConfirmations = new Map<string, any>();
-export const pendingProductSelections = new Map<string, any>();
 
-const DIALOG_TTL = 5 * 60 * 1000;
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of pendingSaleDialogs) {
-    if (now - val.timestamp > DIALOG_TTL) pendingSaleDialogs.delete(key);
-  }
-  for (const [key, val] of pendingClassificationDialogs) {
-    if (now - val.timestamp > DIALOG_TTL) pendingClassificationDialogs.delete(key);
-  }
-  for (const [key, val] of pendingTxConfirmations) {
-    if (now - val.timestamp > DIALOG_TTL) pendingTxConfirmations.delete(key);
-  }
-  for (const [key, val] of pendingProductSelections) {
-    if (now - val.timestamp > DIALOG_TTL) pendingProductSelections.delete(key);
-  }
-}, 120_000).unref();
 
 // ── Onboarding State ──
 export const onboardingStates = new Map<string, { step: number; storeName?: string; timestamp: number }>();

@@ -27,6 +27,8 @@ venv/
 .qoderrules
 .vscode/
 .idea/
+.opencode/
+.git-rewrite/
 
 # Personal notes
 docs/me.md

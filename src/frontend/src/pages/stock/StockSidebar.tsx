@@ -1,10 +1,10 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import {
-  LayoutDashboard, BookOpen, TrendingUp, Scale, BookText, Wallet,
+  LayoutDashboard, BookOpen, TrendingUp,
   Package, ArrowUpDown, ClipboardCheck, History, CreditCard, DollarSign,
-  BarChart3, ChevronLeft, ChevronRight, ClipboardList, GitBranch, FileText, Database,
-  Bell, HelpCircle,
+  BarChart3, ChevronLeft, ChevronRight, Database,
+  Bell, HelpCircle, Undo2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useStockStore } from '../../store/stockStore';
@@ -30,13 +30,7 @@ export function getNavGroups(status?: string): NavGroup[] {
     {
       label: 'Keuangan', icon: BookOpen,
       children: [
-        { to: '/stock/pembukuan', label: 'Pembukuan', icon: BookOpen },
-        { to: '/stock/laba-rugi', label: 'Laba Rugi', icon: TrendingUp },
-        { to: '/stock/neraca', label: 'Neraca', icon: Scale },
-        { to: '/stock/buku-besar', label: 'Buku Besar', icon: BookText },
-        { to: '/stock/arus-kas', label: 'Arus Kas', icon: Wallet },
-        { to: '/stock/channels', label: 'Per Channel', icon: GitBranch },
-        { to: '/stock/jurnal', label: 'Jurnal', icon: FileText },
+        { to: '/stock/keuangan', label: 'Laporan Keuangan', icon: BookOpen },
       ],
     },
     {
@@ -46,8 +40,10 @@ export function getNavGroups(status?: string): NavGroup[] {
         { to: '/stock/categories', label: 'Kategori', icon: Package },
         { to: '/stock/movement', label: 'Masuk/Keluar', icon: ArrowUpDown },
         { to: '/stock/opname', label: 'Opname', icon: ClipboardCheck },
+        { to: '/stock/transfer', label: 'Transfer Gudang', icon: ArrowUpDown },
+        { to: '/stock/retur', label: 'Retur Jual', icon: Undo2 },
+        { to: '/stock/retur-beli', label: 'Retur Beli', icon: Undo2 },
         { to: '/stock/history', label: 'Riwayat', icon: History },
-        { to: '/stock/summary', label: 'Ringkasan Stok', icon: ClipboardList },
         { to: '/stock/product-stats', label: 'Analisa Produk', icon: TrendingUp },
       ],
     },
@@ -62,7 +58,6 @@ export function getNavGroups(status?: string): NavGroup[] {
       label: 'Laporan', icon: BarChart3,
       children: [
         { to: '/stock/report', label: 'Laporan Stok', icon: BarChart3 },
-        { to: '/stock/neraca-saldo', label: 'Neraca Saldo', icon: Scale },
         { to: '/stock/batch', label: 'Data Lengkap', icon: Database },
       ],
     },
@@ -76,7 +71,6 @@ export function getNavGroups(status?: string): NavGroup[] {
       label: 'Lainnya', icon: HelpCircle,
       children: [
         { to: '/stock/notifications', label: 'Notifikasi', icon: Bell },
-        { to: '/stock/bantuan', label: 'Bantuan', icon: HelpCircle },
       ],
     },
   ]);

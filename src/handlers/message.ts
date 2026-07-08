@@ -13,7 +13,8 @@ import { PACKAGES, PAYMENT } from '../config/packages';
 import { KW_KELUAR, KW_MASUK, KW_STATUS, KW_LAPORAN, KW_BANTUAN, KW_UPGRADE, KW_BATAL, KW_STOCK, KW_PRODUCT, KW_DASHBOARD } from '../config/keywords';
 import { addLog } from '../config/state';
 import { circuitIsOpen, circuitRecordSuccess, circuitRecordFailure } from '../services/circuit-breaker';
-import { sanitizeError, isMessageProcessed, markMessageProcessed, pendingSaleDialogs, pendingClassificationDialogs, pendingTxConfirmations, pendingProductSelections, onboardingStates, graduatedVirtualUsers, safeReply, getMaintenanceMode, invalidateMaintenanceCache, withSenderLock } from '../config/message-state';
+import { sanitizeError, isMessageProcessed, markMessageProcessed, onboardingStates, graduatedVirtualUsers, safeReply, getMaintenanceMode, invalidateMaintenanceCache, withSenderLock } from '../config/message-state';
+import { setDialog, getDialog, hasDialog, removeDialog, clearAllDialogs, getNextDialog, getExpiredDialogTypes, sortedDialogs } from '../services/dialog-state.service';
 import { generateUniqueSlug } from '../utils/slug';
 import { handleStockList, handleStockInfo, handleStockReport } from './stock-handler';
 import { handleInvoiceCommand, handleSetBankCommand, generateInvoiceNumber, normalizeWaNumber, getBankCache, setBankCache, generateInvoicePDF } from './invoice-handler';
@@ -71,7 +72,7 @@ async function handleSaleCommand(msg: any, sender: string, user: any, productQue
 
   if (matches.length === 1) return processSaleExecution(msg, sender, user, matches[0], qty, channelName);
 
-  pendingSaleDialogs.set(sender, { products: matches, qty, query: productQuery, channel: channelName, timestamp: Date.now() });
+  setDialog(sender, 'sale_selection', { products: matches, qty, query: productQuery, channel: channelName });
 
   let text = `🤔 *Banyak Produk Cocok*\n\nAda beberapa produk yang cocok dengan pencarian "*${productQuery}*":\n\n`;
   matches.forEach((p: any, i: number) => { text += `${i + 1}. *${p.name}* (Sisa: ${stockManager.formatQty(p.stock_current, p.unit)} ${p.unit})\n`; });
@@ -221,6 +222,7 @@ async function postTrxJournal(userId: string, type: string, amount: number, desc
     }
   } catch (e: any) {
     addLog('error', `[MSG] postJournal error: ${e.message}`);
+    throw e;
   }
 }
 
@@ -242,8 +244,19 @@ function getDashboardUrl(): string {
   return (process.env.APP_URL || 'https://nickridwan-tata-business-suite.hf.space').replace(/\/+$/, '');
 }
 
+const geminiCache = new Map<string, { result: any; ts: number }>();
+const GEMINI_CACHE_TTL = 24 * 60 * 60 * 1000;
+
 async function classifyTransactionWithGemini(text: string): Promise<any> {
   if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY === 'DUMMY_KEY') return null;
+
+  const cacheKey = text.toLowerCase().trim().slice(0, 200);
+  const cached = geminiCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < GEMINI_CACHE_TTL) {
+    addLog('info', '[GEMINI-CACHE] Hit for: ' + cacheKey.slice(0, 60));
+    return cached.result;
+  }
+
   try {
     const result = await geminiRouter.processMessageWithGemini(text);
     if (!result || !result.intent) return null;
@@ -261,7 +274,14 @@ async function classifyTransactionWithGemini(text: string): Promise<any> {
     else if (Object.keys(transactionRecorder.PEMBUKUAN_COA_MAP).includes(result.intent)) pembukuan = result.intent;
     else return null;
 
-    return { type, pembukuan, items: result.items || [], customerName: result.customer_name || null, statusPayment: result.status_pembayaran || 'tunai', catatan: result.catatan || null };
+    const out = { type, pembukuan, items: result.items || [], customerName: result.customer_name || null, statusPayment: result.status_pembayaran || 'tunai', catatan: result.catatan || null };
+    geminiCache.set(cacheKey, { result: out, ts: Date.now() });
+    if (geminiCache.size > 500) {
+      const entries = Array.from(geminiCache.entries()).sort((a, b) => a[1].ts - b[1].ts);
+      const toRemove = entries.slice(0, entries.length - 400);
+      toRemove.forEach(([k]) => geminiCache.delete(k));
+    }
+    return out;
   } catch (err: any) { addLog('error', '[GEMINI] Classification failed: ' + sanitizeError(err)); return null; }
 }
 
@@ -270,12 +290,22 @@ async function handleTransaction(msg: any, sender: string, user: any, effectiveS
   const descWords: string[] = [];
 
   const bodyWords = body.split(/\s+/);
-  const exactMasuk = bodyWords.some((w: string) => KW_MASUK.includes(w));
-  const exactKeluar = bodyWords.some((w: string) => KW_KELUAR.includes(w));
+  const wordInSet = (w: string, set: readonly string[]) => set.includes(w);
+  const exactMasuk = bodyWords.some((w: string) => wordInSet(w, KW_MASUK));
+  const exactKeluar = bodyWords.some((w: string) => wordInSet(w, KW_KELUAR));
+
   if (exactMasuk && !exactKeluar) type = 'masuk';
   else if (exactKeluar && !exactMasuk) type = 'keluar';
-  else if (KW_KELUAR.some((k: string) => body.includes(k))) type = 'keluar';
-  else if (KW_MASUK.some((k: string) => body.includes(k))) type = 'masuk';
+  else if (exactMasuk && exactKeluar) {
+    const countMasuk = bodyWords.filter((w: string) => wordInSet(w, KW_MASUK)).length;
+    const countKeluar = bodyWords.filter((w: string) => wordInSet(w, KW_KELUAR)).length;
+    type = countMasuk >= countKeluar ? 'masuk' : 'keluar';
+  } else {
+    const wordBoundaryInSet = (s: string, set: readonly string[]) =>
+      set.some((k: string) => new RegExp('\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(s));
+    if (wordBoundaryInSet(body, KW_KELUAR)) type = 'keluar';
+    else if (wordBoundaryInSet(body, KW_MASUK)) type = 'masuk';
+  }
 
   let matchedProductKeyword: string | null = null;
   if (!type) {
@@ -352,7 +382,7 @@ async function handleTransaction(msg: any, sender: string, user: any, effectiveS
   if (!type && amount) {
     const ambiguousWords = extractAmbiguousKeywords(body);
     if (ambiguousWords.length > 0) {
-      pendingClassificationDialogs.set(sender, { amount, rawBody, body, ambiguousWord: ambiguousWords[0], descWords, timestamp: Date.now() });
+      setDialog(sender, 'classification', { amount, rawBody, body, ambiguousWord: ambiguousWords[0], descWords });
       await safeReply(msg, `🤔 *Konfirmasi Tipe Transaksi*\n\nSaya menemukan kata "*${ambiguousWords[0]}*" dengan nominal ${formatRupiah(amount)}.\n\nIni termasuk:\n📥 *Masuk* (pemasukan/penjualan)\n📤 *Keluar* (pengeluaran/pembelian)\n\nBalas *Masuk* atau *Keluar* untuk mengonfirmasi.\nKetik *Batal* untuk membatalkan.`);
       return true;
     }
@@ -380,7 +410,7 @@ async function handleTransaction(msg: any, sender: string, user: any, effectiveS
   if (matchedProduct) {
     const tipeEmoji = type === 'masuk' ? '📥' : '📤';
     const tipeLabel = type === 'masuk' ? 'MASUK' : 'KELUAR';
-    pendingTxConfirmations.set(sender, { type, amount, description: finalDesc, product: matchedProduct, effectiveStatus, timestamp: Date.now() });
+    setDialog(sender, 'tx_confirmation', { type, amount, description: finalDesc, product: matchedProduct, effectiveStatus });
     await safeReply(msg, `📋 *Konfirmasi Transaksi*\n\n${tipeEmoji} *${tipeLabel}*\n💵 Jumlah : ${formatRupiah(amount!)}\n📦 Produk : ${matchedProduct.name}\n📝 Ket    : ${finalDesc}\n\nBalas *Ya* untuk mencatat.\nBalas *Batal* untuk membatalkan.`);
     return true;
   }
@@ -403,7 +433,7 @@ async function handleTransaction(msg: any, sender: string, user: any, effectiveS
   let listText = productList.slice(0, 15).map((p: any, i: number) => `   ${i + 1}. ${p.name}`).join('\n');
   if (productList.length > 15) listText += `\n   _...dan ${productList.length - 15} produk lainnya_`;
 
-  pendingProductSelections.set(sender, { type, amount, description: finalDesc, products: productList.slice(0, 15), effectiveStatus, timestamp: Date.now() });
+  setDialog(sender, 'product_selection', { type, amount, description: finalDesc, products: productList.slice(0, 15), effectiveStatus });
   await safeReply(msg, `🤔 *Produk mana yang dimaksud?*\n\n${tipeEmoji} ${tipeLabel} — ${formatRupiah(amount!)}\n\nPilih produk:\n${listText}\n\nBalas *angka* untuk memilih produk.\nBalas *Batal* untuk membatalkan.`);
   return true;
 }
@@ -653,25 +683,43 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       }
     }
 
+    function escapeRegex(s: string): string {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
     function shouldBypassDialogs(bodyText: string): boolean {
       if (/\b(?:tagih|kirim\s+tagihan|minta\s+bayar|buat\s+(?:invoice|tagihan|bon)|invoice|nagih)\b/i.test(bodyText)) return true;
       if (/\b(?:setbank|atur\s+rekening|setting\s+bank|set\s+bank)\b/i.test(bodyText)) return true;
-      if (KW_DASHBOARD.some((k: string) => bodyText === k || bodyText.includes(k))) return true;
-      if (KW_STATUS.some((k: string) => bodyText === k)) return true;
-      if (KW_LAPORAN.some((k: string) => bodyText === k || bodyText.startsWith(k))) return true;
-      if (KW_BANTUAN.some((k: string) => bodyText === k)) return true;
-      if (KW_UPGRADE.some((k: string) => bodyText === k) || bodyText === 'paket') return true;
+      if (KW_DASHBOARD.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
+      if (KW_STATUS.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
+      if (KW_LAPORAN.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
+      if (KW_BANTUAN.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
+      if (KW_UPGRADE.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
+      if (/\b(?:paket)\b/i.test(bodyText)) return true;
       return false;
     }
 
-    if (pendingTxConfirmations.has(sender) && !shouldBypassDialogs(body)) {
-      const txConf = pendingTxConfirmations.get(sender);
-      if (Date.now() - txConf.timestamp > 5 * 60 * 1000) { pendingTxConfirmations.delete(sender); }
-      else {
-        if (KW_BATAL.some((k: string) => body === k)) { pendingTxConfirmations.delete(sender); await safeReply(msg, '✅ Transaksi dibatalkan.'); return; }
+    const expiredTypes = getExpiredDialogTypes(sender);
+    if (expiredTypes.length > 0) {
+      await safeReply(msg, '⏰ Waktu konfirmasi habis. Silakan ulangi dari awal.');
+      return;
+    }
+
+    if (hasDialog(sender) && !shouldBypassDialogs(body)) {
+      if (KW_BATAL.some((k: string) => body === k)) {
+        clearAllDialogs(sender);
+        await safeReply(msg, '✅ Semua proses dibatalkan.');
+        return;
+      }
+
+      const active = sortedDialogs(sender);
+      if (active.length === 0) return;
+      const d = active[0];
+
+      if (d.type === 'tx_confirmation') {
+        const txConf = d.data;
         const isYes = ['ya', 'ya sudah', 'iya', 'oke', 'ok', 'yes', 'y', '1', 'catat', 'simpan'].includes(body);
         if (isYes) {
-          pendingTxConfirmations.delete(sender);
+          removeDialog(sender, 'tx_confirmation');
           if (txConf.effectiveStatus === 'demo') {
             const todayCount = await getDailyTransactionCount(sender);
             if (todayCount >= 5) { await safeReply(msg, `⚠️ *Limit Harian Demo Habis!*\n\nSudah *${todayCount} transaksi* hari ini.\nLimit reset otomatis besok pukul 00:00.\n\n💡 Ketik *Paket* untuk upgrade tanpa batas.`); return; }
@@ -682,22 +730,18 @@ async function handleMessage(msg: any, client: any): Promise<any> {
           const tipeLabel = txConf.type === 'masuk' ? '📥 MASUK' : '📤 KELUAR';
           let extraInfo = '';
           if (txConf.effectiveStatus === 'demo') { const todayCount = await getDailyTransactionCount(sender); const sisa = 5 - todayCount; extraInfo = `\n\n⏳ Sisa kuota hari ini: *${sisa} transaksi*`; }
-            await safeReply(msg, `${emoji} *Berhasil Dicatat!*\n\n${tipeLabel}\n💵 Jumlah : ${formatRupiah(txConf.amount)}\n📦 Produk : ${txConf.product!.name}\n📝 Ket    : ${txConf.description}${extraInfo}`);
+          await safeReply(msg, `${emoji} *Berhasil Dicatat!*\n\n${tipeLabel}\n💵 Jumlah : ${formatRupiah(txConf.amount)}\n📦 Produk : ${txConf.product!.name}\n📝 Ket    : ${txConf.description}${extraInfo}`);
           return;
         }
-        await safeReply(msg, `⚠️ Balas *Ya* untuk mencatat atau *Batal* untuk membatalkan.`);
+        await safeReply(msg, '⚠️ Balas *Ya* untuk mencatat atau *Batal* untuk membatalkan.');
         return;
       }
-    }
 
-    if (pendingHutang.has(sender) && !shouldBypassDialogs(body)) {
-      const h = pendingHutang.get(sender)!;
-      if (Date.now() - h.timestamp > 5 * 60 * 1000) { pendingHutang.delete(sender); }
-      else {
-        if (KW_BATAL.some((k: string) => body === k)) { pendingHutang.delete(sender); await safeReply(msg, '✅ Pembayaran hutang dibatalkan.'); return; }
+      if (d.type === 'pay_hutang') {
+        const h = d.data;
         const isYes = ['ya', 'iya', 'oke', 'ok', 'yes', 'y', '1'].includes(body);
         if (isYes) {
-          pendingHutang.delete(sender);
+          removeDialog(sender, 'pay_hutang');
           const result = await transactionRecorder.recordPayPayable({ userId: sender, payableId: h.payableId, amount: h.amount });
           if (!result.success) throw new Error(`Gagal bayar hutang: ${result.error}`);
           const dt = result.data as any;
@@ -707,16 +751,12 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         await safeReply(msg, '⚠️ Balas *Ya* untuk membayar atau *Batal* untuk membatalkan.');
         return;
       }
-    }
 
-    if (pendingPiutang.has(sender) && !shouldBypassDialogs(body)) {
-      const p = pendingPiutang.get(sender)!;
-      if (Date.now() - p.timestamp > 5 * 60 * 1000) { pendingPiutang.delete(sender); }
-      else {
-        if (KW_BATAL.some((k: string) => body === k)) { pendingPiutang.delete(sender); await safeReply(msg, '✅ Penerimaan piutang dibatalkan.'); return; }
+      if (d.type === 'receive_piutang') {
+        const p = d.data;
         const isYes = ['ya', 'iya', 'oke', 'ok', 'yes', 'y', '1'].includes(body);
         if (isYes) {
-          pendingPiutang.delete(sender);
+          removeDialog(sender, 'receive_piutang');
           const result = await transactionRecorder.recordReceiveReceivable({ userId: sender, debtId: p.debtId, amount: p.amount });
           if (!result.success) throw new Error(`Gagal terima piutang: ${result.error}`);
           const dt = result.data as any;
@@ -726,73 +766,52 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         await safeReply(msg, '⚠️ Balas *Ya* untuk menerima atau *Batal* untuk membatalkan.');
         return;
       }
-    }
 
-    if (pendingReturJual.has(sender) && !shouldBypassDialogs(body)) {
-      const rj = pendingReturJual.get(sender)!;
-      if (Date.now() - rj.timestamp > 5 * 60 * 1000) { pendingReturJual.delete(sender); }
-      else {
-        if (KW_BATAL.some((k: string) => body === k)) { pendingReturJual.delete(sender); await safeReply(msg, '✅ Retur penjualan dibatalkan.'); return; }
+      if (d.type === 'retur_jual') {
+        const rj = d.data;
         const isYes = ['ya', 'iya', 'oke', 'ok', 'yes', 'y', '1'].includes(body);
         if (isYes) {
-          pendingReturJual.delete(sender);
+          removeDialog(sender, 'retur_jual');
           const result = await transactionRecorder.recordSalesReturn({
-            userId: sender,
-            originalTransactionId: rj.originalTransactionId,
-            productId: rj.productId,
-            quantity: rj.quantity,
-            priceSell: rj.priceSell,
-            priceBuy: rj.priceBuy,
-            returnReason: rj.returnReason,
-            statusBayar: rj.statusBayar as 'tunai' | 'piutang',
-            channel: rj.channel,
-            customerName: rj.customerName,
+            userId: sender, originalTransactionId: rj.originalTransactionId,
+            productId: rj.productId, quantity: rj.quantity,
+            priceSell: rj.priceSell, priceBuy: rj.priceBuy,
+            returnReason: rj.returnReason, statusBayar: rj.statusBayar,
+            channel: rj.channel, customerName: rj.customerName,
           });
           if (!result.success) throw new Error(`Gagal retur penjualan: ${result.error}`);
-          await safeReply(msg, `✅ *Retur Penjualan Berhasil!*\n\n📦 Produk : ${rj.productName} × ${rj.quantity}\n💵 Nilai : ${formatRupiah(rj.quantity * rj.priceSell)}\n📝 Alasan : ${rj.returnReason}`);
+          await safeReply(msg, `✅ *Retur Penjualan Berhasil!*\n\n📦 Produk : ${rj.productName} x ${rj.quantity}\n💵 Nilai : ${formatRupiah(rj.quantity * rj.priceSell)}\n📝 Alasan : ${rj.returnReason}`);
           return;
         }
         await safeReply(msg, '⚠️ Balas *Ya* untuk memproses retur atau *Batal* untuk membatalkan.');
         return;
       }
-    }
 
-    if (pendingReturBeli.has(sender) && !shouldBypassDialogs(body)) {
-      const rb = pendingReturBeli.get(sender)!;
-      if (Date.now() - rb.timestamp > 5 * 60 * 1000) { pendingReturBeli.delete(sender); }
-      else {
-        if (KW_BATAL.some((k: string) => body === k)) { pendingReturBeli.delete(sender); await safeReply(msg, '✅ Retur pembelian dibatalkan.'); return; }
+      if (d.type === 'retur_beli') {
+        const rb = d.data;
         const isYes = ['ya', 'iya', 'oke', 'ok', 'yes', 'y', '1'].includes(body);
         if (isYes) {
-          pendingReturBeli.delete(sender);
+          removeDialog(sender, 'retur_beli');
           const result = await transactionRecorder.recordPurchaseReturn({
-            userId: sender,
-            originalTransactionId: rb.originalTransactionId,
-            productId: rb.productId,
-            quantity: rb.quantity,
-            priceBuy: rb.priceBuy,
-            returnReason: rb.returnReason,
-            statusBayar: rb.statusBayar as 'tunai' | 'hutang',
-            supplierName: rb.supplierName,
+            userId: sender, originalTransactionId: rb.originalTransactionId,
+            productId: rb.productId, quantity: rb.quantity,
+            priceBuy: rb.priceBuy, returnReason: rb.returnReason,
+            statusBayar: rb.statusBayar, supplierName: rb.supplierName,
           });
           if (!result.success) throw new Error(`Gagal retur pembelian: ${result.error}`);
-          await safeReply(msg, `✅ *Retur Pembelian Berhasil!*\n\n📦 Produk : ${rb.productName} × ${rb.quantity}\n💵 Nilai : ${formatRupiah(rb.quantity * rb.priceBuy)}\n📝 Alasan : ${rb.returnReason}`);
+          await safeReply(msg, `✅ *Retur Pembelian Berhasil!*\n\n📦 Produk : ${rb.productName} x ${rb.quantity}\n💵 Nilai : ${formatRupiah(rb.quantity * rb.priceBuy)}\n📝 Alasan : ${rb.returnReason}`);
           return;
         }
         await safeReply(msg, '⚠️ Balas *Ya* untuk memproses retur atau *Batal* untuk membatalkan.');
         return;
       }
-    }
 
-    if (pendingProductSelections.has(sender) && !shouldBypassDialogs(body)) {
-      const sel = pendingProductSelections.get(sender);
-      if (Date.now() - sel.timestamp > 5 * 60 * 1000) { pendingProductSelections.delete(sender); }
-      else {
-        if (KW_BATAL.some((k: string) => body === k)) { pendingProductSelections.delete(sender); await safeReply(msg, '✅ Transaksi dibatalkan.'); return; }
+      if (d.type === 'product_selection') {
+        const sel = d.data;
         const choiceIdx = parseInt(body) - 1;
         if (!isNaN(choiceIdx) && choiceIdx >= 0 && choiceIdx < sel.products.length) {
           const selectedProduct = sel.products[choiceIdx];
-          pendingProductSelections.delete(sender);
+          removeDialog(sender, 'product_selection');
           if (sel.effectiveStatus === 'demo') {
             const todayCount = await getDailyTransactionCount(sender);
             if (todayCount >= 5) { await safeReply(msg, `⚠️ *Limit Harian Demo Habis!*\n\nSudah *${todayCount} transaksi* hari ini.\nLimit reset otomatis besok pukul 00:00.\n\n💡 Ketik *Paket* untuk upgrade tanpa batas.`); return; }
@@ -808,7 +827,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         }
         const nameMatch = sel.products.find((p: any) => body.toLowerCase().includes(p.name.toLowerCase()));
         if (nameMatch) {
-          pendingProductSelections.delete(sender);
+          removeDialog(sender, 'product_selection');
           if (sel.effectiveStatus === 'demo') {
             const todayCount = await getDailyTransactionCount(sender);
             if (todayCount >= 5) { await safeReply(msg, `⚠️ *Limit Harian Demo Habis!*\n\nSudah *${todayCount} transaksi* hari ini.`); return; }
@@ -820,48 +839,38 @@ async function handleMessage(msg: any, client: any): Promise<any> {
           await safeReply(msg, `${emoji} *Berhasil Dicatat!*\n\n${tipeLabel}\n💵 Jumlah : ${formatRupiah(sel.amount)}\n📦 Produk : ${nameMatch.name}\n📝 Ket    : ${sel.description}`);
           return;
         }
-        await safeReply(msg, `⚠️ Pilihan tidak valid. Balas *angka 1-${sel.products.length}* untuk memilih produk, atau *Batal* untuk membatalkan.`);
+        await safeReply(msg, `\u26a0\ufe0f Pilihan tidak valid. Balas *angka 1-${sel.products.length}* untuk memilih produk, atau *Batal* untuk membatalkan.`);
         return;
       }
-    }
 
-    if (pendingSaleDialogs.has(sender) && !shouldBypassDialogs(body)) {
-      const dialog = pendingSaleDialogs.get(sender);
-      if (Date.now() - dialog.timestamp > 5 * 60 * 1000) { pendingSaleDialogs.delete(sender); }
-      else {
-        if (KW_BATAL.some((k: string) => body === k)) { pendingSaleDialogs.delete(sender); await safeReply(msg, '✅ Proses penjualan dibatalkan.'); return; }
+      if (d.type === 'sale_selection') {
+        const dialog = d.data;
         const choiceIndex = parseInt(body) - 1;
         if (!isNaN(choiceIndex) && choiceIndex >= 0 && choiceIndex < dialog.products.length) {
           const product = dialog.products[choiceIndex];
           const qty = dialog.qty;
           const channel = dialog.channel || 'Offline';
-          pendingSaleDialogs.delete(sender);
+          removeDialog(sender, 'sale_selection');
           await processSaleExecution(msg, sender, user, product, qty, channel);
           return;
-        } else {
-          await safeReply(msg, `⚠️ Pilihan tidak valid. Silakan balas dengan *angka 1-${dialog.products.length}* atau ketik *Batal*.`);
-          return;
         }
+        await safeReply(msg, `\u26a0\ufe0f Pilihan tidak valid. Silakan balas dengan *angka 1-${dialog.products.length}* atau ketik *Batal*.`);
+        return;
       }
-    }
 
-    if (pendingClassificationDialogs.has(sender) && !shouldBypassDialogs(body)) {
-      const cDialog = pendingClassificationDialogs.get(sender);
-      if (Date.now() - cDialog.timestamp > 5 * 60 * 1000) { pendingClassificationDialogs.delete(sender); }
-      else {
-        if (KW_BATAL.some((k: string) => body === k)) { pendingClassificationDialogs.delete(sender); await safeReply(msg, '✅ Konfirmasi dibatalkan.'); return; }
-
+      if (d.type === 'classification') {
+        const cDialog = d.data;
         let confirmedType: string | null = null;
         if (body === 'masuk' || body === 'pemasukan' || body === '1') confirmedType = 'masuk';
         else if (body === 'keluar' || body === 'pengeluaran' || body === '2') confirmedType = 'keluar';
 
         if (confirmedType) {
           await saveBehavior(sender, cDialog.ambiguousWord, confirmedType, 'user_confirm');
-          pendingClassificationDialogs.delete(sender);
+          removeDialog(sender, 'classification');
 
           if (effectiveStatus === 'demo') {
             const todayCount = await getDailyTransactionCount(sender);
-            if (todayCount >= 5) { await safeReply(msg, `⚠️ *Limit Harian Demo Habis!*\n\nSudah *${todayCount} transaksi* hari ini.\nLimit reset otomatis besok pukul 00:00.\n\n💡 Ketik *Paket* untuk upgrade tanpa batas.`); return; }
+            if (todayCount >= 5) { await safeReply(msg, `\u26a0\ufe0f *Limit Harian Demo Habis!*\n\nSudah *${todayCount} transaksi* hari ini.\nLimit reset otomatis besok pukul 00:00.\n\n\ud83d\udca1 Ketik *Paket* untuk upgrade tanpa batas.`); return; }
           }
 
           const finalDesc = cDialog.descWords.filter((w: string) => {
@@ -874,12 +883,12 @@ async function handleMessage(msg: any, client: any): Promise<any> {
             const trxResult = await transactionRecorder.recordTransactionWithJournal(sender, confirmedType, cDialog.amount, finalDesc, String(matchedProductCD.id), effectiveStatus === 'demo');
             if (!trxResult.success) throw new Error(`Gagal simpan transaksi: ${trxResult.error}`);
 
-            const emoji = confirmedType === 'masuk' ? '✅' : '💸';
-            const tipeLabel = confirmedType === 'masuk' ? '📥 MASUK' : '📤 KELUAR';
-            let extraInfo = `\n\n🧠 _Saya akan mengingat "${cDialog.ambiguousWord}" sebagai ${confirmedType} untuk selanjutnya._`;
-            if (effectiveStatus === 'demo') { const todayCount = await getDailyTransactionCount(sender); const sisa = 5 - todayCount; extraInfo += `\n⏳ Sisa kuota hari ini: *${sisa} transaksi*`; }
-            await safeReply(msg, `${emoji} *Berhasil Dicatat!*\n\n${tipeLabel}\n💵 Jumlah : ${formatRupiah(cDialog.amount)}\n📦 Produk : ${matchedProductCD.name}\n📝 Ket    : ${finalDesc}${extraInfo}`);
-            return true;
+            const emoji = confirmedType === 'masuk' ? '✅' : '\ud83d\udcb8';
+            const tipeLabel = confirmedType === 'masuk' ? '\ud83d\udce5 MASUK' : '\ud83d\udce4 KELUAR';
+            let extraInfo = `\n\n\ud83e\udde0 _Saya akan mengingat "${cDialog.ambiguousWord}" sebagai ${confirmedType} untuk selanjutnya._`;
+            if (effectiveStatus === 'demo') { const todayCount = await getDailyTransactionCount(sender); const sisa = 5 - todayCount; extraInfo += `\n\u23f3 Sisa kuota hari ini: *${sisa} transaksi*`; }
+            await safeReply(msg, `${emoji} *Berhasil Dicatat!*\n\n${tipeLabel}\n\ud83d\udcb5 Jumlah : ${formatRupiah(cDialog.amount)}\n\ud83d\udce6 Produk : ${matchedProductCD.name}\n\ud83d\udcdd Ket    : ${finalDesc}${extraInfo}`);
+            return;
           }
 
           let productListCD: any[] = [];
@@ -891,22 +900,21 @@ async function handleMessage(msg: any, client: any): Promise<any> {
           if (productListCD.length === 0) {
             const dashUrl = getDashboardUrl();
             const slug = user.store_slug || 'dashboard';
-            await safeReply(msg, `❌ *Transaksi Ditolak*\n\nBelum ada produk terdaftar di inventori.\n\n📋 Daftarkan produk di Dashboard:\n   ${dashUrl}/stock/${slug}\n\n💡 _Semua transaksi wajib merujuk produk yang terdaftar._`);
+            await safeReply(msg, `\u274c *Transaksi Ditolak*\n\nBelum ada produk terdaftar di inventori.\n\n\ud83d\udccb Daftarkan produk di Dashboard:\n   ${dashUrl}/stock/${slug}\n\n\ud83d\udca1 _Semua transaksi wajib merujuk produk yang terdaftar._`);
             return;
           }
 
-          const tipeEmojiCD = confirmedType === 'masuk' ? '📥' : '📤';
+          const tipeEmojiCD = confirmedType === 'masuk' ? '\ud83d\udce5' : '\ud83d\udce4';
           const tipeLabelCD = confirmedType === 'masuk' ? 'MASUK' : 'KELUAR';
           let listTextCD = productListCD.slice(0, 15).map((p: any, i: number) => `   ${i + 1}. ${p.name}`).join('\n');
           if (productListCD.length > 15) listTextCD += `\n   _...dan ${productListCD.length - 15} produk lainnya_`;
 
-          pendingProductSelections.set(sender, { type: confirmedType, amount: cDialog.amount, description: finalDesc, products: productListCD.slice(0, 15), effectiveStatus, timestamp: Date.now() });
-          await safeReply(msg, `🤔 *Produk mana yang dimaksud?*\n\n${tipeEmojiCD} ${tipeLabelCD} — ${formatRupiah(cDialog.amount)}\n\nPilih produk:\n${listTextCD}\n\nBalas *angka* untuk memilih produk.\nBalas *Batal* untuk membatalkan.`);
-          return;
-        } else {
-          await safeReply(msg, `⚠️ Jawaban tidak valid. Balas *Masuk* atau *Keluar* untuk mengonfirmasi.`);
+          setDialog(sender, 'product_selection', { type: confirmedType, amount: cDialog.amount, description: finalDesc, products: productListCD.slice(0, 15), effectiveStatus });
+          await safeReply(msg, `\ud83e\udd14 *Produk mana yang dimaksud?*\n\n${tipeEmojiCD} ${tipeLabelCD} \u2014 ${formatRupiah(cDialog.amount)}\n\nPilih produk:\n${listTextCD}\n\nBalas *angka* untuk memilih produk.\nBalas *Batal* untuk membatalkan.`);
           return;
         }
+        await safeReply(msg, '\u26a0\ufe0f Jawaban tidak valid. Balas *Masuk* atau *Keluar* untuk mengonfirmasi.');
+        return;
       }
     }
 
@@ -1390,7 +1398,7 @@ async function handleReturJual(msg: any, sender: string, user: any, amount: numb
 
   const statusBayar = originalTx.status_bayar === 'piutang' ? 'piutang' : 'tunai';
 
-  pendingReturJual.set(sender, {
+  setDialog(sender, 'retur_jual', {
     originalTransactionId: String(originalTx.id),
     productId: String(product.id),
     productName: product.name,
@@ -1401,7 +1409,6 @@ async function handleReturJual(msg: any, sender: string, user: any, amount: numb
     customerName,
     statusBayar,
     channel: 'Offline',
-    timestamp: Date.now(),
   });
 
   await safeReply(msg,
@@ -1457,7 +1464,7 @@ async function handleReturBeli(msg: any, sender: string, user: any, amount: numb
 
   const statusBayar = originalTx.status_bayar === 'hutang' ? 'hutang' : 'tunai';
 
-  pendingReturBeli.set(sender, {
+  setDialog(sender, 'retur_beli', {
     originalTransactionId: String(originalTx.id),
     productId: String(product.id),
     productName: product.name,
@@ -1466,7 +1473,6 @@ async function handleReturBeli(msg: any, sender: string, user: any, amount: numb
     returnReason: reason,
     supplierName,
     statusBayar,
-    timestamp: Date.now(),
   });
 
   await safeReply(msg,
@@ -1476,9 +1482,6 @@ async function handleReturBeli(msg: any, sender: string, user: any, amount: numb
 }
 
 // ── Pay Hutang / Receive Piutang Handlers ──
-
-const pendingHutang = new Map<string, { payableId: string; amount: number; supplier: string; timestamp: number }>();
-const pendingPiutang = new Map<string, { debtId: string; amount: number; customer: string; timestamp: number }>();
 
 async function handlePayHutang(msg: any, sender: string, user: any, amount: number, geminiResult: any, rawBody: string, client: any): Promise<boolean> {
   const { data: hutangs, error } = await supabase
@@ -1496,7 +1499,7 @@ async function handlePayHutang(msg: any, sender: string, user: any, amount: numb
   const target = hutangs.find((h: any) => h.nama_supplier.toLowerCase().includes(supplierName.toLowerCase())) || hutangs[0];
   const sisa = (parseFloat(target.nominal_hutang) || 0) - (parseFloat(target.jumlah_dibayar) || 0);
   const bayar = Math.min(amount, sisa);
-  pendingHutang.set(sender, { payableId: target.id, amount: bayar, supplier: target.nama_supplier, timestamp: Date.now() });
+  setDialog(sender, 'pay_hutang', { payableId: target.id, amount: bayar, supplier: target.nama_supplier });
   await safeReply(msg,
     `📋 *Konfirmasi Bayar Hutang*\n\n🏢 Supplier : ${target.nama_supplier}\n💵 Sisa Hutang : ${formatRupiah(sisa)}\n💳 Akan Dibayar : ${formatRupiah(bayar)}${bayar < sisa ? `\n⚠️ Sisa setelah bayar: ${formatRupiah(sisa - bayar)}` : '\n✅ *LUNAS!*'}\n\nBalas *Ya* untuk mengonfirmasi.\nBalas *Batal* untuk membatalkan.`
   );
@@ -1518,7 +1521,7 @@ async function handleTerimaPiutang(msg: any, sender: string, user: any, amount: 
   const target = piutangs.find((d: any) => d.nama_pelanggan.toLowerCase().includes(customerName.toLowerCase())) || piutangs[0];
   const sisa = parseFloat(target.nominal_piutang) || 0;
   const terima = Math.min(amount, sisa);
-  pendingPiutang.set(sender, { debtId: target.id, amount: terima, customer: target.nama_pelanggan, timestamp: Date.now() });
+  setDialog(sender, 'receive_piutang', { debtId: target.id, amount: terima, customer: target.nama_pelanggan });
   await safeReply(msg,
     `📋 *Konfirmasi Terima Piutang*\n\n👤 Customer : ${target.nama_pelanggan}\n💵 Sisa Piutang : ${formatRupiah(sisa)}\n💳 Akan Diterima : ${formatRupiah(terima)}${terima < sisa ? `\n⚠️ Sisa setelah bayar: ${formatRupiah(sisa - terima)}` : '\n✅ *LUNAS!*'}\n\nBalas *Ya* untuk mengonfirmasi.\nBalas *Batal* untuk membatalkan.`
   );

@@ -1,28 +1,22 @@
-import { HelpCircle, BookOpen, TrendingUp, Scale, BookText, Wallet, Package, ArrowUpDown, ClipboardCheck, History, CreditCard, BarChart3, Database, GitBranch, FileText, ClipboardList, Bell, Settings } from 'lucide-react';
+import { HelpCircle, BookOpen, Package, CreditCard, BarChart3, Bell, Settings } from 'lucide-react';
 
 const menuItems = [
   {
-    group: '📊 Dashboard',
+    group: 'Dashboard',
     icon: HelpCircle,
     items: [
       { to: '/stock', label: 'Dashboard Utama', desc: 'Ringkasan seluruh bisnis: saldo kas, laba rugi, inventori, piutang, dan grafik harian.' },
     ],
   },
   {
-    group: '💰 Keuangan',
+    group: 'Keuangan',
     icon: BookOpen,
     items: [
-      { to: '/stock/pembukuan', label: 'Pembukuan', desc: 'Catat transaksi manual (uang masuk/keluar) dengan jurnal double-entry otomatis.' },
-      { to: '/stock/laba-rugi', label: 'Laba Rugi', desc: 'Laporan P&L — filter 7/30/90/365 hari, lihat pendapatan, HPP, beban, laba bersih.' },
-      { to: '/stock/neraca', label: 'Neraca', desc: 'Posisi keuangan: aset, liabilitas, ekuitas — validasi balance.' },
-      { to: '/stock/buku-besar', label: 'Buku Besar', desc: 'Histori debet/kredit per akun — audit trail lengkap.' },
-      { to: '/stock/arus-kas', label: 'Arus Kas', desc: 'Pergerakan kas harian — pemasukan dan pengeluaran per tanggal.' },
-      { to: '/stock/channels', label: 'Per Channel', desc: 'Penjualan breakdown per channel penjualan (Shopee, Tokopedia, dll).' },
-      { to: '/stock/jurnal', label: 'Jurnal', desc: 'Daftar jurnal akuntansi — expand untuk lihat debet/kredit per baris.' },
+      { to: '/stock/keuangan', label: 'Laporan Keuangan', desc: 'Catat transaksi (uang masuk/keluar), lihat ringkasan laba rugi, nilai inventori, dan verifikasi neraca dalam satu halaman.' },
     ],
   },
   {
-    group: '📦 Inventori',
+    group: 'Inventori',
     icon: Package,
     items: [
       { to: '/stock/products', label: 'Produk', desc: 'Tambah/edit/hapus produk, atur harga, SKU, kategori, stok minimal.' },
@@ -30,12 +24,11 @@ const menuItems = [
       { to: '/stock/movement', label: 'Masuk/Keluar', desc: 'Catat pergerakan stok: restok (masuk), penjualan (keluar), adjustment.' },
       { to: '/stock/opname', label: 'Opname', desc: 'Stok opname fisik — sesuaikan stok sistem dengan realita.' },
       { to: '/stock/history', label: 'Riwayat', desc: 'Log seluruh pergerakan stok — filter, cari, hapus.' },
-      { to: '/stock/summary', label: 'Ringkasan Stok', desc: 'Total produk, nilai inventori, distribusi per kategori, peringatan.' },
       { to: '/stock/product-stats', label: 'Analisa Produk', desc: 'Profitabilitas per produk: margin %, laba/unit, nilai stok.' },
     ],
   },
   {
-    group: '💳 Piutang & Hutang',
+    group: 'Piutang & Hutang',
     icon: CreditCard,
     items: [
       { to: '/stock/piutang', label: 'Piutang', desc: 'Tagihan ke pelanggan — pantau status lunas/belum/overdue.' },
@@ -43,16 +36,15 @@ const menuItems = [
     ],
   },
   {
-    group: '📋 Laporan',
+    group: 'Laporan',
     icon: BarChart3,
     items: [
       { to: '/stock/report', label: 'Laporan Stok', desc: 'Evaluasi stok: produk terlaris, slow mover, nilai per kategori.' },
-      { to: '/stock/neraca-saldo', label: 'Neraca Saldo', desc: 'Trial balance — verifikasi debet = kredit.' },
       { to: '/stock/batch', label: 'Data Lengkap', desc: 'Semua data dalam satu layar: produk + summary + pergerakan.' },
     ],
   },
   {
-    group: '🔧 Lainnya',
+    group: 'Lainnya',
     icon: Settings,
     items: [
       { to: '/stock/notifications', label: 'Notifikasi', desc: 'Daftar alert stok menipis/habis yang perlu ditindaklanjuti.' },
@@ -96,7 +88,7 @@ export function StockBantuan() {
       ))}
 
       <div className="card card-p" style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)' }}>
-        <h4 style={{ fontWeight: 700, marginBottom: '0.5rem' }}>💡 Butuh bantuan lebih lanjut?</h4>
+        <h4 style={{ fontWeight: 700, marginBottom: '0.5rem' }}>Butuh bantuan lebih lanjut?</h4>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           Hubungi admin atau kirim pesan ke bot WhatsApp untuk panduan lebih detail.
         </p>
