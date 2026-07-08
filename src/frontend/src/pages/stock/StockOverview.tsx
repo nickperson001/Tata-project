@@ -11,7 +11,7 @@ import { ExpenseChart } from './ExpenseChart';
 import { toast } from '../../components/Toast';
 import { TopProductsChart } from './TopProductsChart';
 import type { SaldoData, OverviewData, ChannelProfit } from '../../types';
-import { TrendingUp, AlertTriangle, Wallet, Users, Package, Percent, PieChart, BarChart, Bot, Globe, DollarSign } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Wallet, Users, Package, Percent, PieChart, BarChart, Bot, Globe, DollarSign, X } from 'lucide-react';
 
 interface AlertItem {
   id: string;
@@ -59,8 +59,8 @@ function buildReport(o: OverviewData, storeName: string, preset: string): string
   return lines;
 }
 
-function AIAnalysis({ overview, storeName, preset }: { overview: OverviewData; storeName: string; preset: string }) {
-  const [visibleLines, setVisibleLines] = useState<number>(0);
+function AiWelcomePopup({ overview, storeName, preset, onClose }: { overview: OverviewData; storeName: string; preset: string; onClose: () => void }) {
+  const [visibleLines, setVisibleLines] = useState(0);
   const lines = buildReport(overview, storeName, preset);
 
   useEffect(() => {
@@ -70,72 +70,100 @@ function AIAnalysis({ overview, storeName, preset }: { overview: OverviewData; s
         if (prev >= lines.length) { clearInterval(timer); return prev; }
         return prev + 1;
       });
-    }, 400); // Tampil per baris dengan delay sedikit lebih cepat
+    }, 400);
     return () => clearInterval(timer);
-  }, [overview]);
+  }, [overview, lines.length]);
 
   return (
-    <div className="data-enter" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1rem' }}>
-        <div className="ai-sparkle-icon" style={{
-          width: 44, height: 44, borderRadius: 14,
-          background: 'linear-gradient(135deg, #10b981, #059669)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(16,185,129,0.3)'
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+      animation: 'fadeIn 0.3s ease-out',
+    }}>
+      <div style={{
+        width: 'min(520px, 92vw)',
+        maxHeight: '80vh',
+        background: 'var(--bg-card)',
+        borderRadius: 24,
+        boxShadow: '0 24px 80px rgba(0,0,0,0.25)',
+        overflow: 'hidden',
+        animation: 'scaleIn 0.3s ease-out',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.03) 100%)',
+          borderBottom: '1px solid rgba(16,185,129,0.15)',
+          padding: '1.5rem 1.75rem 1rem',
+          position: 'relative',
         }}>
-          <Bot size={24} color="#fff" />
-        </div>
-        <div>
-          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--primary-dark)' }}>
-            Halo {storeName}! ✨
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute', right: 14, top: 14,
+              width: 32, height: 32, borderRadius: '50%',
+              border: 'none', background: 'rgba(0,0,0,0.06)',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-muted)', transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.12)'; e.currentTarget.style.color = 'var(--text)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+          >
+            <X size={16} />
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className="ai-sparkle-icon" style={{
+              width: 48, height: 48, borderRadius: 16,
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 6px 16px rgba(16,185,129,0.35)',
+              flexShrink: 0,
+            }}>
+              <Bot size={26} color="#fff" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--primary-dark)' }}>
+                Halo {storeName}! ✨
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 500, marginTop: 2 }}>
+                Analisis AI • {periodLabel(preset)}
+              </div>
+            </div>
+            <span style={{
+              fontSize: '0.75rem', fontWeight: 700, padding: '0.3rem 0.7rem',
+              borderRadius: 10, whiteSpace: 'nowrap',
+              background: overview.laba_bersih >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.1)',
+              color: overview.laba_bersih >= 0 ? '#059669' : '#dc2626',
+            }}>
+              {overview.laba_bersih >= 0 ? 'Bisnis Sehat' : 'Perlu Evaluasi'}
+            </span>
           </div>
-          <div style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 500 }}>
-            Analisis AI • {periodLabel(preset)}
-          </div>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
-          <span style={{
-            fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem',
-            borderRadius: 8, background: overview.laba_bersih >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.1)',
-            color: overview.laba_bersih >= 0 ? '#059669' : '#dc2626',
+        <div style={{ padding: '1.25rem 1.75rem 1.75rem', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            {lines.map((line, i) => (
+              <div key={i} style={{
+                fontSize: '0.9rem', lineHeight: 1.55, color: 'var(--text)',
+                opacity: i < visibleLines ? 1 : 0,
+                transform: i < visibleLines ? 'translateY(0)' : 'translateY(10px)',
+                transition: 'all 0.45s ease-out',
+                padding: '0.35rem 0.75rem',
+                borderRadius: 10,
+                background: i < visibleLines ? 'rgba(16,185,129,0.04)' : 'transparent',
+              }}>
+                {line}
+              </div>
+            ))}
+          </div>
+          <div style={{
+            marginTop: '1.25rem', padding: '0.75rem 1rem',
+            background: 'rgba(16,185,129,0.06)',
+            borderRadius: 12, border: '1px solid rgba(16,185,129,0.15)',
+            fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center',
           }}>
-            {overview.laba_bersih >= 0 ? 'Bisnis Sehat' : 'Perlu Evaluasi'}
-          </span>
-        </div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', flex: 1, overflowY: 'auto' }}>
-        {lines.map((line, i) => (
-          <div key={i} style={{
-            fontSize: '0.9rem', lineHeight: 1.5, color: '#374151',
-            opacity: i < visibleLines ? 1 : 0,
-            transform: i < visibleLines ? 'translateY(0)' : 'translateY(10px)',
-            transition: 'all 0.4s ease-out',
-            padding: '0.35rem 0', 
-            borderBottom: i < lines.length - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none',
-          }}>
-            {line}
+            💡 Data diperbarui otomatis setiap 30 detik
           </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AIAnalysisSkeleton() {
-  return (
-    <div style={{ height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1rem' }}>
-        <Skeleton width="44px" height="44px" />
-        <div style={{ flex: 1 }}>
-          <Skeleton width="180px" height="1.15rem" />
-          <div style={{ marginTop: 6 }}><Skeleton width="120px" height="0.8rem" /></div>
         </div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        <Skeleton width="100%" height="0.9rem" />
-        <Skeleton width="85%" height="0.9rem" />
-        <Skeleton width="75%" height="0.9rem" />
-        <Skeleton width="90%" height="0.9rem" />
       </div>
     </div>
   );
@@ -161,6 +189,7 @@ export function StockOverview() {
   const [activeChannels, setActiveChannels] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>({ startDate: null, endDate: null, preset: 'today' });
   const [channelProfit, setChannelProfit] = useState<ChannelProfit[]>([]);
+  const [showAiPopup, setShowAiPopup] = useState(() => !sessionStorage.getItem('tbs_ai_popup_shown'));
 
   const loadData = useCallback(async () => {
     if (!token) return;
@@ -255,14 +284,8 @@ export function StockOverview() {
         showSearch={false}
       />
 
-      {/* Bento Grid Layout (AI, Saldo, Stats) */}
+      {/* Bento Grid Layout (Saldo, Stats) */}
       <div className="bento-grid">
-        <div className="bento-card bento-ai">
-          {loading ? <AIAnalysisSkeleton /> : overview && (
-            <AIAnalysis overview={overview} storeName={user?.store_name || 'Owner'} preset={dateRange.preset} />
-          )}
-        </div>
-
         <div className="bento-card bento-saldo" style={{ transition: 'opacity 0.3s' }}>
           <div>
             <div className="ov-hero-label">Saldo Kas</div>
@@ -279,7 +302,7 @@ export function StockOverview() {
           <Wallet size={64} className="ov-hero-icon" style={{ position: 'absolute', right: '-10px', bottom: '-10px', opacity: saldo ? 0.15 : 0.05, transition: 'opacity 0.3s' }} />
         </div>
 
-        <div className={`bento-card bento-stat1 ${overview ? 'data-enter' : ''}`} onClick={() => navigate('/stock/laba-rugi')} style={{ cursor: 'pointer', animationDelay: '0.1s' }}>
+        <div className={`bento-card bento-stat1 ${overview ? 'data-enter' : ''}`} onClick={() => navigate('/stock/keuangan')} style={{ cursor: 'pointer', animationDelay: '0.1s' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div className="ov-stat-icon-row" style={{ color: (overview?.laba_bersih || 0) >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
               <TrendingUp size={16} /> Laba Bersih
@@ -293,7 +316,7 @@ export function StockOverview() {
           </div>
         </div>
 
-        <div className={`bento-card bento-stat2 ${overview ? 'data-enter' : ''}`} onClick={() => navigate('/stock/laba-rugi')} style={{ cursor: 'pointer', animationDelay: '0.2s' }}>
+        <div className={`bento-card bento-stat2 ${overview ? 'data-enter' : ''}`} onClick={() => navigate('/stock/keuangan')} style={{ cursor: 'pointer', animationDelay: '0.2s' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div className="ov-stat-icon-row" style={{ color: 'var(--primary)' }}>
               <Wallet size={16} /> Pendapatan
@@ -500,6 +523,18 @@ export function StockOverview() {
           <div className="ov-empty-title">Selamat Datang di Dashboard</div>
           <p className="ov-empty-desc">Mulai dengan menambahkan produk dan mencatat transaksi pertama Anda.</p>
         </div>
+      )}
+
+      {showAiPopup && overview && (
+        <AiWelcomePopup
+          overview={overview}
+          storeName={user?.store_name || 'Owner'}
+          preset={dateRange.preset}
+          onClose={() => {
+            setShowAiPopup(false);
+            sessionStorage.setItem('tbs_ai_popup_shown', '1');
+          }}
+        />
       )}
     </div>
   );
