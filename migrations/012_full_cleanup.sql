@@ -55,18 +55,26 @@ WHERE p.stock_current != 0
     WHERE i.user_id = p.user_id AND i.product_id = p.id AND i.warehouse = 'Utama'
   );
 
-INSERT INTO payables (id, user_id, nama_supplier, nominal_hutang, jumlah_dibayar, status_lunas, jatuh_tempo, deskripsi, transaction_id, created_at)
-SELECT a.id, a.user_id, a.nama_supplier, a.nominal_hutang, a.jumlah_dibayar, a.status_lunas, a.jatuh_tempo, a.deskripsi, NULL, a.created_at
-FROM accounts_payable a
-WHERE NOT EXISTS (SELECT 1 FROM payables p WHERE p.id = a.id);
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'accounts_payable') THEN
+    INSERT INTO payables (id, user_id, nama_supplier, nominal_hutang, jumlah_dibayar, status_lunas, jatuh_tempo, deskripsi, transaction_id, created_at)
+    SELECT a.id, a.user_id, a.nama_supplier, a.nominal_hutang, a.jumlah_dibayar, a.status_lunas, a.jatuh_tempo, a.deskripsi, NULL, a.created_at
+    FROM accounts_payable a
+    WHERE NOT EXISTS (SELECT 1 FROM payables p WHERE p.id = a.id);
+  END IF;
+END $$;
 
-INSERT INTO receivables (id, user_id, transaction_id, nama_pelanggan, nominal_piutang, status_lunas, jatuh_tempo, created_at)
-SELECT d.id, d.user_id, d.transaction_id, d.nama_pelanggan, d.nominal_piutang, d.status_lunas, d.jatuh_tempo, d.created_at
-FROM debts d
-WHERE NOT EXISTS (SELECT 1 FROM receivables r WHERE r.id = d.id);
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'debts') THEN
+    INSERT INTO receivables (id, user_id, transaction_id, nama_pelanggan, nominal_piutang, status_lunas, jatuh_tempo, created_at)
+    SELECT d.id, d.user_id, d.transaction_id, d.nama_pelanggan, d.nominal_piutang, d.status_lunas, d.jatuh_tempo, d.created_at
+    FROM debts d
+    WHERE NOT EXISTS (SELECT 1 FROM receivables r WHERE r.id = d.id);
+  END IF;
+END $$;
 
 -- ============================================================
--- BAGIAN 5: DROP TABEL LAMA
+-- BAGIAN 5: DROP TABEL LAMA (hanya jika masih ada)
 -- ============================================================
 DROP TABLE IF EXISTS accounts_payable CASCADE;
 DROP TABLE IF EXISTS debts CASCADE;
