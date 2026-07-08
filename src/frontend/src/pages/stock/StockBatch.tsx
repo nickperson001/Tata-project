@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
@@ -11,16 +11,15 @@ import type { BatchData, BatchProduct, BatchMovement } from '../../types';
 
 export function StockBatch() {
   const { token } = useStockStore();
-  const [data, setData] = useState<BatchData | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!token) return;
-    stockApi.get<BatchData>('/api/stock/batch', token)
-      .then(setData)
-      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockBatch] Fetch gagal'))
-      .finally(() => setLoading(false));
-  }, [token]);
+  const query = useQuery({
+    queryKey: ['batch', token],
+    queryFn: () => stockApi.get<BatchData>('/api/stock/batch', token!),
+    enabled: !!token,
+  });
+
+  const data = query.data ?? null;
+  const loading = query.isPending;
 
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

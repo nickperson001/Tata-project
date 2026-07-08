@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton, TableSkeleton } from '../../components/LoadingSkeleton';
@@ -86,8 +87,6 @@ export function StockFinance() {
 
 function TransactionsTab() {
   const { token } = useStockStore();
-  const [data, setData] = useState<PembukuanData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -99,36 +98,37 @@ function TransactionsTab() {
   const [showConfirmHapus, setShowConfirmHapus] = useState<string | null>(null);
   const [filterChannel, setFilterChannel] = useState('');
   const [searchText, setSearchText] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ startDate: null, endDate: null, preset: 'today' });
 
   useEffect(() => {
-    if (!token) return;
-    stockApi.get<{ settings: any }>('/api/stock/settings', token)
-      .then((d) => {
-        if (d.settings?.active_channels) setActiveChannels(d.settings.active_channels);
-      })
-      .catch(() => {});
-  }, [token]);
+    const t = setTimeout(() => setDebouncedSearch(searchText), 300);
+    return () => clearTimeout(t);
+  }, [searchText]);
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ page: String(page) });
-      if (filterChannel) params.set('channel', filterChannel);
-      if (searchText) params.set('search', searchText);
-      if (dateRange.startDate) params.set('start_date', dateRange.startDate);
-      if (dateRange.endDate) params.set('end_date', dateRange.endDate);
-      const d = await stockApi.get<PembukuanData>(`/api/stock/pembukuan?${params}`, token);
-      setData(d);
-    } catch {
-      toast.error('Gagal muat transaksi');
-    } finally {
-      setLoading(false);
-    }
-  }, [token, page, filterChannel, searchText, dateRange.startDate, dateRange.endDate]);
+  const settingsQuery = useQuery({
+    queryKey: ['settings-channels', token],
+    queryFn: () => stockApi.get<{ settings: { active_channels?: string[] } }>('/api/stock/settings', token!),
+    enabled: !!token,
+  });
+  useEffect(() => {
+    const ch = settingsQuery.data?.settings?.active_channels;
+    if (ch) setActiveChannels(ch);
+  }, [settingsQuery.data]);
 
-  useEffect(() => { load(); }, [load]);
+  const params = new URLSearchParams({ page: String(page) });
+  if (filterChannel) params.set('channel', filterChannel);
+  if (debouncedSearch) params.set('search', debouncedSearch);
+  if (dateRange.startDate) params.set('start_date', dateRange.startDate);
+  if (dateRange.endDate) params.set('end_date', dateRange.endDate);
+
+  const pembukuanQuery = useQuery({
+    queryKey: ['pembukuan', token, page, filterChannel, debouncedSearch, dateRange.startDate, dateRange.endDate],
+    queryFn: () => stockApi.get<PembukuanData>(`/api/stock/pembukuan?${params}`, token!),
+    enabled: !!token,
+  });
+  const data = pembukuanQuery.data;
+  const loading = pembukuanQuery.isPending;
 
   const filteredCategories = CATEGORY_OPTIONS.filter(c => c.group === (form.type === 'keluar' ? 'expense' : 'income'));
 
@@ -170,7 +170,7 @@ function TransactionsTab() {
       }
       setShowModal(false);
       setForm({ type: 'keluar', amount: '', description: '', customerName: '', category: '', channel: '' });
-      load();
+      pembukuanQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal');
     }
@@ -181,7 +181,7 @@ function TransactionsTab() {
     try {
       await stockApi.del(`/api/stock/transactions/${id}`, token);
       toast('Transaksi dihapus');
-      load();
+      pembukuanQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal hapus');
     }
@@ -400,32 +400,31 @@ function TransactionsTab() {
 
 function SummaryTab() {
   const { token, user } = useStockStore();
-  const [labaData, setLabaData] = useState<LabaRugiData | null>(null);
-  const [trialData, setTrialData] = useState<TrialBalanceData | null>(null);
-  const [summaryData, setSummaryData] = useState<StockSummaryData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
 
-  useEffect(() => {
-    if (!token) return;
-    (async () => {
-      setLoading(true);
-      try {
-        const [laba, trial, summary] = await Promise.all([
-          stockApi.get<LabaRugiData>(`/api/stock/laba-rugi?days=${days}&channel=`, token),
-          stockApi.get<TrialBalanceData>('/api/stock/trial-balance', token),
-          stockApi.get<StockSummaryData>('/api/stock/summary', token),
-        ]);
-        setLabaData(laba);
-        setTrialData(trial);
-        setSummaryData(summary);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Gagal muat ringkasan');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [token, days]);
+  const labaQuery = useQuery({
+    queryKey: ['laba-rugi', token, days],
+    queryFn: () => stockApi.get<LabaRugiData>(`/api/stock/laba-rugi?days=${days}&channel=`, token!),
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+  const trialQuery = useQuery({
+    queryKey: ['trial-balance', token],
+    queryFn: () => stockApi.get<TrialBalanceData>('/api/stock/trial-balance', token!),
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+  const summaryQuery = useQuery({
+    queryKey: ['summary', token],
+    queryFn: () => stockApi.get<StockSummaryData>('/api/stock/summary', token!),
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+
+  const loading = labaQuery.isPending || trialQuery.isPending || summaryQuery.isPending;
+  const labaData = labaQuery.data ?? null;
+  const trialData = trialQuery.data ?? null;
+  const summaryData = summaryQuery.data ?? null;
 
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

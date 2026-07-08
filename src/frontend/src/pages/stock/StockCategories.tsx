@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Modal } from '../../components/Modal';
@@ -16,28 +17,20 @@ interface Category {
 
 export function StockCategories() {
   const token = useStockStore(s => s.token);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editCat, setEditCat] = useState<Category | null>(null);
   const [name, setName] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteName, setDeleteName] = useState('');
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const data = await stockApi.get<{ categories: Category[] }>('/api/stock/categories', token);
-      setCategories(data.categories || []);
-    } catch {
-      toast.error('Gagal memuat kategori');
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+  const query = useQuery({
+    queryKey: ['categories', token],
+    queryFn: () => stockApi.get<{ categories: Category[] }>('/api/stock/categories', token!),
+    enabled: !!token,
+  });
 
-  useEffect(() => { load(); }, [load]);
+  const categories = query.data?.categories ?? [];
+  const loading = query.isPending;
 
   function openCreate() {
     setEditCat(null);
@@ -62,7 +55,7 @@ export function StockCategories() {
         toast('Kategori dibuat');
       }
       setShowModal(false);
-      load();
+      query.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal simpan kategori');
     }
@@ -73,7 +66,7 @@ export function StockCategories() {
     try {
       await stockApi.del(`/api/stock/categories/${deleteId}`, token);
       toast('Kategori dihapus');
-      load();
+      query.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal hapus kategori');
     } finally {

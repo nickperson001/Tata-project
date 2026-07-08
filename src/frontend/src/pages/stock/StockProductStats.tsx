@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
@@ -13,18 +14,17 @@ type SortKey = 'name' | 'profitPerUnit' | 'margin' | 'stockValue';
 
 export function StockProductStats() {
   const { token } = useStockStore();
-  const [data, setData] = useState<ProductStatsData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('margin');
   const [sortAsc, setSortAsc] = useState(false);
 
-  useEffect(() => {
-    if (!token) return;
-    stockApi.get<ProductStatsData>('/api/stock/product-stats', token)
-      .then(setData)
-      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockProductStats] Fetch gagal'))
-      .finally(() => setLoading(false));
-  }, [token]);
+  const query = useQuery({
+    queryKey: ['product-stats', token],
+    queryFn: () => stockApi.get<ProductStatsData>('/api/stock/product-stats', token!),
+    enabled: !!token,
+  });
+
+  const data = query.data ?? null;
+  const loading = query.isPending;
 
   const sorted = useMemo(() => {
     if (!data) return [];
