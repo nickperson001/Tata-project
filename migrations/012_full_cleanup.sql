@@ -79,7 +79,6 @@ ALTER TABLE transactions DROP COLUMN IF EXISTS discount_type;
 
 ALTER TABLE products DROP COLUMN IF EXISTS price_grosir;
 ALTER TABLE products DROP COLUMN IF EXISTS min_qty_grosir;
-ALTER TABLE products DROP COLUMN IF EXISTS default_channel;
 
 -- ============================================================
 -- BAGIAN 7: KONSOLIDASI BANK — pindah dari users ke user_profiles
