@@ -92,27 +92,36 @@ ALTER TABLE products DROP COLUMN IF EXISTS min_qty_grosir;
 -- BAGIAN 7: KONSOLIDASI BANK — pindah dari users ke user_profiles
 -- ============================================================
 
--- 7a. Backfill bank data dari users ke user_profiles
-INSERT INTO user_profiles (user_id, bank_name, bank_account, bank_holder)
-SELECT u.id, u.bank_name, u.bank_account, u.bank_holder
-FROM users u
-WHERE (u.bank_name IS NOT NULL OR u.bank_account IS NOT NULL OR u.bank_holder IS NOT NULL)
-  AND NOT EXISTS (SELECT 1 FROM user_profiles up WHERE up.user_id = u.id);
+DO $$ BEGIN
+  -- 7a & 7b: Hanya jalan jika kolom bank masih ada di users
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users'
+    AND column_name = 'bank_name'
+  ) THEN
+    -- 7a. Backfill bank data dari users ke user_profiles
+    INSERT INTO user_profiles (user_id, bank_name, bank_account, bank_holder)
+    SELECT u.id, u.bank_name, u.bank_account, u.bank_holder
+    FROM users u
+    WHERE (u.bank_name IS NOT NULL OR u.bank_account IS NOT NULL OR u.bank_holder IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM user_profiles up WHERE up.user_id = u.id);
 
--- 7b. Update user_profiles jika users punya data lebih baru
-UPDATE user_profiles up
-SET
-  bank_name    = COALESCE(up.bank_name, u.bank_name),
-  bank_account = COALESCE(up.bank_account, u.bank_account),
-  bank_holder  = COALESCE(up.bank_holder, u.bank_holder)
-FROM users u
-WHERE up.user_id = u.id
-  AND (u.bank_name IS NOT NULL OR u.bank_account IS NOT NULL OR u.bank_holder IS NOT NULL);
+    -- 7b. Update user_profiles jika users punya data lebih baru
+    UPDATE user_profiles up
+    SET
+      bank_name    = COALESCE(up.bank_name, u.bank_name),
+      bank_account = COALESCE(up.bank_account, u.bank_account),
+      bank_holder  = COALESCE(up.bank_holder, u.bank_holder)
+    FROM users u
+    WHERE up.user_id = u.id
+      AND (u.bank_name IS NOT NULL OR u.bank_account IS NOT NULL OR u.bank_holder IS NOT NULL);
 
--- 7c. Drop kolom bank dari users (sekarang cuma di user_profiles)
-ALTER TABLE users DROP COLUMN IF EXISTS bank_name;
-ALTER TABLE users DROP COLUMN IF EXISTS bank_account;
-ALTER TABLE users DROP COLUMN IF EXISTS bank_holder;
+    -- 7c. Drop kolom bank dari users (sekarang cuma di user_profiles)
+    ALTER TABLE users DROP COLUMN IF EXISTS bank_name;
+    ALTER TABLE users DROP COLUMN IF EXISTS bank_account;
+    ALTER TABLE users DROP COLUMN IF EXISTS bank_holder;
+  END IF;
+END $$;
 
 -- 7d. Buat RPC upsert_user_profile agar code path primary bekerja
 CREATE OR REPLACE FUNCTION upsert_user_profile(
