@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
@@ -21,23 +22,18 @@ interface HutangList {
 
 export function StockHutang() {
   const { token } = useStockStore();
-  const [data, setData] = useState<HutangList | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<HutangItem | null>(null);
   const [form, setForm] = useState({ nama_supplier: '', nominal_hutang: '', deskripsi: '', jatuh_tempo: '' });
 
-  async function load() {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const d = await stockApi.get<HutangList>('/api/stock/hutang', token);
-      setData(d);
-    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockHutang] Load gagal'); }
-    finally { setLoading(false); }
-  }
+  const query = useQuery({
+    queryKey: ['hutang', token],
+    queryFn: () => stockApi.get<HutangList>('/api/stock/hutang', token!),
+    enabled: !!token,
+  });
 
-  useEffect(() => { load(); }, [token]);
+  const data = query.data ?? null;
+  const loading = query.isPending;
 
   function openCreate() {
     setEditing(null);
@@ -77,7 +73,7 @@ export function StockHutang() {
         toast('Hutang dicatat');
       }
       setShowModal(false);
-      load();
+      query.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal');
     }
@@ -98,7 +94,7 @@ export function StockHutang() {
         status_lunas: lunas,
       });
       toast(lunas ? 'Hutang lunas!' : 'Pembayaran dicatat');
-      load();
+      query.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal');
     }
@@ -109,7 +105,7 @@ export function StockHutang() {
     try {
       await stockApi.del(`/api/stock/hutang/${id}`, token);
       toast('Hutang dihapus');
-      load();
+      query.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal hapus');
     }

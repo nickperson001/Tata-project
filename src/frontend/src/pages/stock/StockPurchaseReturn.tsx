@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
+import { useProducts } from '../../hooks/useProducts';
 import { stockApi } from '../../services/api';
 import { Skeleton, TableSkeleton } from '../../components/LoadingSkeleton';
 import { Modal } from '../../components/Modal';
 import { toast } from '../../components/Toast';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtDate } from '../../lib/utils';
-import type { Product, ReturnTransaction } from '../../types';
+import type { ReturnTransaction } from '../../types';
 import { Undo2, Plus } from 'lucide-react';
 
 export function StockPurchaseReturn() {
   const { token } = useStockStore();
-  const [list, setList] = useState<ReturnTransaction[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: products = [] } = useProducts();
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -22,21 +22,14 @@ export function StockPurchaseReturn() {
     priceBuy: '',
   });
 
-  async function load() {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const [ret, prod] = await Promise.all([
-        stockApi.get<ReturnTransaction[]>('/api/stock/returns?type=purchase_return', token),
-        stockApi.get<{ products: Product[] }>('/api/stock/products?limit=500', token),
-      ]);
-      setList(ret || []);
-      setProducts(prod.products || prod || []);
-    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockPurchaseReturn] Load gagal'); }
-    finally { setLoading(false); }
-  }
+  const listQuery = useQuery({
+    queryKey: ['returns-purchase', token],
+    queryFn: () => stockApi.get<ReturnTransaction[]>('/api/stock/returns?type=purchase_return', token!),
+    enabled: !!token,
+  });
 
-  useEffect(() => { load(); }, [token]);
+  const list = listQuery.data ?? [];
+  const loading = listQuery.isPending;
 
   function openCreate() {
     setForm({ productId: '', originalTransactionId: '', quantity: '', returnReason: '', statusBayar: 'tunai', priceBuy: '' });
@@ -57,7 +50,7 @@ export function StockPurchaseReturn() {
       });
       toast('Retur pembelian dicatat');
       setShowModal(false);
-      load();
+      listQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal');
     } finally { setSaving(false); }

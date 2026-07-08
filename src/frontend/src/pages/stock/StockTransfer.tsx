@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
+import { useProducts } from '../../hooks/useProducts';
 import { stockApi } from '../../services/api';
 import { Skeleton, TableSkeleton } from '../../components/LoadingSkeleton';
 import { Modal } from '../../components/Modal';
 import { toast } from '../../components/Toast';
 import { fmtRp, fmtDate } from '../../lib/utils';
-import type { Product, Warehouse } from '../../types';
+import type { Warehouse } from '../../types';
 import { ArrowLeftRight, Plus } from 'lucide-react';
 
 interface TransferItem {
@@ -21,33 +23,27 @@ interface TransferItem {
 
 export function StockTransfer() {
   const { token } = useStockStore();
-  const [list, setList] = useState<TransferItem[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: products = [], isPending: prodLoading } = useProducts();
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     productId: '', fromWarehouse: '', toWarehouse: '', quantity: '', notes: '',
   });
 
-  async function load() {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const [t, p, w] = await Promise.all([
-        stockApi.get<TransferItem[]>('/api/stock/transfers', token),
-        stockApi.get<{ products: Product[] }>('/api/stock/products?limit=500', token),
-        stockApi.get<Warehouse[]>('/api/stock/warehouses', token),
-      ]);
-      setList(t || []);
-      setProducts(p.products || p || []);
-      setWarehouses(w || []);
-    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockTransfer] Load gagal'); }
-    finally { setLoading(false); }
-  }
+  const listQuery = useQuery({
+    queryKey: ['transfers', token],
+    queryFn: () => stockApi.get<TransferItem[]>('/api/stock/transfers', token!),
+    enabled: !!token,
+  });
+  const warehousesQuery = useQuery({
+    queryKey: ['warehouses', token],
+    queryFn: () => stockApi.get<Warehouse[]>('/api/stock/warehouses', token!),
+    enabled: !!token,
+  });
 
-  useEffect(() => { load(); }, [token]);
+  const list = listQuery.data ?? [];
+  const warehouses = warehousesQuery.data ?? [];
+  const loading = listQuery.isPending || prodLoading || warehousesQuery.isPending;
 
   function openCreate() {
     setForm({ productId: '', fromWarehouse: '', toWarehouse: '', quantity: '', notes: '' });
@@ -71,7 +67,7 @@ export function StockTransfer() {
       });
       toast('Transfer berhasil');
       setShowModal(false);
-      load();
+      listQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal');
     } finally { setSaving(false); }

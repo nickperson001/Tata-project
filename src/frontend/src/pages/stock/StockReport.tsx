@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
@@ -6,22 +7,20 @@ import { Badge } from '../../components/Badge';
 import { fmtRp, fmtQty } from '../../lib/utils';
 import { TrendingUp, Package } from 'lucide-react';
 import { toast } from '../../components/Toast';
-import type { ReportData, ApiResponse } from '../../types/api';
+import type { ReportData } from '../../types/api';
 
 export function StockReport() {
   const { token } = useStockStore();
-  const [data, setData] = useState<ReportData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
 
-  useEffect(() => {
-    if (!token) return;
-    setLoading(true);
-    stockApi.get<ReportData>(`/api/stock/report?days=${days}`, token)
-      .then(setData)
-      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockReport] Fetch gagal'))
-      .finally(() => setLoading(false));
-  }, [token, days]);
+  const query = useQuery({
+    queryKey: ['stock-report', token, days],
+    queryFn: () => stockApi.get<ReportData>(`/api/stock/report?days=${days}`, token!),
+    enabled: !!token,
+  });
+
+  const data = query.data ?? null;
+  const loading = query.isPending;
 
   return (
     <div className="data-enter" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

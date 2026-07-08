@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
@@ -17,16 +17,15 @@ interface PiutangList {
 
 export function StockPiutang() {
   const { token } = useStockStore();
-  const [data, setData] = useState<PiutangList | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!token) return;
-    stockApi.get<PiutangList>('/api/stock/piutang', token)
-      .then(setData)
-      .catch((err) => toast.error(err instanceof Error ? err.message : '[StockPiutang] Fetch gagal'))
-      .finally(() => setLoading(false));
-  }, [token]);
+  const query = useQuery({
+    queryKey: ['piutang', token],
+    queryFn: () => stockApi.get<PiutangList>('/api/stock/piutang', token!),
+    enabled: !!token,
+  });
+
+  const data = query.data ?? null;
+  const loading = query.isPending;
 
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
