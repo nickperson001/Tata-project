@@ -1,4 +1,4 @@
-import { HelpCircle, BookOpen, Package, CreditCard, BarChart3, Bell, Settings } from 'lucide-react';
+import { HelpCircle, BookOpen, Package, CreditCard, BarChart3, Settings } from 'lucide-react';
 
 const menuItems = [
   {

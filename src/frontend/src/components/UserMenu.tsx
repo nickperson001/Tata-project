@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStockStore } from '../store/stockStore';
 import { useTheme } from '../hooks/useTheme';
 import { Badge } from './Badge';
-import { Sun, Moon, Settings, LogOut, User } from 'lucide-react';
+import { Sun, Moon, Settings, LogOut, User, HelpCircle } from 'lucide-react';
 
 export function UserMenu() {
   const { user } = useStockStore();
