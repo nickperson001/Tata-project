@@ -69,6 +69,15 @@ export function UserMenu() {
               Pengaturan
             </button>
 
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ width: '100%', justifyContent: 'flex-start', gap: '0.5rem', padding: '0.6rem 0.75rem', borderRadius: 0, fontSize: '0.85rem' }}
+              onClick={() => { navigate('/stock/bantuan'); setOpen(false); }}
+            >
+              <HelpCircle size={16} />
+              Bantuan
+            </button>
+
             <div style={{ borderTop: '1px solid var(--border)' }}>
               <button
                 className="btn btn-ghost btn-sm"

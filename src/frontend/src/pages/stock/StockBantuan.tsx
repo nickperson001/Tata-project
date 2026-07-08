@@ -47,7 +47,7 @@ const menuItems = [
     group: 'Lainnya',
     icon: Settings,
     items: [
-      { to: '/stock/notifications', label: 'Notifikasi', desc: 'Daftar alert stok menipis/habis yang perlu ditindaklanjuti.' },
+      // { to: '/stock/notifications', label: 'Notifikasi', desc: 'Daftar alert stok menipis/habis yang perlu ditindaklanjuti.' },
       { to: '/stock/settings', label: 'Settings', desc: 'Atur channel penjualan aktif, lihat status akun & masa berlaku.' },
     ],
   },

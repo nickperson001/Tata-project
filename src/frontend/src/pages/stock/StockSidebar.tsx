@@ -66,14 +66,7 @@ export function getNavGroups(status?: string): NavGroup[] {
     // Demo: only show Inventori group
     return [allGroups[1]];
   }
-  return allGroups.concat([
-    {
-      label: 'Lainnya', icon: HelpCircle,
-      children: [
-        { to: '/stock/notifications', label: 'Notifikasi', icon: Bell },
-      ],
-    },
-  ]);
+  return allGroups;
 }
 
 // Default for backward compatibility
