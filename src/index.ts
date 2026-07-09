@@ -92,34 +92,9 @@ const shutdown = async (signal: string) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-async function ensureAssets(): Promise<void> {
-  const fs = await import('fs');
-  const gifDir = path.join(__dirname, '..', 'public', 'stock');
-  const gifPath = path.join(gifDir, 'motion.gif');
-  if (!fs.existsSync(gifDir)) fs.mkdirSync(gifDir, { recursive: true });
-  if (!fs.existsSync(gifPath)) {
-    addLog('info', '[ASSETS] motion.gif not found — downloading from GitHub');
-    try {
-      const res = await fetch('https://raw.githubusercontent.com/nickperson001/Tata-project/main/public/stock/motion.gif');
-      if (res.ok) {
-        const buf = Buffer.from(await res.arrayBuffer());
-        fs.writeFileSync(gifPath, buf);
-        addLog('info', `[ASSETS] motion.gif downloaded (${buf.length} bytes)`);
-      } else {
-        addLog('warn', `[ASSETS] GitHub raw returned ${res.status} — loading tanpa GIF`);
-      }
-    } catch (e: any) {
-      addLog('warn', `[ASSETS] Download gagal: ${e.message} — loading tanpa GIF`);
-    }
-  } else {
-    addLog('info', '[ASSETS] motion.gif already exists');
-  }
-}
-
 server.listen(PORT, async () => {
   addLog('info', `[SYSTEM] Server started on port ${PORT}`);
 
-  ensureAssets();
   resetBootStatus();
 
   // Verify /data writability + detect mount type for persistent storage

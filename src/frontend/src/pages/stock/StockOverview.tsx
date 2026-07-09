@@ -503,13 +503,34 @@ export function StockOverview() {
         </div>
       )}
 
-      {/* Empty State */}
+      {/* Error State */}
       {!loading && !saldo && !overview && (
-        <div className="card card-p ov-empty data-enter">
-          <div className="ov-empty-icon">📊</div>
-          <div className="ov-empty-title">Selamat Datang di Dashboard</div>
-          <p className="ov-empty-desc">Mulai dengan menambahkan produk dan mencatat transaksi pertama Anda.</p>
-        </div>
+        saldoQuery.isError || overviewQuery.isError ? (
+          <div className="card card-p ov-empty data-enter" style={{ borderColor: 'var(--danger)', borderWidth: 2 }}>
+            <div className="ov-empty-icon" style={{ fontSize: '2.5rem' }}>⚠️</div>
+            <div className="ov-empty-title">Gagal Memuat Data</div>
+            <p className="ov-empty-desc" style={{ maxWidth: 400, margin: '0 auto' }}>
+              Server penyimpanan data (Supabase) sedang tidak dapat dijangkau. 
+              Silakan coba lagi beberapa saat.
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ marginTop: '1rem' }}
+              onClick={() => {
+                saldoQuery.refetch();
+                overviewQuery.refetch();
+              }}
+            >
+              Coba Lagi
+            </button>
+          </div>
+        ) : (
+          <div className="card card-p ov-empty data-enter">
+            <div className="ov-empty-icon">📊</div>
+            <div className="ov-empty-title">Selamat Datang di Dashboard</div>
+            <p className="ov-empty-desc">Mulai dengan menambahkan produk dan mencatat transaksi pertama Anda.</p>
+          </div>
+        )
       )}
 
       {showAiPopup && overview && (

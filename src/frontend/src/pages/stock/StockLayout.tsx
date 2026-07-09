@@ -76,8 +76,9 @@ export function StockLayout() {
 
   if (isLoading) {
     return (
-      <div className="loading-screen">
-        <img src="/stock/motion.gif" alt="Loading..." style={{ width: 200, height: 'auto', maxWidth: '90vw' }} />
+      <div className="loading-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+        <div className="spinner" style={{ width: 48, height: 48, border: '4px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Memuat dashboard...</span>
       </div>
     );
   }
