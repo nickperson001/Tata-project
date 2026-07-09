@@ -38,5 +38,8 @@ export function apiError(
     httpStatus = status;
   }
 
+  if (httpStatus !== 503 && error?.includes('[SUPABASE ERROR]')) {
+    httpStatus = 503;
+  }
   res.status(httpStatus).json({ success: false, error, code: errCode, ...(fields && { fields }) });
 }

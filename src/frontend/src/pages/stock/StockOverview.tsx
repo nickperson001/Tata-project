@@ -186,7 +186,7 @@ export function StockOverview() {
     overviewUrl = `/api/stock/overview?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&channel=${filterChannel}`;
   }
 
-  const sharedOpts = { enabled: !!token, staleTime: 30_000, refetchInterval: 30_000, refetchIntervalInBackground: false };
+  const sharedOpts = { enabled: !!token, staleTime: 30_000, refetchInterval: (q: any) => q.state.status === 'success' ? 30_000 : false, refetchIntervalInBackground: false };
 
   const saldoQuery = useQuery({ queryKey: ['saldo', token], queryFn: () => stockApi.get<SaldoData>('/api/stock/saldo', token!), ...sharedOpts });
   const overviewQuery = useQuery({ queryKey: ['overview', token, overviewUrl], queryFn: () => stockApi.get<OverviewData>(overviewUrl, token!), ...sharedOpts });
