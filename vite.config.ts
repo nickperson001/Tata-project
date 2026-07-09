@@ -6,6 +6,7 @@ const frontendDir = path.resolve(__dirname, 'src/frontend');
 
 export default defineConfig({
   root: frontendDir,
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -16,6 +17,7 @@ export default defineConfig({
     outDir: path.resolve(__dirname, 'public/dist'),
     emptyOutDir: true,
     rollupOptions: {
+      input: path.resolve(frontendDir, 'index.html'),
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom', 'zustand'],

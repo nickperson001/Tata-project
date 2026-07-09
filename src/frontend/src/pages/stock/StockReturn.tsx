@@ -1,19 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
-import { useProducts } from '../../hooks/useProducts';
 import { stockApi } from '../../services/api';
 import { Skeleton, TableSkeleton } from '../../components/LoadingSkeleton';
 import { Modal } from '../../components/Modal';
 import { toast } from '../../components/Toast';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtDate } from '../../lib/utils';
-import type { ReturnTransaction } from '../../types';
+import type { Product, ReturnTransaction } from '../../types';
 import { Undo2, Plus } from 'lucide-react';
 
 export function StockReturn() {
   const { token } = useStockStore();
-  const { data: products = [] } = useProducts();
+  const productsQuery = useQuery({
+    queryKey: ['products', token],
+    queryFn: () => stockApi.get<{ products: Product[] }>('/api/stock/products?limit=500', token!),
+    enabled: !!token,
+    staleTime: 60_000,
+    gcTime: 120_000,
+    select: (data) => data.products,
+  });
+  const products = productsQuery.data ?? [];
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({

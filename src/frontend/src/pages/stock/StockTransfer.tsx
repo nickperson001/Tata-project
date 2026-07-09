@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
-import { useProducts } from '../../hooks/useProducts';
 import { stockApi } from '../../services/api';
 import { Skeleton, TableSkeleton } from '../../components/LoadingSkeleton';
 import { Modal } from '../../components/Modal';
 import { toast } from '../../components/Toast';
 import { fmtRp, fmtDate } from '../../lib/utils';
-import type { Warehouse } from '../../types';
+import type { Product, Warehouse } from '../../types';
 import { ArrowLeftRight, Plus } from 'lucide-react';
 
 interface TransferItem {
@@ -23,7 +22,16 @@ interface TransferItem {
 
 export function StockTransfer() {
   const { token } = useStockStore();
-  const { data: products = [], isPending: prodLoading } = useProducts();
+  const productsQuery = useQuery({
+    queryKey: ['products', token],
+    queryFn: () => stockApi.get<{ products: Product[] }>('/api/stock/products?limit=500', token!),
+    enabled: !!token,
+    staleTime: 60_000,
+    gcTime: 120_000,
+    select: (data) => data.products,
+  });
+  const products = productsQuery.data ?? [];
+  const prodLoading = productsQuery.isPending;
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({

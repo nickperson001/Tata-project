@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
@@ -172,53 +173,46 @@ function AiWelcomePopup({ overview, storeName, preset, onClose }: { overview: Ov
 export function StockOverview() {
   const { token, user } = useStockStore();
   const navigate = useNavigate();
-  const [saldo, setSaldo] = useState<SaldoData | null>(null);
-  const [overview, setOverview] = useState<OverviewData | null>(null);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [chartData, setChartData] = useState<{
-    labels: string[];
-    revenue: number[];
-    expense: number[];
-    expenseLabels: string[];
-    expenseValues: number[];
-    topProducts: { name: string; revenue: number; qty: number }[];
-  } | null>(null);
   const [chartDays, setChartDays] = useState(30);
-  const [loading, setLoading] = useState(true);
   const [filterChannel, setFilterChannel] = useState('');
   const [activeChannels, setActiveChannels] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>({ startDate: null, endDate: null, preset: 'today' });
-  const [channelProfit, setChannelProfit] = useState<ChannelProfit[]>([]);
   const [showAiPopup, setShowAiPopup] = useState(() => !sessionStorage.getItem('tbs_ai_popup_shown'));
 
-  const loadData = useCallback(async () => {
-    if (!token) return;
-    try {
-      let periodParam = 'month';
-      if (dateRange.preset === 'today') periodParam = 'day';
-      else if (dateRange.preset === '7d') periodParam = 'week';
-      let overviewUrl = `/api/stock/overview?period=${periodParam}&channel=${filterChannel}`;
-      if (dateRange.preset === 'custom' && dateRange.startDate && dateRange.endDate) {
-        overviewUrl = `/api/stock/overview?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&channel=${filterChannel}`;
-      }
-      const days = dateRange.preset === 'today' ? 1 : dateRange.preset === '7d' ? 7 : 30;
-      const [s, o, h, cd, settings, cp] = await Promise.all([
-        stockApi.get<SaldoData>('/api/stock/saldo', token),
-        stockApi.get<OverviewData>(overviewUrl, token),
-        stockApi.get<{ list: { nama_supplier: string; jatuh_tempo: string | null; nominal_hutang: number; jumlah_dibayar: number }[] }>('/api/stock/hutang?status=unpaid', token),
-        stockApi.get<any>(`/api/stock/dashboard/charts?days=${chartDays}`, token),
-        stockApi.get<{ settings: any }>('/api/stock/settings', token),
-        stockApi.get<ChannelProfit[]>('/api/stock/channel-profitability', token),
-      ]);
-      setSaldo(s);
-      setOverview(o);
-      setChartData(cd);
-      if (settings.settings?.active_channels) setActiveChannels(settings.settings.active_channels);
-      setChannelProfit(cp);
+  const periodParam = dateRange.preset === 'today' ? 'day' : dateRange.preset === '7d' ? 'week' : 'month';
+  let overviewUrl = `/api/stock/overview?period=${periodParam}&channel=${filterChannel}`;
+  if (dateRange.preset === 'custom' && dateRange.startDate && dateRange.endDate) {
+    overviewUrl = `/api/stock/overview?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&channel=${filterChannel}`;
+  }
 
-      const a: AlertItem[] = [];
-      if (o.stok_habis > 0) a.push({ id: 'out', nama: 'Stok Habis', type: 'stok_habis', detail: `${o.stok_habis} produk habis`, link: '/stock/products' });
-      if (o.stok_menipis > 0) a.push({ id: 'low', nama: 'Stok Menipis', type: 'stok_menipis', detail: `${o.stok_menipis} produk menipis`, link: '/stock/products' });
+  const sharedOpts = { enabled: !!token, staleTime: 30_000, refetchInterval: 30_000, refetchIntervalInBackground: false };
+
+  const saldoQuery = useQuery({ queryKey: ['saldo', token], queryFn: () => stockApi.get<SaldoData>('/api/stock/saldo', token!), ...sharedOpts });
+  const overviewQuery = useQuery({ queryKey: ['overview', token, overviewUrl], queryFn: () => stockApi.get<OverviewData>(overviewUrl, token!), ...sharedOpts });
+  const hutangQuery = useQuery({ queryKey: ['hutang-unpaid', token], queryFn: () => stockApi.get<{ list: { nama_supplier: string; jatuh_tempo: string | null; nominal_hutang: number; jumlah_dibayar: number }[] }>('/api/stock/hutang?status=unpaid', token!), ...sharedOpts });
+  const chartQuery = useQuery({ queryKey: ['dashboard-charts', token, chartDays], queryFn: () => stockApi.get<any>(`/api/stock/dashboard/charts?days=${chartDays}`, token!), ...sharedOpts });
+  const channelProfitQuery = useQuery({ queryKey: ['channel-profitability', token], queryFn: () => stockApi.get<ChannelProfit[]>('/api/stock/channel-profitability', token!), ...sharedOpts });
+  const settingsQuery = useQuery({ queryKey: ['settings', token], queryFn: () => stockApi.get<{ settings: any }>('/api/stock/settings', token!), enabled: !!token, staleTime: 60_000 });
+
+  useEffect(() => {
+    if (settingsQuery.data?.settings?.active_channels) setActiveChannels(settingsQuery.data.settings.active_channels);
+  }, [settingsQuery.data]);
+
+  const loading = saldoQuery.isPending || overviewQuery.isPending || hutangQuery.isPending || chartQuery.isPending || channelProfitQuery.isPending;
+  const saldo = saldoQuery.data ?? null;
+  const overview = overviewQuery.data ?? null;
+  const chartData = chartQuery.data ?? null;
+  const channelProfit = channelProfitQuery.data ?? [];
+
+  useEffect(() => {
+    const o = overviewQuery.data;
+    const h = hutangQuery.data;
+    if (!o) return;
+    const a: AlertItem[] = [];
+    if (o.stok_habis > 0) a.push({ id: 'out', nama: 'Stok Habis', type: 'stok_habis', detail: `${o.stok_habis} produk habis`, link: '/stock/products' });
+    if (o.stok_menipis > 0) a.push({ id: 'low', nama: 'Stok Menipis', type: 'stok_menipis', detail: `${o.stok_menipis} produk menipis`, link: '/stock/products' });
+    if (h) {
       const overdueHutang = h.list.filter(item => item.jatuh_tempo && new Date(item.jatuh_tempo) < new Date());
       overdueHutang.forEach(item => {
         a.push({
@@ -229,16 +223,9 @@ export function StockOverview() {
           link: '/stock/hutang',
         });
       });
-      setAlerts(a);
-    } catch (e) { toast.error(e instanceof Error ? e.message : '[StockOverview] Load data gagal'); }
-  }, [token, chartDays, filterChannel, dateRange]);
-
-  useEffect(() => {
-    setLoading(true);
-    loadData().finally(() => setLoading(false));
-    const interval = setInterval(loadData, 30_000);
-    return () => clearInterval(interval);
-  }, [loadData]);
+    }
+    setAlerts(a);
+  }, [overviewQuery.data, hutangQuery.data]);
 
   const hppRatio = overview && overview.total_omzet > 0 ? (overview.total_hpp / overview.total_omzet * 100) : 0;
   const expenseRatio = overview && overview.total_omzet > 0 ? (overview.total_pengeluaran / overview.total_omzet * 100) : 0;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { toast } from '../../components/Toast';
@@ -14,24 +15,33 @@ const TYPE_BUTTONS = [
 
 export function StockMovement() {
   const { token } = useStockStore();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const productsQuery = useQuery({
+    queryKey: ['products', token],
+    queryFn: () => stockApi.get<{ products: Product[] }>('/api/stock/products?limit=500', token!),
+    enabled: !!token,
+    staleTime: 60_000,
+    gcTime: 120_000,
+    select: (data) => data.products,
+  });
+  const products = productsQuery.data ?? [];
+  const productsLoading = productsQuery.isPending;
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ product_id: '', type: 'in' as 'in' | 'out' | 'adjustment', quantity: '', note: '', channel: '' });
   const [activeChannels, setActiveChannels] = useState<string[]>(['offline', 'whatsapp', 'shopee', 'tokopedia']);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  const settingsQuery = useQuery({
+    queryKey: ['settings', token],
+    queryFn: () => stockApi.get<{ settings: any }>('/api/stock/settings', token!),
+    enabled: !!token,
+    staleTime: 60_000,
+  });
+
   useEffect(() => {
-    if (!token) return;
-    Promise.all([
-      stockApi.get<{ products: Product[] }>('/api/stock/products?limit=500', token),
-      stockApi.get<{ settings: any }>('/api/stock/settings', token),
-    ]).then(([pData, sData]) => {
-      setProducts(pData.products || pData || []);
-      if (sData.settings?.active_channels) setActiveChannels(sData.settings.active_channels);
-    }).catch(() => toast.error('Gagal muat data'))
-      .finally(() => setLoading(false));
-  }, [token]);
+    if (settingsQuery.data?.settings?.active_channels) setActiveChannels(settingsQuery.data.settings.active_channels);
+  }, [settingsQuery.data]);
+
+  const loading = productsLoading || settingsQuery.isPending;
 
   function handleProductChange(id: string) {
     const prod = products.find(p => p.id === id) || null;

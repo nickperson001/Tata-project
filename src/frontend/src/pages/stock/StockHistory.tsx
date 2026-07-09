@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
@@ -12,36 +13,36 @@ import { Search, Trash2 } from 'lucide-react';
 
 export function StockHistory() {
   const { token } = useStockStore();
-  const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, totalPages: 1, total: 0, limit: 30 });
   const [filterType, setFilterType] = useState('');
   const [filterProduct, setFilterProduct] = useState('');
+  const [debouncedProduct, setDebouncedProduct] = useState('');
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ page: page.toString(), limit: '30' });
-      if (filterType) params.set('type', filterType);
-      if (filterProduct) params.set('product_id', filterProduct);
-      const data = await stockApi.get<{ movements: StockMovement[]; total: number; page: number; limit: number }>(
-        `/api/stock/movements?${params}`, token,
-      );
-      setMovements(data.movements || []);
-      setMeta({
-        page: data.page,
-        totalPages: Math.ceil((data.total || 0) / Math.max(data.limit, 1)) || 1,
-        total: data.total || 0,
-        limit: data.limit,
-      });
-    } catch {
-      toast.error('Gagal memuat riwayat');
-    } finally {
-      setLoading(false);
-    }
-  }, [token, page, filterType, filterProduct]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedProduct(filterProduct), 300);
+    return () => clearTimeout(t);
+  }, [filterProduct]);
+
+  const params = new URLSearchParams({ page: page.toString(), limit: '30' });
+  if (filterType) params.set('type', filterType);
+  if (debouncedProduct) params.set('product_id', debouncedProduct);
+
+  const query = useQuery({
+    queryKey: ['movements', token, page, filterType, debouncedProduct],
+    queryFn: () => stockApi.get<{ movements: StockMovement[]; total: number; page: number; limit: number }>(
+      `/api/stock/movements?${params}`, token!,
+    ),
+    enabled: !!token,
+  });
+
+  const movements = query.data?.movements ?? [];
+  const meta: PaginationMeta = {
+    page: query.data?.page ?? 1,
+    totalPages: Math.ceil((query.data?.total || 0) / Math.max(query.data?.limit || 30, 1)) || 1,
+    total: query.data?.total || 0,
+    limit: query.data?.limit || 30,
+  };
+  const loading = query.isPending;
 
   const [showConfirmHapus, setShowConfirmHapus] = useState<string | null>(null);
 
@@ -50,13 +51,11 @@ export function StockHistory() {
     try {
       await stockApi.del(`/api/stock/movement/${id}`, token);
       toast('Pergerakan stok dihapus');
-      load();
+      query.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal hapus');
     }
   }
-
-  useEffect(() => { load(); }, [load]);
 
   function typeLabel(t: string) {
     const labels: Record<string, string> = { in: 'Masuk', out: 'Keluar', adjustment: 'Penyesuaian' };
