@@ -9,6 +9,7 @@ FROM node:20-slim
 # ── 1. Chromium + System Dependencies ─────────────────────────
 RUN apt-get update && apt-get install -y \
     chromium \
+    postgresql-client \
     ca-certificates \
     fonts-liberation \
     fonts-noto-color-emoji \

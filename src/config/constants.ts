@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 
 // Server
@@ -77,4 +78,4 @@ export const SESSION_DIR_BLACKLIST: string[] = [
   '.com.google.Chrome',
 ];
 
-export const SESSION_BASE_DIR: string = process.env.WA_SESSION_DIR || path.join(__dirname, '../../.wwebjs_auth');
+export const SESSION_BASE_DIR: string = process.env.WA_SESSION_DIR || (fs.existsSync('/data') ? '/data/.wwebjs_auth' : path.join(__dirname, '../../.wwebjs_auth'));

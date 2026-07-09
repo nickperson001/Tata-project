@@ -8,7 +8,7 @@ import path from 'path';
 import app from './app';
 import supabase, { pgPool } from './config/supabase';
 import { state, addLog, setIO, setSupabase } from './config/state';
-import { PORT } from './config/constants';
+import { PORT, SESSION_BASE_DIR } from './config/constants';
 import { initWhatsApp, safeDestroyClient, setIOref, healthCheck } from './services/whatsapp';
 import { sendEmergencyBroadcast } from './services/emergency';
 import { resetBootStatus, restoreSessionDirFromDB } from './services/session-persistence';
@@ -58,9 +58,8 @@ io.on('connection', (socket) => {
     addLog('info', '[SOCKET] Full session reset requested');
     await safeDestroyClient();
     const fs = await import('fs');
-    const sessionDir = path.join(__dirname, '..', '.wwebjs_auth');
-    if (fs.existsSync(sessionDir)) {
-      try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch { /* empty */ }
+    if (fs.existsSync(SESSION_BASE_DIR)) {
+      try { fs.rmSync(SESSION_BASE_DIR, { recursive: true, force: true }); } catch { /* empty */ }
     }
     await supabase.from('wa_session_backup').delete().eq('user_id', 'default');
     state.waRetryCount = 0;
@@ -122,6 +121,53 @@ server.listen(PORT, async () => {
 
   ensureAssets();
   resetBootStatus();
+
+  // Verify /data writability + detect mount type for persistent storage
+  try {
+    const fs = await import('fs');
+    const testFile = '/data/.write-test';
+    fs.writeFileSync(testFile, 'ok');
+    fs.unlinkSync(testFile);
+    addLog('info', '[STORAGE] /data writable — data akan persist antar restart.');
+
+    // Best-effort mount type detection
+    let mountType: string | null = null;
+    try {
+      const procMounts = fs.readFileSync('/proc/mounts', 'utf8');
+      const dataLines = procMounts.split('\n').filter((l: string) => l.includes(' /data ') || l.endsWith(' /data'));
+      if (dataLines.length > 0) {
+        const fields = dataLines[0].split(/\s+/);
+        mountType = fields[2] || null;
+        addLog('info', `[STORAGE] /data mount info: ${dataLines[0].trim()}`);
+      }
+    } catch {
+      try {
+        const { execSync } = require('child_process');
+        const mountOut = execSync('mount | grep " /data "', { timeout: 5000, encoding: 'utf8' });
+        if (mountOut.trim()) {
+          addLog('info', `[STORAGE] /data mount info: ${mountOut.trim()}`);
+          if (mountOut.includes(' type ')) {
+            const m = mountOut.match(/ type (\S+)/);
+            if (m) mountType = m[1];
+          }
+        }
+      } catch { /* no permission for mount read */ }
+    }
+
+    if (mountType) {
+      const lower = mountType.toLowerCase();
+      if (lower.includes('nfs') || lower.includes('fuse')) {
+        addLog('warn', '[STORAGE] /data terindikasi mount NFS/FUSE (kemungkinan Storage Bucket) — ada risiko file-locking/corruption untuk sesi Chromium whatsapp-web.js pada penggunaan intensif jangka panjang. Pertimbangkan Persistent Storage disk klasik untuk /data, dan gunakan bucket khusus untuk backup, bukan sesi live.');
+      } else {
+        addLog('info', `[STORAGE] /data filesystem type: ${mountType}${lower.includes('ext') || lower.includes('btrfs') || lower.includes('xfs') ? ' — disk klasik, aman untuk sesi WhatsApp.' : ''}`);
+      }
+    } else {
+      addLog('warn', '[STORAGE] Tidak dapat dipastikan jenis storage /data — perlu verifikasi manual di Space Settings.');
+    }
+  } catch {
+    addLog('warn', '[STORAGE] /data tidak writable — Persistent Storage kemungkinan BELUM aktif di Space Settings. Sesi WhatsApp akan hilang saat restart!');
+  }
+
   restoreSessionDirFromDB('default').finally(() => {
     initWhatsApp();
   });

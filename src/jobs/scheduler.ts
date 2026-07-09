@@ -6,6 +6,8 @@ import supabase from '../config/supabase';
 import { state } from '../config/state';
 import * as stockManager from '../utils/stockManager';
 import { formatRupiah } from '../utils/helpers';
+import { SESSION_BASE_DIR } from '../config/constants';
+import { runBackup } from './backup';
 
 let _addLog: ((level: string, msg: string) => void) | null = null;
 const logInfo = (...args: any[]) => { if (_addLog) _addLog('info', args.join(' ')); else console.log(...args); };
@@ -14,8 +16,7 @@ const logError = (...args: any[]) => { if (_addLog) _addLog('error', args.join('
 
 async function autoCleanCache(): Promise<void> {
   logInfo('[CACHE] Starting Chromium cache cleanup...');
-  const hasPersistentStorage = fs.existsSync('/data');
-  const sessionBaseDir = process.env.WA_SESSION_DIR || (hasPersistentStorage ? '/data' : path.join(__dirname, '../../.wwebjs_auth'));
+  const sessionBaseDir = process.env.WA_SESSION_DIR || SESSION_BASE_DIR;
   const trashFolders = ['Cache', 'Code Cache', 'GPUCache', 'CacheStorage'];
   const protectedPatterns = ['IndexedDB', 'Local Storage', 'Session Storage', 'Cookies', 'Preferences', 'Secure Preferences', 'Local State', '.ldb'];
 
@@ -652,6 +653,18 @@ function initSchedulers(addLogFn?: (level: string, msg: string) => void): void {
     }, 10);
   }, tz);
 
+  cron.schedule('0 2 * * *', () => {
+    executeWithLock('db-backup', async () => {
+      logInfo('[BACKUP] Memulai backup database...');
+      const result = await runBackup();
+      if (result.success) {
+        logInfo(`[BACKUP] ✅ Backup berhasil (${((result.size || 0) / 1024 / 1024).toFixed(1)} MB)`);
+      } else {
+        logError(`[BACKUP] ❌ Backup gagal: ${result.error}`);
+      }
+    }, 30);
+  }, tz);
+
   const selfPing = async () => {
     const appUrl = process.env.APP_URL || '';
     if (!appUrl) return;
@@ -677,6 +690,7 @@ function initSchedulers(addLogFn?: (level: string, msg: string) => void): void {
   logInfo('  - Hutang overdue (09:00, 21:00)');
   logInfo('  - Self-ping (tiap 20 menit) — HF always-on ✅');
   logInfo('  - Smart Learning cleanup (stale 90-day behaviors)');
+  logInfo('  - DB Backup (02:00) — upload ke HF Storage Bucket');
 }
 
 export { initSchedulers, sendReport, sendUpgradeNotification, broadcastMessage, autoCleanCache };
