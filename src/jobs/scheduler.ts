@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import supabase from '../config/supabase';
+import { state } from '../config/state';
 import * as stockManager from '../utils/stockManager';
 import { formatRupiah } from '../utils/helpers';
 
@@ -112,6 +113,7 @@ async function executeWithLock(jobName: string, fn: () => Promise<void>, duratio
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 async function sendReport(client: any, userId: string, storeName: string, periodStr: string, timeFilterIso: string): Promise<boolean> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip sendReport'); return false; } }
   try {
     const { data: trans, error } = await supabase
       .from('transactions').select('type, amount').eq('user_id', userId).gte('created_at', timeFilterIso) as any;
@@ -130,6 +132,7 @@ async function sendReport(client: any, userId: string, storeName: string, period
 }
 
 async function sendUpgradeNotification(client: any, userId: string, storeName: string, status: string, expiresAt?: string): Promise<boolean> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip sendUpgradeNotification'); return false; } }
   try {
     let msg = '';
     if (status === 'unlimited') {
@@ -145,6 +148,7 @@ async function sendUpgradeNotification(client: any, userId: string, storeName: s
 }
 
 async function checkAndNotifyUpgrades(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip checkAndNotifyUpgrades'); return; } }
   try {
     const { data: users, error } = await supabase
       .from('users').select('id, store_name, status, subscription_expires_at')
@@ -160,6 +164,7 @@ async function checkAndNotifyUpgrades(client: any): Promise<void> {
 }
 
 async function checkExpiredSubscriptions(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip checkExpiredSubscriptions'); return; } }
   try {
     const now = new Date().toISOString();
     const { data: expired, error } = await supabase
@@ -178,6 +183,7 @@ async function checkExpiredSubscriptions(client: any): Promise<void> {
 const broadcastHistory = new Map<string, number>();
 
 async function broadcastMessage(client: any, message: string, target = 'all'): Promise<{ sent: number; failed: number; total: number; skipped?: boolean }> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip broadcastMessage'); return { sent: 0, failed: 0, total: 0 }; } }
   try {
     const hash = `${message.substring(0, 50)}-${target}`;
     const lastSent = broadcastHistory.get(hash);
@@ -210,6 +216,7 @@ async function broadcastMessage(client: any, message: string, target = 'all'): P
 }
 
 async function processBroadcastPending(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip processBroadcastPending'); return; } }
   try {
     const { data, error } = await supabase
       .from('settings').select('value').eq('key', 'broadcast_pending').single() as any;
@@ -230,6 +237,7 @@ async function processBroadcastPending(client: any): Promise<void> {
 }
 
 async function sendMorningGreeting(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip sendMorningGreeting'); return; } }
   logInfo('[CRON] Sapaan Pagi...');
   try {
     const { data: users, error } = await supabase
@@ -257,6 +265,7 @@ async function sendMorningGreeting(client: any): Promise<void> {
 }
 
 async function sendEveningReminder(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip sendEveningReminder'); return; } }
   logInfo('[CRON] Pengingat Sore...');
   try {
     const { data: users, error } = await supabase
@@ -282,6 +291,7 @@ async function sendEveningReminder(client: any): Promise<void> {
 }
 
 async function checkStockAlerts(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip checkStockAlerts'); return; } }
   logInfo('[CRON] Stock Alert Checker...');
   try {
     const result = await stockManager.getPendingAlerts(null!);
@@ -327,6 +337,7 @@ async function checkStockAlerts(client: any): Promise<void> {
 const overdueNotified = new Set<string>();
 
 async function checkOverduePiutang(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip checkOverduePiutang'); return; } }
   logInfo('[CRON] Cek Piutang Overdue...');
   try {
     const today = new Date();
@@ -378,6 +389,7 @@ async function checkOverduePiutang(client: any): Promise<void> {
 const demoLimitNotified = new Set<string>();
 
 async function checkDemoLimitWarning(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip checkDemoLimitWarning'); return; } }
   logInfo('[CRON] Cek Demo Limit...');
   try {
     const today = new Date();
@@ -413,6 +425,7 @@ async function checkDemoLimitWarning(client: any): Promise<void> {
 const hutangOverdueNotified = new Set<string>();
 
 async function checkOverdueHutang(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip checkOverdueHutang'); return; } }
   logInfo('[CRON] Cek Hutang Overdue...');
   try {
     const today = new Date();
@@ -465,6 +478,7 @@ async function checkOverdueHutang(client: any): Promise<void> {
 const expiryNotified = new Set<string>();
 
 async function checkExpiryWarning(client: any): Promise<void> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip checkExpiryWarning'); return; } }
   logInfo('[CRON] Cek Peringatan Expiry...');
   try {
     const now = new Date();
@@ -516,6 +530,7 @@ async function cleanupOldData(): Promise<void> {
 }
 
 async function sendDailyRecap(client: any, userId: string, storeName: string, storeSlug?: string): Promise<boolean> {
+  if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip sendDailyRecap'); return false; } }
   try {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
@@ -556,9 +571,11 @@ async function sendDailyRecap(client: any, userId: string, storeName: string, st
   } catch (err: any) { logError(`[RECAP] ${userId}: ${err.message}`); return false; }
 }
 
-function initSchedulers(client: any, addLogFn?: (level: string, msg: string) => void): void {
+function initSchedulers(addLogFn?: (level: string, msg: string) => void): void {
   if (addLogFn) _addLog = addLogFn;
   const tz = { timezone: 'Asia/Jakarta' as const };
+
+  const getClient = () => state.waClient;
 
   cron.schedule('0 22 * * *', () => {
     executeWithLock('daily-report', async () => {
@@ -569,7 +586,7 @@ function initSchedulers(client: any, addLogFn?: (level: string, msg: string) => 
           .eq('onboarding_status', 'active_user').in('status', ['demo', 'pro', 'unlimited']) as any;
         if (!users) return;
         let ok = 0;
-        for (const u of users) { if (await sendReport(client, u.id, u.store_name, 'Harian', today.toISOString())) ok++; await sleep(300); }
+        for (const u of users) { if (await sendReport(getClient(), u.id, u.store_name, 'Harian', today.toISOString())) ok++; await sleep(300); }
         logInfo(`[CRON] Harian selesai: ${ok}/${users.length}`);
       } catch (e: any) { logError(`[CRON] Harian: ${e.message}`); }
     }, 60);
@@ -583,7 +600,7 @@ function initSchedulers(client: any, addLogFn?: (level: string, msg: string) => 
           .eq('onboarding_status', 'active_user').in('status', ['demo', 'pro', 'unlimited']) as any;
         if (!users) return;
         let ok = 0;
-        for (const u of users) { if (await sendDailyRecap(client, u.id, u.store_name, u.store_slug)) ok++; await sleep(300); }
+        for (const u of users) { if (await sendDailyRecap(getClient(), u.id, u.store_name, u.store_slug)) ok++; await sleep(300); }
         logInfo(`[CRON] Daily Recap selesai: ${ok}/${users.length}`);
       } catch (e: any) { logError(`[CRON] Daily Recap: ${e.message}`); }
     }, 30);
@@ -597,7 +614,7 @@ function initSchedulers(client: any, addLogFn?: (level: string, msg: string) => 
         const { data: users } = await supabase.from('users').select('id, store_name').in('status', ['pro', 'unlimited']) as any;
         if (!users) return;
         let ok = 0;
-        for (const u of users) { if (await sendReport(client, u.id, u.store_name, 'Mingguan', lw.toISOString())) ok++; await sleep(300); }
+        for (const u of users) { if (await sendReport(getClient(), u.id, u.store_name, 'Mingguan', lw.toISOString())) ok++; await sleep(300); }
         logInfo(`[CRON] Mingguan selesai: ${ok}/${users.length}`);
       } catch (e: any) { logError(`[CRON] Mingguan: ${e.message}`); }
     }, 60);
@@ -611,22 +628,22 @@ function initSchedulers(client: any, addLogFn?: (level: string, msg: string) => 
         const { data: users } = await supabase.from('users').select('id, store_name').in('status', ['pro', 'unlimited']) as any;
         if (!users) return;
         let ok = 0;
-        for (const u of users) { if (await sendReport(client, u.id, u.store_name, 'Bulanan', lm.toISOString())) ok++; await sleep(300); }
+        for (const u of users) { if (await sendReport(getClient(), u.id, u.store_name, 'Bulanan', lm.toISOString())) ok++; await sleep(300); }
         logInfo(`[CRON] Bulanan selesai: ${ok}/${users.length}`);
       } catch (e: any) { logError(`[CRON] Bulanan: ${e.message}`); }
     }, 60);
   }, tz);
 
-  cron.schedule('5 0 * * *', () => { executeWithLock('check-expired', async () => { await checkExpiredSubscriptions(client); }, 10); }, tz);
-  cron.schedule('* * * * *', () => { executeWithLock('upgrade-notify', async () => { await checkAndNotifyUpgrades(client); }, 2); });
-  cron.schedule('*/2 * * * *', () => { executeWithLock('broadcast', async () => { await processBroadcastPending(client); }, 5); });
-  cron.schedule('0 9 * * *', () => { executeWithLock('morning-greeting', async () => { await sendMorningGreeting(client); }, 60); }, tz);
-  cron.schedule('0 18 * * *', () => { executeWithLock('evening-reminder', async () => { await sendEveningReminder(client); }, 60); }, tz);
-  cron.schedule('0 */6 * * *', () => { executeWithLock('stock-alerts', async () => { await checkStockAlerts(client); }, 30); }, tz);
-  cron.schedule('0 8,20 * * *', () => { executeWithLock('overdue-piutang', async () => { await checkOverduePiutang(client); }, 30); }, tz);
-  cron.schedule('0 14 * * *', () => { executeWithLock('demo-limit', async () => { await checkDemoLimitWarning(client); }, 30); }, tz);
-  cron.schedule('0 10 * * *', () => { executeWithLock('expiry-warning', async () => { await checkExpiryWarning(client); }, 30); }, tz);
-  cron.schedule('0 9,21 * * *', () => { executeWithLock('overdue-hutang', async () => { await checkOverdueHutang(client); }, 30); }, tz);
+  cron.schedule('5 0 * * *', () => { executeWithLock('check-expired', async () => { await checkExpiredSubscriptions(getClient()); }, 10); }, tz);
+  cron.schedule('* * * * *', () => { executeWithLock('upgrade-notify', async () => { await checkAndNotifyUpgrades(getClient()); }, 2); });
+  cron.schedule('*/2 * * * *', () => { executeWithLock('broadcast', async () => { await processBroadcastPending(getClient()); }, 5); });
+  cron.schedule('0 9 * * *', () => { executeWithLock('morning-greeting', async () => { await sendMorningGreeting(getClient()); }, 60); }, tz);
+  cron.schedule('0 18 * * *', () => { executeWithLock('evening-reminder', async () => { await sendEveningReminder(getClient()); }, 60); }, tz);
+  cron.schedule('0 */6 * * *', () => { executeWithLock('stock-alerts', async () => { await checkStockAlerts(getClient()); }, 30); }, tz);
+  cron.schedule('0 8,20 * * *', () => { executeWithLock('overdue-piutang', async () => { await checkOverduePiutang(getClient()); }, 30); }, tz);
+  cron.schedule('0 14 * * *', () => { executeWithLock('demo-limit', async () => { await checkDemoLimitWarning(getClient()); }, 30); }, tz);
+  cron.schedule('0 10 * * *', () => { executeWithLock('expiry-warning', async () => { await checkExpiryWarning(getClient()); }, 30); }, tz);
+  cron.schedule('0 9,21 * * *', () => { executeWithLock('overdue-hutang', async () => { await checkOverdueHutang(getClient()); }, 30); }, tz);
   cron.schedule('0 3 * * *', () => {
     executeWithLock('cleanup', async () => {
       await cleanupOldData();

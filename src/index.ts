@@ -125,6 +125,6 @@ server.listen(PORT, async () => {
   restoreSessionDirFromDB('default').finally(() => {
     initWhatsApp();
   });
-  initSchedulers(state.waClient, addLog);
+  initSchedulers(addLog);
   setInterval(healthCheck, 30_000);
 });
