@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Modal } from '../../components/Modal';
@@ -8,7 +9,7 @@ import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { toast } from '../../components/Toast';
 import { fmtRp, fmtQty } from '../../lib/utils';
 import type { Product } from '../../types';
-import { Plus, Edit2, Trash2, Search, Globe } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Globe, AlertTriangle, RefreshCw } from 'lucide-react';
 import { DownloadButton } from '../../components/DownloadButton';
 
 interface Category {
@@ -17,52 +18,47 @@ interface Category {
 }
 
 export function ProductsPage() {
-  const { token, products, setProducts } = useStockStore();
+  const { token } = useStockStore();
   const user = useStockStore(s => s.user);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [form, setForm] = useState({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '' });
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [activeChannels, setActiveChannels] = useState<string[]>([]);
+
+  const productsQuery = useQuery({
+    queryKey: ['products-page', token],
+    queryFn: () => stockApi.get<{ products: Product[] }>('/api/stock/products', token!),
+    enabled: !!token,
+    staleTime: 30_000,
+    gcTime: 60_000,
+    select: (data) => data.products ?? [],
+  });
+
+  const categoriesQuery = useQuery({
+    queryKey: ['categories', token],
+    queryFn: () => stockApi.get<{ categories: Category[] }>('/api/stock/categories', token!),
+    enabled: !!token,
+    staleTime: 60_000,
+    select: (data) => data.categories ?? [],
+  });
+
+  const channelsQuery = useQuery({
+    queryKey: ['settings-channels', token],
+    queryFn: () => stockApi.get<{ settings?: { active_channels?: string[] } }>('/api/stock/settings', token!),
+    enabled: !!token,
+    staleTime: 60_000,
+    select: (data) => data.settings?.active_channels ?? ['offline', 'whatsapp', 'shopee', 'tokopedia', 'lazada', 'tiktok shop'],
+  });
+
+  const products = productsQuery.data ?? [];
+  const categories = categoriesQuery.data ?? [];
+  const activeChannels = channelsQuery.data ?? [];
+  const loading = productsQuery.isPending || categoriesQuery.isPending || channelsQuery.isPending;
+  const error = productsQuery.isError || categoriesQuery.isError || channelsQuery.isError;
 
   const isDemo = user?.status === 'demo';
   const demoLimitReached = isDemo && products.length >= 3;
-
-  const loadProducts = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const data = await stockApi.get<{ products: Product[] }>('/api/stock/products', token);
-      setProducts(data.products || []);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Gagal memuat produk');
-    } finally {
-      setLoading(false);
-    }
-  }, [token, setProducts]);
-
-  const loadCategories = useCallback(async () => {
-    if (!token) return;
-    try {
-      const data = await stockApi.get<{ categories: Category[] }>('/api/stock/categories', token);
-      setCategories(data.categories || []);
-    } catch (e) { toast.error(e instanceof Error ? e.message : '[ProductsPage] Load kategori gagal'); }
-  }, [token]);
-
-  const loadChannels = useCallback(async () => {
-    if (!token) return;
-    try {
-      const s = await stockApi.get<{ settings?: { active_channels?: string[] } }>('/api/stock/settings', token);
-      setActiveChannels(s.settings?.active_channels || ['offline', 'whatsapp', 'shopee', 'tokopedia', 'lazada', 'tiktok shop']);
-    } catch (e) { toast.error(e instanceof Error ? e.message : '[ProductsPage] Load channels gagal'); }
-  }, [token]);
-
-  useEffect(() => { loadProducts(); }, [loadProducts]);
-  useEffect(() => { loadCategories(); }, [loadCategories]);
-  useEffect(() => { loadChannels(); }, [loadChannels]);
 
   const filtered = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -112,7 +108,7 @@ export function ProductsPage() {
         toast('Produk dibuat');
       }
       setShowModal(false);
-      loadProducts();
+      productsQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal simpan produk');
     }
@@ -122,7 +118,7 @@ export function ProductsPage() {
     try {
       await stockApi.del(`/api/stock/products/${id}`, token!);
       toast('Produk dihapus');
-      loadProducts();
+      productsQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal hapus produk');
     }
@@ -178,6 +174,17 @@ export function ProductsPage() {
 
       {loading ? (
         <TableSkeleton rows={8} cols={7} />
+      ) : error ? (
+        <div className="card card-p" style={{ textAlign: 'center', padding: '3rem', borderColor: 'var(--danger)', borderWidth: 2 }}>
+          <AlertTriangle size={36} style={{ color: 'var(--danger)', marginBottom: '1rem' }} />
+          <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Gagal Memuat Data</div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: 400, margin: '0 auto 1rem' }}>
+            Server penyimpanan data sedang tidak dapat dijangkau. Silakan coba lagi.
+          </p>
+          <button className="btn btn-primary btn-sm" onClick={() => productsQuery.refetch()}>
+            <RefreshCw size={14} /> Coba Lagi
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="card card-p" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
           {products.length === 0 ? 'Belum ada produk. Klik "Tambah Produk" untuk memulai.' : 'Tidak ditemukan'}

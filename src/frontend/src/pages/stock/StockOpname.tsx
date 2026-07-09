@@ -1,22 +1,44 @@
 import { useEffect, useState, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { toast } from '../../components/Toast';
 import { Skeleton, TableSkeleton } from '../../components/LoadingSkeleton';
 import { fmtQty } from '../../lib/utils';
 import type { Product } from '../../types';
-import { ClipboardCheck, Save, Camera, X, AlertCircle } from 'lucide-react';
+import { ClipboardCheck, Save, Camera, X, AlertCircle, RefreshCw } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export function StockOpname() {
   const { token } = useStockStore();
-  const [products, setProducts] = useState<Product[]>([]);
   const [actual, setActual] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scannerError, setScannerError] = useState('');
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  const productsQuery = useQuery({
+    queryKey: ['opname-products', token],
+    queryFn: () => stockApi.get<{ products: Product[] }>('/api/stock/products?limit=500', token!),
+    enabled: !!token,
+    staleTime: 30_000,
+    gcTime: 60_000,
+    select: (data) => {
+      const list = data.products ?? data ?? [];
+      return Array.isArray(list) ? list : [];
+    },
+  });
+
+  const products = productsQuery.data ?? [];
+  const loading = productsQuery.isPending;
+  const error = productsQuery.isError;
+
+  useEffect(() => {
+    if (!productsQuery.data) return;
+    const init: Record<string, string> = {};
+    products.forEach((p: Product) => { init[p.id] = p.stock_current.toString(); });
+    setActual(init);
+  }, [products, productsQuery.data]);
 
   function scanFeedback() {
     try {
@@ -33,20 +55,6 @@ export function StockOpname() {
     } catch { /* silent fail */ }
     if (navigator.vibrate) navigator.vibrate(50);
   }
-
-  useEffect(() => {
-    if (!token) return;
-    stockApi.get<{ products: Product[] }>('/api/stock/products?limit=500', token)
-      .then((d) => {
-        const list = d.products || d || [];
-        setProducts(list);
-        const init: Record<string, string> = {};
-        list.forEach((p: Product) => { init[p.id] = p.stock_current.toString(); });
-        setActual(init);
-      })
-      .catch(() => toast.error('Gagal muat produk'))
-      .finally(() => setLoading(false));
-  }, [token]);
 
   useEffect(() => {
     if (!showScanner) {
@@ -129,6 +137,19 @@ export function StockOpname() {
         <Skeleton width="130px" height="2rem" />
       </div>
       <TableSkeleton rows={8} cols={5} />
+    </div>
+  );
+
+  if (error) return (
+    <div className="card card-p" style={{ textAlign: 'center', padding: '3rem', borderColor: 'var(--danger)', borderWidth: 2 }}>
+      <AlertCircle size={36} style={{ color: 'var(--danger)', marginBottom: '1rem' }} />
+      <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Gagal Memuat Data</div>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: 400, margin: '0 auto 1rem' }}>
+        Server penyimpanan data sedang tidak dapat dijangkau. Silakan coba lagi.
+      </p>
+      <button className="btn btn-primary btn-sm" onClick={() => productsQuery.refetch()}>
+        <RefreshCw size={14} /> Coba Lagi
+      </button>
     </div>
   );
 
