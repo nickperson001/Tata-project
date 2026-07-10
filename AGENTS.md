@@ -90,6 +90,8 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 14 | Notifikasi double (multi-tab) | Setiap tab socket terima `stock_alert` dan tampilkan toast sendiri. Fix: dedup via `shownAlertIds` Set + reconnect handler `socket.on('connect')` | `StockLayout.tsx` ada `shownAlertIds` ref + registerUser callback |
 | 15 | Loading state hilang di Finance | `StockFinance.tsx` `save()` tidak punya `saving` state. Fix: tambah `saving` + `disabled` + "Menyimpan..." + `finally` | `StockFinance.tsx` `save()` ada `setSaving` + disabled button |
 | 16 | StockOpname `finally` | `setSaving(false)` tidak di `finally` — bisa stuck. Fix: bungkus loop dalam `try/finally` | `StockOpname.tsx:100-121` ada `try { ... } finally { setSaving(false); }` |
+| 17 | StockLayout blank page — `useLocation` | Dead code `const location = useLocation()` masih ada setelah `useLocation` dihapus dari import (regresi hapus subnav) | `StockLayout.tsx` tidak lagi import `useLocation` atau panggil `useLocation()` |
+| 18 | Sidebar dihapus total | Tidak dipakai setelah UI refactor — navigasi via bottom bar + Settings di topbar | `StockSidebar.tsx` di-delete; semua CSS sidebar dihapus |
 
 Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
 
