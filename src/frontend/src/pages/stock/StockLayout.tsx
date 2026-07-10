@@ -32,7 +32,6 @@ const BOTTOM_NAV_DEMO = [
 export function StockLayout() {
   const { isLoading } = useStockToken();
   const { token, user } = useStockStore();
-  const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
 
