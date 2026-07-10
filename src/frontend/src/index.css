@@ -833,7 +833,23 @@ tr:hover .row-actions { opacity: 1; }
 /* ── Content ── */
 .stock-content { flex: 1; padding: 1.25rem; padding-bottom: 4.5rem; overflow-y: auto; }
 
-/* ── (Sub-nav removed, using bottom nav consistently) ── */
+/* ── Sub-nav ── */
+.stock-subnav {
+  display: flex; overflow-x: auto; gap: 0.35rem;
+  padding: 0.5rem 0.75rem; background: var(--bg-card);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.stock-subnav::-webkit-scrollbar { display: none; }
+.sn-item {
+  flex-shrink: 0; display: flex; align-items: center; gap: 0.3rem;
+  padding: 0.35rem 0.65rem; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; color: var(--text-muted);
+  text-decoration: none; white-space: nowrap; transition: all 0.15s;
+}
+.sn-item.active {
+  color: #fff; background: var(--primary);
+}
 
 /* ── Charts (legacy) ── */
 .chart-container { position: relative; width: 100%; }
@@ -1029,5 +1045,6 @@ tr:hover .row-actions { opacity: 1; }
 [dir="rtl"] .chat-msg.user { margin-left: 0; margin-right: auto; flex-direction: row; }
 [dir="rtl"] .chat-msg.ai { margin-right: 0; margin-left: auto; }
 
+[dir="rtl"] .stock-subnav { direction: rtl; }
 [dir="rtl"] .login-brand { text-align: right; }
 [dir="rtl"] .ov-hero-stats { justify-content: flex-start; }

@@ -1,19 +1,33 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useMemo, useCallback } from 'react';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from '../../components/Toast';
 import { useStockToken } from '../../hooks/useStockToken';
 import { useStockStore } from '../../store/stockStore';
 import { NotificationBell } from '../../components/NotificationBell';
 import { UserMenu } from '../../components/UserMenu';
-import { HelpCircle, Settings } from 'lucide-react';
+import {
+  HelpCircle, Settings, LayoutDashboard, BookOpen, Package, BarChart3,
+  ArrowUpDown, ClipboardCheck, History, CreditCard, DollarSign,
+  Database, Undo2, Box, TrendingUp,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { ChatbotWidget } from './ChatbotWidget';
 import { StockLogin } from './StockLogin';
 import { getSocket, disconnectSocket } from '../../services/socket';
 import { useNotificationStore, StockAlert } from '../../store/notificationStore';
 import { stockApi } from '../../services/api';
-import {
-  LayoutDashboard, BookOpen, Package, BarChart3,
-} from 'lucide-react';
+
+interface NavLeaf {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+interface NavGroup {
+  label: string;
+  icon: LucideIcon;
+  children: NavLeaf[];
+}
 
 const BOTTOM_NAV_ALL = [
   { to: '/stock', label: 'Dashboard', icon: LayoutDashboard },
@@ -28,10 +42,66 @@ const BOTTOM_NAV_DEMO = [
   { to: '/stock/settings', label: 'Settings', icon: Settings },
 ];
 
+function getNavGroups(status?: string): NavGroup[] {
+  const allGroups: NavGroup[] = [
+    {
+      label: 'Keuangan', icon: BookOpen,
+      children: [
+        { to: '/stock/keuangan', label: 'Laporan Keuangan', icon: BookOpen },
+      ],
+    },
+    {
+      label: 'Inventori', icon: Package,
+      children: [
+        { to: '/stock/products', label: 'Produk', icon: Package },
+        { to: '/stock/categories', label: 'Kategori', icon: Package },
+        { to: '/stock/materials', label: 'Bahan Baku', icon: Box },
+        { to: '/stock/movement', label: 'Masuk/Keluar', icon: ArrowUpDown },
+        { to: '/stock/opname', label: 'Opname', icon: ClipboardCheck },
+        { to: '/stock/retur', label: 'Retur Jual', icon: Undo2 },
+        { to: '/stock/retur-beli', label: 'Retur Beli', icon: Undo2 },
+        { to: '/stock/history', label: 'Riwayat', icon: History },
+        { to: '/stock/product-stats', label: 'Analisa Produk', icon: TrendingUp },
+      ],
+    },
+    {
+      label: 'Piutang & Hutang', icon: CreditCard,
+      children: [
+        { to: '/stock/piutang', label: 'Piutang', icon: DollarSign },
+        { to: '/stock/hutang', label: 'Hutang', icon: CreditCard },
+      ],
+    },
+    {
+      label: 'Laporan', icon: BarChart3,
+      children: [
+        { to: '/stock/report', label: 'Laporan Stok', icon: BarChart3 },
+        { to: '/stock/batch', label: 'Data Lengkap', icon: Database },
+      ],
+    },
+  ];
+  if (status === 'demo') return [allGroups[1]];
+  return allGroups;
+}
+
+function isActive(pathname: string, to: string) {
+  if (to === '/stock') return pathname === '/stock';
+  const segs = pathname.split('/');
+  const tSegs = to.split('/');
+  return tSegs.every((s, i) => segs[i] === s);
+}
+
 export function StockLayout() {
   const { isLoading } = useStockToken();
   const { token, user } = useStockStore();
+  const location = useLocation();
   const navigate = useNavigate();
+
+  const navGroups = useMemo(() => getNavGroups(user?.status), [user?.status]);
+
+  const subChildren = useMemo(() => {
+    const group = navGroups.find(g => g.children.some(c => isActive(location.pathname, c.to)));
+    return group?.children ?? [];
+  }, [location.pathname, navGroups]);
 
   const bottomNav = user?.status === 'demo' ? BOTTOM_NAV_DEMO : BOTTOM_NAV_ALL;
 
@@ -127,6 +197,22 @@ export function StockLayout() {
             <UserMenu />
           </div>
         </header>
+
+        {subChildren.length > 0 && (
+          <nav className="stock-subnav">
+            {subChildren.map(child => (
+              <NavLink
+                key={child.to}
+                to={child.to}
+                end={child.to === '/stock'}
+                className={({ isActive: act }) => `sn-item ${act ? 'active' : ''}`}
+              >
+                <child.icon size={15} />
+                <span>{child.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        )}
 
         <main className="stock-content content-fade">
           <Outlet />
