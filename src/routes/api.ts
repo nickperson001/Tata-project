@@ -82,6 +82,7 @@ async function stockAuth(req: StockRequest, res: Response, next: NextFunction): 
       .maybeSingle()) as any;
     if (error) {
       const errMsg = sanitizeError(error);
+      addLog('error', `[AUTH] Gagal query users: ${errMsg}`);
       if (errMsg.includes('[SUPABASE ERROR]')) circuitRecordFailure();
       apiError(res, 'Token tidak valid', ErrorCode.AUTH_INVALID, 401);
       return;
@@ -775,6 +776,11 @@ router.get('/api/stock/products', stockAuth, async (req: StockRequest, res: Resp
   const search = ((req.query.search as string) || '').trim().toLowerCase();
   const category = (req.query.category as string) || '';
   const status = (req.query.status as string) || '';
+  const sort = (req.query.sort as string) || 'name';
+
+  const fromIdx = page > 0 ? (page - 1) * limit : 0;
+  const toIdx = page > 0 ? page * limit - 1 : 0;
+
   try {
     let query: any = supabase
       .from('products')
@@ -792,19 +798,62 @@ router.get('/api/stock/products', stockAuth, async (req: StockRequest, res: Resp
     if (status === 'out') query = query.lte('stock_current', 0);
     else if (status === 'low') query = query.gt('stock_current', 0).filter('stock_current', 'lte', 'stock_min');
     else if (status === 'ok') query = query.filter('stock_current', 'gt', 'stock_min');
-    const sort = (req.query.sort as string) || 'name';
     if (sort === 'stock_asc') query = query.order('stock_current', { ascending: true });
     else if (sort === 'stock_desc') query = query.order('stock_current', { ascending: false });
     else if (sort === 'value_desc') query = query.order('stock_current', { ascending: false });
     else query = query.order('name', { ascending: true });
-    if (page > 0) query = query.range((page - 1) * limit, page * limit - 1);
+    if (page > 0) query = query.range(fromIdx, toIdx);
     const { data, error, count } = await query;
     if (error) throw error;
     if (sort === 'value_desc' && data && page === 0)
       data.sort((a: any, b: any) => b.price_buy * b.stock_current - a.price_buy * a.stock_current);
     apiSuccess(res, { products: data || [], total: count || 0, page, limit });
   } catch (e: any) {
-    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
+    const errMsg = sanitizeError(e);
+    addLog('error', `[PRODUCTS] Supabase SDK error: ${errMsg} — fallback ke pg pool...`);
+
+    // Fallback: direct pg query
+    if (pgPool && userId) {
+      try {
+        let sql = `SELECT id, sku, name, category, unit, stock_current, stock_min, price_buy, price_sell, default_channel, supplier, location, notes, is_active FROM products WHERE user_id = $1 AND is_active = true`;
+        const params: any[] = [userId];
+        let paramIdx = 2;
+        if (search) {
+          const safe = search.replace(/[%_(),.]/g, '');
+          sql += ` AND (name ILIKE $${paramIdx} OR sku ILIKE $${paramIdx})`;
+          params.push(`%${safe}%`);
+          paramIdx++;
+        }
+        if (category) { sql += ` AND category = $${paramIdx}`; params.push(category); paramIdx++; }
+        if (status === 'out') { sql += ` AND stock_current <= 0`; }
+        else if (status === 'low') { sql += ` AND stock_current > 0 AND stock_current <= stock_min`; }
+        else if (status === 'ok') { sql += ` AND stock_current > stock_min`; }
+
+        const countResult = await pgPool.query(`SELECT COUNT(*) FROM (${sql}) sub`, params);
+        const total = parseInt(countResult.rows[0]?.count || '0', 10);
+
+        if (sort === 'stock_asc') sql += ` ORDER BY stock_current ASC`;
+        else if (sort === 'stock_desc') sql += ` ORDER BY stock_current DESC`;
+        else if (sort === 'value_desc') sql += ` ORDER BY (price_buy * stock_current) DESC`;
+        else sql += ` ORDER BY name ASC`;
+
+        if (page > 0) {
+          sql += ` LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
+          params.push(limit, fromIdx);
+          paramIdx += 2;
+        }
+
+        const result = await pgPool.query(sql, params);
+        addLog('info', `[PRODUCTS] Fallback pg pool sukses — ${total} produk`);
+        apiSuccess(res, { products: result.rows || [], total, page, limit });
+        return;
+      } catch (pgErr: any) {
+        const pgMsg = sanitizeError(pgErr);
+        addLog('error', `[PRODUCTS] Fallback pg pool juga gagal: ${pgMsg}`);
+      }
+    }
+
+    apiError(res, errMsg, ErrorCode.INTERNAL, 500);
   }
 });
 
