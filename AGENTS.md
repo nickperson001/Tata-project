@@ -1,0 +1,178 @@
+# AGENTS.md — Instruksi Wajib untuk Agent OpenCode
+
+File ini dibaca otomatis setiap sesi. Instruksi di sini mengikat; jika bentrok dengan permintaan sesaat dari chat, **tanya dulu** ke user.
+
+---
+
+## 0. KENAPA FILE INI ADA
+
+Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa sadar, bug B (pernah diperbaiki) muncul lagi. Agent sendiri yang harus menjaga kualitas secara sistematis, bukan mengandalkan ingatan.
+
+---
+
+## 1. ATURAN ANTI-HALUSINASI
+
+1. **Baca dulu, klaim kemudian.** Sebelum menyebut "bug" atau "sudah benar", `grep`/`view` file & kutip baris persis.
+2. **Kutip kode, jangan parafrase.** Jangan menebak nama fungsi/variabel — cari dulu atau akui "tidak ditemukan".
+3. **STOP jika deskripsi tidak cocok.** Laporan bilang X di baris Y tapi tidak ada di sana? STOP & laporkan ketidakcocokan, jangan pindah diam-diam.
+4. **Jangan mengarang API/library tanpa verifikasi.** Kalau tidak 100% yakin, tandai "belum diverifikasi".
+5. **Laporan akhir = diff nyata, bukan ringkasan.** Bagian tidak selesai/blocked tulis apa adanya.
+
+---
+
+## 2. PROTOKOL ANTI-REGRESI
+
+### Sebelum perubahan
+- `git status` + `git diff` — catat kondisi working tree sebelum mulai.
+- Jalankan test/typecheck baseline (`npm test`, `npm run typecheck`).
+
+### Ruang lingkup
+- **Satu masalah, satu perbaikan.** Jangan "sekaligus bersih-bersih" kode B, C, D yang tidak diminta. Sebut sebagai catatan saja.
+- **Jangan ubah file yang tidak perlu.** Jangan sentuh signature fungsi multi-pemakai tanpa `grep` SEMUA pemanggil.
+
+### Setelah perubahan
+- Jalankan ulang test/typecheck — **baseline pass, sekarang fail = regresi, WAJIB diperbaiki.**
+- Grep area berdekatan (fungsi/file yang sama) — pastikan tidak ada pemanggil yang rusak.
+- Kalau menyentuh area yang pernah diperbaiki (lihat Bagian 6), verifikasi fix lama masih utuh.
+- Kalau ragu perubahan berisiko, sebut di laporan sebagai "area perlu diverifikasi manual".
+
+### Error baru di luar tugas
+- JANGAN perbaiki dalam commit yang sama. Laporkan terpisah, biarkan user putuskan.
+
+---
+
+## 3. CRITICAL THINKING
+
+1. **Cari root cause, bukan gejala.** `X undefined` → telusuri KENAPA, jangan cuma tambah if-check.
+2. **Bedakan hipotesis vs fakta.** Tandai yang belum terbukti, sebut cara memverifikasinya.
+3. **Pertimbangkan >1 penyebab** untuk bug intermiten (race condition, resource limit, dependency eksternal).
+4. **Usulkan eksperimen murah & reversible** sebelum perubahan besar kalau ada beberapa kandidat penyebab.
+
+---
+
+## 4. STANDAR KODE
+
+- Ikuti gaya yang sudah ada — jangan impor paradigma baru.
+- Error handling: semua async try-catch dengan log actionable, jangan biarkan promise rejection tak tertangani.
+- Fungsi kecil, satu tanggung jawab.
+- Nama konsisten: Istilah Indonesia untuk domain bisnis ("hutang", "masuk", "keluar"), Inggris untuk infrastruktur — jangan diterjemahkan paksa.
+- Magic number/string → taruh di `src/config/constants.ts`.
+- Coment untuk "kenapa", bukan "apa".
+
+## 5. STANDAR UI/UX
+
+- Ikuti design system yang ada (`src/frontend/src/index.css`, CSS variables, breakpoint 768px).
+- **Mobile-first** — target user akses dari HP 5"-6" dengan koneksi terbatas. Cek di viewport sempit.
+- Setiap state: loading, empty, error, success — jangan biarkan halaman blank/diam.
+- Pesan error end-user = bahasa manusia, bukan stack trace.
+- Tombol/dialog konsisten dengan halaman lain.
+- Aksesibilitas: kontras cukup, target tap ~44px, label input.
+
+---
+
+## 6. REGISTRY BUG YANG SUDAH DIPERBAIKI (CEK SEBELUM SENTUH AREA INI)
+
+| # | Area | Fix | Verifikasi |
+|---|------|-----|------------|
+| 1 | `src/jobs/scheduler.ts` — client WA | Scheduler pakai `getClient()`, bukan closure statis — hindari reference basi | `grep "getClient()" src/jobs/scheduler.ts` harus ada |
+| 2 | Dialog WA (`src/services/dialog-state.service.ts`) | Unified store `getDialog`/`setDialog`/`clearAllDialogs`, TTL 5 menit | Pastikan "Batal" panggil `clearAllDialogs(sender)` |
+| 3 | `shouldBypassDialogs` (`src/handlers/message.ts`) | Semua keyword pakai regex `\b...\b` konsisten | Grep fungsi, pastikan tidak ada yg balik ke `===`/`.includes()` |
+| 4 | Puppeteer args (`src/services/whatsapp.ts`) | `--disable-dev-shm-usage` harus tetap ada | Jangan hapus walau sedang eksperimen |
+| 5 | `/data` storage (`src/index.ts:112-155`) | Startup check log mount type — jangan simpulkan "aman" tanpa bukti | Log startup ada `[STORAGE] /data mount info: ...` |
+| 6 | Klasifikasi transaksi (`src/config/keywords.ts` + `message.ts`) | **[BELUM SELESAI]** Frasa multi-kata harus word-boundary regex terhadap `body` penuh | `"transfer masuk 100rb"` → `'masuk'` |
+| 7 | Session store (`src/config/session.ts:82`) | `schemaName: 'public'` di PgBouncer pool | Log startup TIDAK ada error `no schema has been selected` |
+| 8 | `sendUpgradeNotification` (`src/jobs/scheduler.ts`) | **[BELUM DIPERBAIKI]** Null-check WA client sudah ada, tapi method `getChat` bisa error kalau client belum siap (`pupPage`/chat store) | Tambah guard kesiapan client (bukan cuma null-check) |
+
+Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
+
+---
+
+## 7. FORMAT LAPORAN AKHIR
+
+```
+### Ringkasan
+[1-2 kalimat, apa yg diminta & status akhir]
+
+### Bukti sebelum perubahan
+[Kutipan kode/log asli]
+
+### Perubahan diterapkan
+[Diff nyata per file]
+
+### Verifikasi anti-regresi
+- Baseline test/typecheck: [hasil]
+- Setelah: [hasil]
+- Bug lama di Bagian 6 yg berpotensi terdampak: [list + status]
+
+### Yang tidak diselesaikan / butuh keputusan user
+[Jujur, termasuk blocker API/library belum diverifikasi]
+
+### Temuan di luar scope (kalau ada)
+[Tidak diperbaiki, sekadar laporan]
+```
+
+Laporan tanpa "Verifikasi anti-regresi" dianggap tidak lengkap.
+
+---
+
+## 8. KALAU RAGU — TANYA
+
+Diam & tanya lebih baik daripada menebak lalu salah. Prioritaskan **benar & lambat** daripada cepat & salah lagi untuk ketiga kalinya.
+
+---
+
+## 9. KONTEKS PROYEK
+
+### Struktur
+```
+index.js → src/app.ts (Express + Socket.IO)
+  routes/     — api.ts (2824 baris), auth.ts, health.ts, schemas.ts
+  handlers/   — message.ts (1525 baris, orchestrator WA), stock-handler.ts, invoice-handler.ts
+  services/   — whatsapp.ts, dialog-state.service.ts, circuit-breaker.ts, session-persistence.ts
+  utils/      — stockManager.ts, transactionRecorder.ts, accountingEngine.ts, geminiRouter.ts, db.ts
+  config/     — supabase.ts, session.ts, state.ts, constants.ts, keywords.ts
+  jobs/       — scheduler.ts, backup.ts, queue.service.ts
+  middleware/ — auth.ts, validate.ts
+  types/      — api.ts, errors.ts, interfaces.ts
+```
+
+### Perintah penting
+- `npm start` (production), `npm run dev` (backend+frontend concurrently)
+- `npm run build:frontend` (Vite → `public/dist/`)
+- `npm run typecheck` (tsc --noEmit)
+- `npm test` (vitest, file `tests/**/*.test.ts`)
+- `npm run lint`, `npm run format` (prettier, singleQuote, tabWidth 2, trailingComma all)
+- `npm run seed:demo` — setup demo data
+
+### Infra quirks
+- **Backend**: Node 20, Express 5, `tsx` runtime (no tsc compile needed for dev)
+- **Frontend**: Vite 6, React 19, react-router 7, zustand 5, TanStack Query 5, chart.js, Socket.IO client
+- **DB**: Supabase REST API (via `@supabase/supabase-js`) + pgPool fallback (`DATABASE_URL`). Supabase sering return 42501 permission → banyak endpoint punya pgPool fallback via `information_schema.columns` auto-detection.
+- **Session**: `express-session` + `connect-pg-simple`. PgBouncer (port 6543) auto-used jika DATABASE_URL mengandung `supabase.co`. Wajib `schemaName: 'public'` di options.
+- **WA**: `whatsapp-web.js` + `puppeteer` (Chromium system, bukan bundled). Args wajib: `--no-sandbox`, `--disable-dev-shm-usage`, `--single-process`. Retry: 8x max, exponential backoff 5s→300s.
+- **Build**: Dockerfile build frontend BEFORE `NODE_OPTIONS=--max-old-space-size=512` (agar tidak OOM). Vite output ke `public/dist/`.
+- **Port**: 7860 (HF Space default) atau `PORT` env.
+
+### Migration
+SQL di `migrations/` — jalankan manual via Supabase SQL Editor. Ada auto-migration 1 kolom (`products.default_channel`) di `src/index.ts:102`.
+
+### Layanan eksternal
+- Supabase (DB + REST) — WAJIB
+- OpenRouter (AI intent classification) — WAJIB
+- Google Cloud Vision (OCR struk) — opsional
+- HuggingFace Inference (voice transcription) — opsional
+- whatsapp-web.js (WA bot) — masalah utama: timeout ke `web.whatsapp.com` di HF Space (IP block / RAM 512MB kurang)
+
+### Frontend routes (`/stock/*`)
+`movement`, `opname`, `retur`, `retur-beli`, `report`, `history`, `piutang`, `hutang`, `keuangan`, `products`, `batch`, `product-stats`, `categories`, `settings`, `bantuan`, `channels` (redirect → keuangan).
+
+### DB key tables
+`products`, `stock_movements`, `financial_transactions`, `accounts`, `journal_entries`, `inventory`, `warehouses` (DROPPED via migration 014), `user_sessions`, `wa_session_backup`, `user_profiles`, `admins`, `alerts`, `notifications`.
+
+### Design
+- CSS variables + `index.css` (no Tailwind)
+- z-index: unified `lib/zIndex.ts`
+- Portal: `lib/Portal.tsx`
+- RupiahInput: format `Rp 1.234.567` saat blur, raw number saat focus
+- Modal: onClose disimpan di `useRef` (hindari re-render loss)
+- Toast: `react-hot-toast` via wrapper `Toast.tsx`. `toast()` warning (icon kuning) untuk low stock, `toast.error()` (icon merah) hanya untuk stok habis.
