@@ -64,18 +64,18 @@ export function StockFinance() {
         </div>
       </div>
 
-      <div className="stock-subnav" style={{ display: 'flex', gap: '0', overflow: 'hidden' }}>
+      <div className="stock-subnav" style={{ display: 'flex', gap: '0.35rem', overflow: 'visible' }}>
         <button
           className={`sn-item ${tab === 'transactions' ? 'active' : ''}`}
           onClick={() => setTab('transactions')}
-          style={{ flex: 1, border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+          style={{ whiteSpace: 'nowrap', border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <Package size={15} /> Transaksi
         </button>
         <button
           className={`sn-item ${tab === 'summary' ? 'active' : ''}`}
           onClick={() => setTab('summary')}
-          style={{ flex: 1, border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+          style={{ whiteSpace: 'nowrap', border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <TrendingUp size={15} /> Ringkasan
         </button>

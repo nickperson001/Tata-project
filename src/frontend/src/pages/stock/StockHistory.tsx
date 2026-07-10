@@ -6,12 +6,10 @@ import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { Pagination } from '../../components/Pagination';
 import { Badge } from '../../components/Badge';
 import { ConfirmModal } from '../../components/ConfirmModal';
-import { FilterBar } from '../../components/FilterBar';
-import type { DateRange } from '../../components/FilterBar';
 import { toast } from '../../components/Toast';
 import { fmtRp, fmtQty, fmtDateTime } from '../../lib/utils';
 import type { StockMovement, PaginationMeta } from '../../types';
-import { Trash2 } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
 
 export function StockHistory() {
   const { token } = useStockStore();
@@ -19,34 +17,18 @@ export function StockHistory() {
   const [filterType, setFilterType] = useState('');
   const [filterProduct, setFilterProduct] = useState('');
   const [debouncedProduct, setDebouncedProduct] = useState('');
-  const [filterChannel, setFilterChannel] = useState('');
-  const [dateRange, setDateRange] = useState<DateRange>({ startDate: null, endDate: null, preset: 'today' });
-  const [activeChannels, setActiveChannels] = useState<string[]>(['offline', 'whatsapp', 'shopee', 'tokopedia']);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedProduct(filterProduct), 300);
     return () => clearTimeout(t);
   }, [filterProduct]);
 
-  const settingsQuery = useQuery({
-    queryKey: ['settings-channels-history', token],
-    queryFn: () => stockApi.get<{ settings: { active_channels?: string[] } }>('/api/stock/settings', token!),
-    enabled: !!token,
-  });
-  useEffect(() => {
-    const ch = settingsQuery.data?.settings?.active_channels;
-    if (ch) setActiveChannels(ch);
-  }, [settingsQuery.data]);
-
   const params = new URLSearchParams({ page: page.toString(), limit: '30' });
   if (filterType) params.set('type', filterType);
   if (debouncedProduct) params.set('product_id', debouncedProduct);
-  if (filterChannel) params.set('channel', filterChannel);
-  if (dateRange.startDate) params.set('start_date', dateRange.startDate);
-  if (dateRange.endDate) params.set('end_date', dateRange.endDate);
 
   const query = useQuery({
-    queryKey: ['movements', token, page, filterType, debouncedProduct, filterChannel, dateRange.startDate, dateRange.endDate],
+    queryKey: ['movements', token, page, filterType, debouncedProduct],
     queryFn: () => stockApi.get<{ movements: StockMovement[]; total: number; page: number; limit: number }>(
       `/api/stock/movements?${params}`, token!,
     ),
@@ -87,18 +69,6 @@ export function StockHistory() {
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Log pergerakan stok</p>
       </div>
 
-      <FilterBar
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        showChannel
-        channel={filterChannel}
-        onChannelChange={setFilterChannel}
-        channels={activeChannels}
-        showSearch
-        search={filterProduct}
-        onSearchChange={setFilterProduct}
-      />
-
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <select className="input input-sm" style={{ width: 'auto' }} value={filterType} onChange={(e) => { setFilterType(e.target.value); setPage(1); }}>
           <option value="">Semua Tipe</option>
@@ -106,6 +76,13 @@ export function StockHistory() {
           <option value="out">Keluar</option>
           <option value="adjustment">Penyesuaian</option>
         </select>
+        <input
+          className="input input-sm"
+          placeholder="Cari produk..."
+          value={filterProduct}
+          onChange={(e) => setFilterProduct(e.target.value)}
+          style={{ width: 200 }}
+        />
       </div>
 
       {loading ? (
@@ -125,7 +102,6 @@ export function StockHistory() {
                   <th>Tipe</th>
                   <th>Jumlah</th>
                   <th>Harga</th>
-                  <th>Channel</th>
                   <th>Catatan</th>
                   <th style={{ width: 60 }}>Aksi</th>
                 </tr>
@@ -142,7 +118,6 @@ export function StockHistory() {
                     </td>
                     <td style={{ fontWeight: 700 }}>{fmtQty(m.quantity, m.products?.unit)}</td>
                     <td>{m.total_value ? fmtRp(m.total_value) : (m.unit_price ? fmtRp(m.unit_price * m.quantity) : '-')}</td>
-                    <td style={{ fontSize: '0.8rem' }}>{m.channel || '-'}</td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{m.note || '-'}</td>
                     <td>
                       <div className="row-actions">

@@ -1407,9 +1407,6 @@ router.get('/api/stock/movements', stockAuth, async (req: StockRequest, res: Res
       .range((page - 1) * limit, page * limit - 1);
     if (req.query.product_id) query = query.eq('product_id', req.query.product_id);
     if (req.query.type) query = query.eq('type', req.query.type);
-    if (req.query.channel) query = query.eq('channel', req.query.channel);
-    if (req.query.start_date) query = query.gte('created_at', req.query.start_date);
-    if (req.query.end_date) query = query.lte('created_at', req.query.end_date + 'T23:59:59.999Z');
     const { data, error, count } = await query;
     if (error) throw error;
     apiSuccess(res, { movements: data || [], total: count || 0, page, limit });
@@ -1422,9 +1419,6 @@ router.get('/api/stock/movements', stockAuth, async (req: StockRequest, res: Res
       let paramIdx = 2;
       if (req.query.product_id) { where += ` AND product_id = $${paramIdx++}`; params.push(req.query.product_id); }
       if (req.query.type) { where += ` AND type = $${paramIdx++}`; params.push(req.query.type); }
-      if (req.query.channel) { where += ` AND channel = $${paramIdx++}`; params.push(req.query.channel); }
-      if (req.query.start_date) { where += ` AND created_at >= $${paramIdx++}`; params.push(req.query.start_date); }
-      if (req.query.end_date) { where += ` AND created_at <= $${paramIdx++}`; params.push(req.query.end_date + 'T23:59:59.999Z'); }
       const offset = (page - 1) * limit;
       const [{ rows }, { rows: countRows }] = await Promise.all([
         pool.query(
