@@ -79,6 +79,7 @@ export function buildSessionMiddleware(): RequestHandler {
     const store = new PgStore({
       pool: pgPool,
       tableName: 'user_sessions',
+      schemaName: 'public',
       createTableIfMissing: true,
       errorLog: (err: Error) => addLog('error', `[SESSION] Store error: ${err.message}`),
     });
