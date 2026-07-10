@@ -834,7 +834,11 @@ router.get('/api/stock/products', stockAuth, async (req: StockRequest, res: Resp
     // Fallback: direct pg query
     if (pgPool && userId) {
       try {
-        let sql = `SELECT id, sku, name, category, unit, stock_current, stock_min, price_buy, price_sell, default_channel, supplier, location, notes, is_active FROM products WHERE user_id = $1 AND is_active = true`;
+        const hasDefaultChannel = (await pgPool.query(
+          `SELECT column_name FROM information_schema.columns WHERE table_name='products' AND column_name='default_channel'`,
+        )).rows.length > 0;
+        const cols = `id, sku, name, category, unit, stock_current, stock_min, price_buy, price_sell${hasDefaultChannel ? ', default_channel' : ''}, supplier, location, notes, is_active`;
+        let sql = `SELECT ${cols} FROM products WHERE user_id = $1 AND is_active = true`;
         const params: any[] = [userId];
         let paramIdx = 2;
         if (search) {

@@ -26,8 +26,9 @@ if (pgPool) {
     GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON SEQUENCES TO service_role, anon, authenticated;
-  `)  .then(() => addLog('info', '[DB] Schema & sequence permissions granted'))
+  `).then(() => addLog('info', '[DB] Schema & sequence permissions granted'))
   .catch((err: Error) => addLog('warn', `[DB] Schema grant (non-fatal): ${err.message}`));
+
 }
 
 const server = http.createServer(app);
@@ -94,6 +95,16 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(PORT, async () => {
   addLog('info', `[SYSTEM] Server started on port ${PORT}`);
+
+  // Run pending migrations before accepting real traffic
+  if (pgPool) {
+    try {
+      await pgPool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS default_channel text NOT NULL DEFAULT ''`);
+      addLog('info', '[DB] Column products.default_channel added (if missing)');
+    } catch (err: any) {
+      addLog('warn', `[DB] Add default_channel (non-fatal): ${err.message}`);
+    }
+  }
 
   resetBootStatus();
 
