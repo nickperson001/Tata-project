@@ -139,6 +139,29 @@ export const opnameDetailSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
+export const materialCreateSchema = z.object({
+  name: z.string().min(1, 'Nama material wajib diisi').max(150),
+  unit: z.string().max(20).optional().default('pcs'),
+  stock_current: z.coerce.number().nonnegative().optional().default(0),
+  stock_min: z.coerce.number().nonnegative().optional().default(0),
+  cost_per_unit: z.coerce.number().nonnegative().optional().default(0),
+});
+
+export const materialUpdateSchema = z.object({
+  name: z.string().min(1).max(150).optional(),
+  unit: z.string().max(20).optional(),
+  stock_current: z.coerce.number().nonnegative().optional(),
+  stock_min: z.coerce.number().nonnegative().optional(),
+  cost_per_unit: z.coerce.number().nonnegative().optional(),
+});
+
+export const recipeUpsertSchema = z.object({
+  material_id: z.string().min(1, 'Material wajib dipilih'),
+  product_id: z.string().nullable().optional().default(null),
+  quantity_per_order: z.coerce.number().positive('Jumlah per order harus lebih dari 0'),
+  auto_deduct: z.boolean().optional().default(true),
+});
+
 export const settingUpdateSchema = z
   .object({
     channel_fees: z

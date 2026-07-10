@@ -441,6 +441,44 @@ export interface ReportData {
   total: number;
 }
 
+// ── BOM / Packaging ──
+export interface BomMaterial {
+  id: string;
+  user_id: string;
+  name: string;
+  unit: string;
+  stock_current: number;
+  stock_min: number;
+  cost_per_unit: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BomRecipe {
+  id: string;
+  user_id: string;
+  material_id: string;
+  product_id: string | null;
+  quantity_per_order: number;
+  auto_deduct: boolean;
+  created_at: string;
+  bom_materials?: BomMaterial;
+}
+
+export interface BomDeductionLog {
+  id: string;
+  user_id: string;
+  material_id: string;
+  quantity: number;
+  stock_before: number;
+  stock_after: number;
+  reference_type: string;
+  reference_note: string | null;
+  created_at: string;
+  bom_materials?: { id: string; name: string; unit: string };
+}
+
 // ── Generic API Response wrapper ──
 export interface ApiResponse<T> {
   success: boolean;

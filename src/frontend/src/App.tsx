@@ -25,6 +25,7 @@ const StockFinance = lazy(() => import('./pages/stock/StockFinance').then(m => (
 const StockSlugRedirect = lazy(() => import('./pages/stock/StockSlugRedirect').then(m => ({ default: m.StockSlugRedirect })));
 const StockSettings = lazy(() => import('./pages/stock/StockSettings').then(m => ({ default: m.StockSettings })));
 const StockCategories = lazy(() => import('./pages/stock/StockCategories').then(m => ({ default: m.StockCategories })));
+const StockMaterials = lazy(() => import('./pages/stock/StockMaterials').then(m => ({ default: m.StockMaterials })));
 const StockBatch = lazy(() => import('./pages/stock/StockBatch').then(m => ({ default: m.StockBatch })));
 const StockProductStats = lazy(() => import('./pages/stock/StockProductStats').then(m => ({ default: m.StockProductStats })));
 
@@ -70,6 +71,7 @@ export function App() {
             <Route path="batch" element={<StockBatch />} />
             <Route path="product-stats" element={<StockProductStats />} />
             <Route path="categories" element={<StockCategories />} />
+            <Route path="materials" element={<StockMaterials />} />
             <Route path="settings" element={<StockSettings />} />
 
             <Route path="bantuan" element={<StockBantuan />} />

@@ -268,8 +268,10 @@ async function executeSale(
       return { success: false, error: result.error };
     }
     const saleData = result.data as any;
+    let bomData: { deducted: any[]; warnings: string[] } = { deducted: [], warnings: [] };
     try {
-      const bomResult = await deductPackaging(userId, qty, description);
+      const bomResult = await deductPackaging(userId, qty, description, productId);
+      bomData = { deducted: bomResult.deducted || [], warnings: bomResult.warnings || [] };
       if (bomResult.warnings && bomResult.warnings.length > 0) {
         addLog('info', '[BOM] Packaging deducted for ' + userId + ': ' + bomResult.warnings.join(', '));
       }
@@ -290,6 +292,7 @@ async function executeSale(
         stockBefore: saleData.stockBefore,
         stockAfter: saleData.stockAfter,
         description,
+        bom: bomData,
       },
       error: undefined,
     };
@@ -485,23 +488,23 @@ async function addMaterial(
   try {
     const { data: material, error } = await supabase
       .from('bom_materials')
-      .insert([
-        {
-          user_id: userId,
-          name,
-          unit: unit || 'pcs',
-          stock_current: parseFloat(String(stockCurrent)) || 0,
-          stock_min: parseFloat(String(stockMin)) || 0,
-          cost_per_unit: parseFloat(String(costPerUnit)) || 0,
-        },
-      ])
+      .insert([{ user_id: userId, name, unit: unit || 'pcs', stock_current: parseFloat(String(stockCurrent)) || 0, stock_min: parseFloat(String(stockMin)) || 0, cost_per_unit: parseFloat(String(costPerUnit)) || 0 }])
       .select()
       .single();
     if (error) throw error;
     return { success: true, material, error: undefined };
   } catch (err: any) {
-    addLog('error', '[BOM] addMaterial error: ' + err.message);
-    return { success: false, error: err.message };
+    if (!pgPool) return { success: false, error: err.message };
+    try {
+      const result = await pgPool.query(
+        `INSERT INTO bom_materials (user_id, name, unit, stock_current, stock_min, cost_per_unit) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [userId, name, unit || 'pcs', parseFloat(String(stockCurrent)) || 0, parseFloat(String(stockMin)) || 0, parseFloat(String(costPerUnit)) || 0],
+      );
+      return { success: true, material: result.rows[0], error: undefined };
+    } catch (pgErr: any) {
+      addLog('error', '[BOM] addMaterial pgPool fallback error: ' + pgErr.message);
+      return { success: false, error: pgErr.message };
+    }
   }
 }
 
@@ -516,7 +519,68 @@ async function listMaterials(userId: string): Promise<{ success: boolean; materi
     if (error) throw error;
     return { success: true, materials: data || [], error: undefined };
   } catch (err: any) {
+    if (!pgPool) return { success: false, error: err.message };
+    try {
+      const result = await pgPool.query(
+        `SELECT * FROM bom_materials WHERE user_id = $1 AND is_active = true ORDER BY name ASC`,
+        [userId],
+      );
+      return { success: true, materials: result.rows || [], error: undefined };
+    } catch (pgErr: any) {
+      return { success: false, error: pgErr.message };
+    }
+  }
+}
+
+async function updateMaterial(
+  userId: string,
+  materialId: string,
+  data: Partial<AddMaterialData>,
+): Promise<{ success: boolean; material?: unknown; error?: string }> {
+  const updates: string[] = [];
+  const params: any[] = [];
+  let idx = 1;
+  if (data.name !== undefined) { updates.push(`name = $${idx++}`); params.push(data.name); }
+  if (data.unit !== undefined) { updates.push(`unit = $${idx++}`); params.push(data.unit); }
+  if (data.stockCurrent !== undefined) { updates.push(`stock_current = $${idx++}`); params.push(parseFloat(String(data.stockCurrent))); }
+  if (data.stockMin !== undefined) { updates.push(`stock_min = $${idx++}`); params.push(parseFloat(String(data.stockMin))); }
+  if (data.costPerUnit !== undefined) { updates.push(`cost_per_unit = $${idx++}`); params.push(parseFloat(String(data.costPerUnit))); }
+  updates.push(`updated_at = now()`);
+  params.push(userId, materialId);
+  const setClause = updates.join(', ');
+  try {
+    const result = await pgPool!.query(
+      `UPDATE bom_materials SET ${setClause} WHERE user_id = $${idx++} AND id = $${idx} RETURNING *`,
+      params,
+    );
+    if (result.rows.length === 0) return { success: false, error: 'Material tidak ditemukan' };
+    return { success: true, material: result.rows[0], error: undefined };
+  } catch (err: any) {
+    addLog('error', '[BOM] updateMaterial error: ' + err.message);
     return { success: false, error: err.message };
+  }
+}
+
+async function deleteMaterial(userId: string, materialId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('bom_materials')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', materialId)
+      .eq('user_id', userId);
+    if (error) throw error;
+    return { success: true, error: undefined };
+  } catch (err: any) {
+    if (!pgPool) return { success: false, error: err.message };
+    try {
+      await pgPool.query(
+        `UPDATE bom_materials SET is_active = false, updated_at = now() WHERE id = $1 AND user_id = $2`,
+        [materialId, userId],
+      );
+      return { success: true, error: undefined };
+    } catch (pgErr: any) {
+      return { success: false, error: pgErr.message };
+    }
   }
 }
 
@@ -524,17 +588,19 @@ async function setRecipe(
   userId: string,
   materialId: string,
   qtyPerOrder: number,
+  productId: string | null = null,
 ): Promise<{ success: boolean; recipe?: unknown; error?: string }> {
+  const qty = parseFloat(String(qtyPerOrder));
+  if (isNaN(qty) || qty <= 0) {
+    return { success: false, error: 'Jumlah per order harus lebih dari 0.' };
+  }
   try {
-    const qty = parseFloat(String(qtyPerOrder));
-    if (isNaN(qty) || qty <= 0) {
-      return { success: false, error: 'Jumlah per order harus lebih dari 0.' };
-    }
     const { data: existing } = (await supabase
       .from('bom_recipes')
       .select('id')
       .eq('user_id', userId)
       .eq('material_id', materialId)
+      .eq('product_id', productId)
       .maybeSingle()) as any;
     let recipe: unknown;
     let error: any;
@@ -550,14 +616,7 @@ async function setRecipe(
     } else {
       const result = await supabase
         .from('bom_recipes')
-        .insert([
-          {
-            user_id: userId,
-            material_id: materialId,
-            quantity_per_order: qty,
-            auto_deduct: true,
-          },
-        ])
+        .insert([{ user_id: userId, material_id: materialId, product_id: productId, quantity_per_order: qty, auto_deduct: true }])
         .select()
         .single();
       recipe = result.data;
@@ -566,22 +625,137 @@ async function setRecipe(
     if (error) throw error;
     return { success: true, recipe, error: undefined };
   } catch (err: any) {
-    addLog('error', '[BOM] setRecipe error: ' + err.message);
-    return { success: false, error: err.message };
+    if (!pgPool) return { success: false, error: err.message };
+    try {
+      const existing = await pgPool.query(
+        `SELECT id FROM bom_recipes WHERE user_id = $1 AND material_id = $2 AND (product_id = $3 OR (product_id IS NULL AND $3 IS NULL))`,
+        [userId, materialId, productId],
+      );
+      let recipe;
+      if (existing.rows.length > 0) {
+        const r = await pgPool.query(
+          `UPDATE bom_recipes SET quantity_per_order = $1, auto_deduct = true WHERE id = $2 RETURNING *`,
+          [qty, existing.rows[0].id],
+        );
+        recipe = r.rows[0];
+      } else {
+        const r = await pgPool.query(
+          `INSERT INTO bom_recipes (user_id, material_id, product_id, quantity_per_order, auto_deduct) VALUES ($1, $2, $3, $4, true) RETURNING *`,
+          [userId, materialId, productId, qty],
+        );
+        recipe = r.rows[0];
+      }
+      return { success: true, recipe, error: undefined };
+    } catch (pgErr: any) {
+      addLog('error', '[BOM] setRecipe pgPool fallback error: ' + pgErr.message);
+      return { success: false, error: pgErr.message };
+    }
   }
 }
 
-async function getRecipes(userId: string): Promise<{ success: boolean; recipes: unknown[]; error?: string }> {
+async function getRecipes(
+  userId: string,
+  productId?: string | null,
+): Promise<{ success: boolean; recipes: unknown[]; error?: string }> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('bom_recipes')
-      .select('*, bom_materials(id, name, unit, stock_current)')
+      .select('*, bom_materials(id, name, unit, stock_current, stock_min)')
       .eq('user_id', userId)
       .eq('auto_deduct', true);
+    if (productId) query = query.eq('product_id', productId);
+    if (productId === null) query = query.is('product_id', null);
+    const { data, error } = await query.order('created_at', { ascending: true });
     if (error) throw error;
     return { success: true, recipes: data || [], error: undefined };
   } catch (err: any) {
-    return { success: false, recipes: [], error: err.message };
+    if (!pgPool) return { success: false, recipes: [], error: err.message };
+    try {
+      let sql = `SELECT r.*, row_to_json(m.*) as bom_materials FROM bom_recipes r JOIN bom_materials m ON m.id = r.material_id WHERE r.user_id = $1 AND r.auto_deduct = true`;
+      const params: any[] = [userId];
+      let idx = 2;
+      if (productId !== undefined) {
+        sql += ` AND (r.product_id = $${idx} OR r.product_id IS NULL)`;
+        params.push(productId);
+        idx++;
+      }
+      sql += ` ORDER BY r.created_at ASC`;
+      const result = await pgPool.query(sql, params);
+      const recipes = result.rows.map((r: any) => {
+        if (typeof r.bom_materials === 'string') r.bom_materials = JSON.parse(r.bom_materials);
+        return r;
+      });
+      return { success: true, recipes, error: undefined };
+    } catch (pgErr: any) {
+      return { success: false, recipes: [], error: pgErr.message };
+    }
+  }
+}
+
+async function listRecipes(userId: string): Promise<{ success: boolean; recipes: unknown[]; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('bom_recipes')
+      .select('*, bom_materials(id, name, unit, stock_current, stock_min)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return { success: true, recipes: data || [], error: undefined };
+  } catch (err: any) {
+    if (!pgPool) return { success: false, recipes: [], error: err.message };
+    try {
+      const result = await pgPool.query(
+        `SELECT r.*, row_to_json(m.*) as bom_materials FROM bom_recipes r JOIN bom_materials m ON m.id = r.material_id WHERE r.user_id = $1 ORDER BY r.created_at ASC`,
+        [userId],
+      );
+      return { success: true, recipes: result.rows.map((r: any) => { if (typeof r.bom_materials === 'string') r.bom_materials = JSON.parse(r.bom_materials); return r; }), error: undefined };
+    } catch (pgErr: any) {
+      return { success: false, recipes: [], error: pgErr.message };
+    }
+  }
+}
+
+async function deleteRecipe(userId: string, recipeId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from('bom_recipes').delete().eq('id', recipeId).eq('user_id', userId);
+    if (error) throw error;
+    return { success: true, error: undefined };
+  } catch (err: any) {
+    if (!pgPool) return { success: false, error: err.message };
+    try {
+      await pgPool.query(`DELETE FROM bom_recipes WHERE id = $1 AND user_id = $2`, [recipeId, userId]);
+      return { success: true, error: undefined };
+    } catch (pgErr: any) {
+      return { success: false, error: pgErr.message };
+    }
+  }
+}
+
+async function getDeductionLogs(
+  userId: string,
+  limit = 50,
+): Promise<{ success: boolean; logs: unknown[]; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('bom_deduction_logs')
+      .select('*, bom_materials(id, name, unit)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return { success: true, logs: data || [], error: undefined };
+  } catch (err: any) {
+    if (!pgPool) return { success: false, logs: [], error: err.message };
+    try {
+      const result = await pgPool.query(
+        `SELECT l.*, row_to_json(m.*) as bom_materials FROM bom_deduction_logs l JOIN bom_materials m ON m.id = l.material_id WHERE l.user_id = $1 ORDER BY l.created_at DESC LIMIT $2`,
+        [userId, limit],
+      );
+      const logs = result.rows.map((r: any) => { if (typeof r.bom_materials === 'string') r.bom_materials = JSON.parse(r.bom_materials); return r; });
+      return { success: true, logs, error: undefined };
+    } catch (pgErr: any) {
+      return { success: false, logs: [], error: pgErr.message };
+    }
   }
 }
 
@@ -589,11 +763,12 @@ async function deductPackaging(
   userId: string,
   orderQty = 1,
   referenceNote = '',
+  productId?: string,
 ): Promise<{ success: boolean; deducted: any[]; warnings: string[]; error?: string }> {
   const deducted: any[] = [];
   const warnings: string[] = [];
   try {
-    const recipeResult = await getRecipes(userId);
+    const recipeResult = await getRecipes(userId, productId);
     if (!recipeResult.success || (recipeResult.recipes as any[]).length === 0) {
       return { success: true, deducted, warnings: ['Belum ada resep BOM diatur.'] };
     }
@@ -649,9 +824,7 @@ async function deductPackaging(
         });
         if (stockAfter <= 0) warnings.push(`⚠️ Material *${material.name}* HABIS! Segera restock.`);
         else if (stockAfter <= parseFloat(material.stock_min))
-          warnings.push(
-            `⚠️ Material *${material.name}* menipis (sisa ${formatQty(stockAfter, material.unit)} ${material.unit}).`,
-          );
+          warnings.push(`⚠️ Material *${material.name}* menipis (sisa ${formatQty(stockAfter, material.unit)} ${material.unit}).`);
         break;
       }
     }
@@ -677,7 +850,12 @@ export {
   formatQty,
   addMaterial,
   listMaterials,
+  updateMaterial,
+  deleteMaterial,
   setRecipe,
   getRecipes,
+  listRecipes,
+  deleteRecipe,
+  getDeductionLogs,
   deductPackaging,
 };

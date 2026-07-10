@@ -10,13 +10,13 @@ import accountingEngine from '../utils/accountingEngine';
 import * as geminiRouter from '../utils/geminiRouter';
 import { parseCurrency, parseQuantity, formatPhone, formatRupiah, getDailyTransactionCount, getEffectiveStatus, getDaysRemaining, buildStatusMessage } from '../utils/helpers';
 import { PACKAGES, PAYMENT } from '../config/packages';
-import { KW_KELUAR, KW_MASUK, KW_STATUS, KW_LAPORAN, KW_BANTUAN, KW_UPGRADE, KW_BATAL, KW_STOCK, KW_PRODUCT, KW_DASHBOARD } from '../config/keywords';
+import { KW_KELUAR, KW_MASUK, KW_STATUS, KW_LAPORAN, KW_BANTUAN, KW_UPGRADE, KW_BATAL, KW_STOCK, KW_PRODUCT, KW_DASHBOARD, KW_BAHAN, KW_BAHAN_MASUK, KW_BAHAN_KELUAR, KW_RESEP } from '../config/keywords';
 import { addLog } from '../config/state';
 import { circuitIsOpen, circuitRecordSuccess, circuitRecordFailure } from '../services/circuit-breaker';
 import { sanitizeError, isMessageProcessed, markMessageProcessed, onboardingStates, graduatedVirtualUsers, safeReply, getMaintenanceMode, invalidateMaintenanceCache, withSenderLock } from '../config/message-state';
 import { setDialog, getDialog, hasDialog, removeDialog, clearAllDialogs, getNextDialog, getExpiredDialogTypes, sortedDialogs } from '../services/dialog-state.service';
 import { generateUniqueSlug } from '../utils/slug';
-import { handleStockList, handleStockInfo, handleStockReport } from './stock-handler';
+import { handleStockList, handleStockInfo, handleStockReport, handleBahanList, handleBahanMasuk, handleResep } from './stock-handler';
 import { handleInvoiceCommand, handleSetBankCommand, generateInvoiceNumber, normalizeWaNumber, getBankCache, setBankCache, generateInvoicePDF } from './invoice-handler';
 import { handleOnboardingStep } from './onboarding';
 
@@ -32,9 +32,10 @@ async function handleStockInOutCommand(msg: any, user: any, productQuery: string
     return true;
   }
   const product = searchRes.products[0] as any;
+  const note = type === 'in' ? 'Restock via WA' : 'Terjual via WA';
   const res = await transactionRecorder.recordStockAdjustment({
     userId: user.id, productId: product.id, type, quantity: qty,
-    note: type === 'in' ? 'Restock via WA' : 'Terjual via WA',
+    note,
   });
   if (!res.success) {
     await safeReply(msg, `❌ *Gagal*\n\n${res.error}`);
@@ -42,10 +43,28 @@ async function handleStockInOutCommand(msg: any, user: any, productQuery: string
   }
   const d = res.data as any;
   const label = type === 'in' ? 'Stok Masuk' : 'Terjual';
+
+  let bomText = '';
+  if (type === 'out') {
+    try {
+      const bomResult = await stockManager.deductPackaging(user.id, qty, note, product.id);
+      if (bomResult.deducted && bomResult.deducted.length > 0) {
+        bomText = '\n\n📦 *Bahan terpakai*:\n' + bomResult.deducted.map((b: any) =>
+          `• ${b.name}: -${stockManager.formatQty(b.deducted, b.unit)} ${b.unit}`
+        ).join('\n');
+      }
+      if (bomResult.warnings && bomResult.warnings.length > 0) {
+        bomText += '\n⚠️ ' + bomResult.warnings.join('\n⚠️ ');
+      }
+    } catch (bomErr: any) {
+      addLog('error', `[BOM] deductPackaging error di WA command '${type}': ${bomErr.message}`);
+    }
+  }
+
   await safeReply(msg,
     `✅ *${label}* ${product.name}\n\n` +
     `${stockManager.formatQty(d.stockBefore, d.product.unit)} ${d.product.unit} → ` +
-    `${stockManager.formatQty(d.stockAfter, d.product.unit)} ${d.product.unit}`
+    `${stockManager.formatQty(d.stockAfter, d.product.unit)} ${d.product.unit}${bomText}`
   );
   return true;
 }
@@ -95,11 +114,22 @@ async function processSaleExecution(msg: any, sender: string, user: any, product
   ];
   const closingLine = friendlyClose[Math.floor(Math.random() * friendlyClose.length)];
 
+  let bomText = '';
+  const bomInfo = (d as any).bom;
+  if (bomInfo?.deducted?.length > 0) {
+    bomText = '\n📦 *Bahan terpakai*:\n' + bomInfo.deducted.map((b: any) =>
+      `• ${b.name}: -${stockManager.formatQty(b.deducted, b.unit)} ${b.unit}`
+    ).join('\n');
+  }
+  if (bomInfo?.warnings?.length > 0) {
+    bomText += '\n⚠️ ' + bomInfo.warnings.join('\n⚠️ ');
+  }
+
   await safeReply(msg,
     `✅ *Sip bos! Transaksi tercatat ya!*\n\n` +
     `💰 *Uang Masuk*: ${formatRupiah(d.totalOmzet)}${channelTag}\n` +
-    `📦 *${product.name}*: -${stockManager.formatQty(qty, product.unit)} ${product.unit} (sisa: ${stockManager.formatQty(d.stockAfter, product.unit)})\n\n` +
-    `_${closingLine}_\n_Ketik *Batal* dalam 1 menit kalau ada yang keliru._`
+    `📦 *${product.name}*: -${stockManager.formatQty(qty, product.unit)} ${product.unit} (sisa: ${stockManager.formatQty(d.stockAfter, product.unit)})` +
+    bomText + `\n\n_${closingLine}_\n_Ketik *Batal* dalam 1 menit kalau ada yang keliru._`
   );
   return true;
 }
@@ -1258,6 +1288,24 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       const quantityStr = saleMatch[3] || '1';
       const unitStr = saleMatch[4] || null;
       await handleSaleCommand(msg, sender, user, productQuery, quantityStr, unitStr, channelName);
+      return;
+    }
+
+    const bahanListIntent = KW_BAHAN.some(k => body === k || body === k + ' list' || body === 'daftar ' + k);
+    if (bahanListIntent && body !== 'bahan masuk' && body !== 'bahan keluar') {
+      await handleBahanList(msg, user);
+      return;
+    }
+
+    const bahanMasukMatch = rawBody.match(/^(?:bahan|material)\s+(?:masuk|restock)\s+(.+?)\s+(\d+(?:[.,]\d+)?)/i);
+    if (bahanMasukMatch) {
+      await handleBahanMasuk(msg, user, bahanMasukMatch[1].trim(), bahanMasukMatch[2]);
+      return;
+    }
+
+    const resepMatch = rawBody.match(/^(?:resep|bom|komposisi)\s+(.+)/i);
+    if (resepMatch) {
+      await handleResep(msg, user, resepMatch[1].trim());
       return;
     }
 

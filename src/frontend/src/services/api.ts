@@ -93,3 +93,32 @@ export const stockApi = {
     });
   },
 };
+
+// ── BOM / Material API helpers ──
+export const bomApi = {
+  listMaterials(token: string) {
+    return stockApi.get<{ materials: import('../types').BomMaterial[] }>('/api/stock/materials', token);
+  },
+  addMaterial(token: string, data: { name: string; unit?: string; stock_current?: number; stock_min?: number; cost_per_unit?: number }) {
+    return stockApi.post<{ material: import('../types').BomMaterial }>('/api/stock/materials', token, data);
+  },
+  updateMaterial(token: string, id: string, data: Record<string, unknown>) {
+    return stockApi.put<{ material: import('../types').BomMaterial }>(`/api/stock/materials/${id}`, token, data);
+  },
+  deleteMaterial(token: string, id: string) {
+    return stockApi.del<{ success: boolean }>(`/api/stock/materials/${id}`, token);
+  },
+  listRecipes(token: string, productId?: string) {
+    const qs = productId ? `?product_id=${productId}` : '';
+    return stockApi.get<{ recipes: import('../types').BomRecipe[] }>(`/api/stock/materials/recipes${qs}`, token);
+  },
+  setRecipe(token: string, data: { material_id: string; product_id?: string | null; quantity_per_order: number }) {
+    return stockApi.post<{ recipe: import('../types').BomRecipe }>('/api/stock/materials/recipes', token, data);
+  },
+  deleteRecipe(token: string, id: string) {
+    return stockApi.del<{ success: boolean }>(`/api/stock/materials/recipes/${id}`, token);
+  },
+  getDeductionLogs(token: string, limit = 50) {
+    return stockApi.get<{ logs: import('../types').BomDeductionLog[] }>(`/api/stock/materials/logs?limit=${limit}`, token);
+  },
+};

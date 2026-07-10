@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
-import { stockApi } from '../../services/api';
+import { stockApi, bomApi } from '../../services/api';
 import { Modal } from '../../components/Modal';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { RupiahInput } from '../../components/RupiahInput';
@@ -9,8 +9,8 @@ import { Badge } from '../../components/Badge';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { toast } from '../../components/Toast';
 import { fmtRp, fmtQty } from '../../lib/utils';
-import type { Product } from '../../types';
-import { Plus, Edit2, Trash2, Search, Globe, AlertTriangle, RefreshCw } from 'lucide-react';
+import type { Product, BomMaterial, BomRecipe } from '../../types';
+import { Plus, Edit2, Trash2, Search, Globe, AlertTriangle, RefreshCw, Package, X } from 'lucide-react';
 import { DownloadButton } from '../../components/DownloadButton';
 
 interface Category {
@@ -26,6 +26,8 @@ export function ProductsPage() {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [form, setForm] = useState({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '' });
+  const [showRecipes, setShowRecipes] = useState(false);
+  const [recipeForm, setRecipeForm] = useState({ material_id: '', quantity_per_order: '' });
 
   const productsQuery = useQuery({
     queryKey: ['products-page', token],
@@ -52,9 +54,26 @@ export function ProductsPage() {
     select: (data) => data.settings?.active_channels ?? ['offline', 'whatsapp', 'shopee', 'tokopedia', 'lazada', 'tiktok shop'],
   });
 
+  const materialsQuery = useQuery({
+    queryKey: ['materials-for-recipes', token],
+    queryFn: () => bomApi.listMaterials(token!),
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+
+  const recipesQuery = useQuery({
+    queryKey: ['recipes', token, editProduct?.id],
+    queryFn: () => bomApi.listRecipes(token!, editProduct?.id || undefined),
+    enabled: !!token && showRecipes,
+    staleTime: 10_000,
+    select: (data) => data.recipes ?? [],
+  });
+
   const products = productsQuery.data ?? [];
   const categories = categoriesQuery.data ?? [];
   const activeChannels = channelsQuery.data ?? [];
+  const allMaterials = (materialsQuery.data?.materials ?? []) as BomMaterial[];
+  const productRecipes = recipesQuery.data as BomRecipe[] | undefined;
   const loading = productsQuery.isPending || categoriesQuery.isPending || channelsQuery.isPending;
   const error = productsQuery.isError || categoriesQuery.isError || channelsQuery.isError;
 
@@ -122,6 +141,32 @@ export function ProductsPage() {
       productsQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal hapus produk');
+    }
+  }
+
+  async function addRecipe() {
+    if (!token || !editProduct) return;
+    if (!recipeForm.material_id || !recipeForm.quantity_per_order) {
+      toast.error('Pilih material dan isi jumlah');
+      return;
+    }
+    try {
+      await bomApi.setRecipe(token, { material_id: recipeForm.material_id, product_id: editProduct.id, quantity_per_order: Number(recipeForm.quantity_per_order) });
+      toast('Resep ditambahkan');
+      setRecipeForm({ material_id: '', quantity_per_order: '' });
+      recipesQuery.refetch();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal tambah resep');
+    }
+  }
+
+  async function deleteRecipe(id: string) {
+    try {
+      await bomApi.deleteRecipe(token!, id);
+      toast('Resep dihapus');
+      recipesQuery.refetch();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal hapus resep');
     }
   }
 
@@ -322,6 +367,80 @@ export function ProductsPage() {
             <label className="form-label">Stok Minimal</label>
             <input className="input" type="number" value={form.stock_min} onChange={(e) => setForm({ ...form, stock_min: e.target.value })} placeholder="Untuk peringatan stok menipis" />
           </div>
+
+          {editProduct && (
+            <>
+              <hr style={{ margin: '0.5rem 0', borderColor: 'var(--border)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>Resep BOM (Bahan Baku)</label>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => { setShowRecipes(!showRecipes); if (!showRecipes) recipesQuery.refetch(); }}
+                  style={{ fontSize: '0.8rem' }}
+                >
+                  <Package size={14} /> {showRecipes ? 'Tutup' : 'Atur Resep'}
+                </button>
+              </div>
+
+              {showRecipes && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.75rem', background: 'rgba(0,0,0,0.02)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div className="form-row" style={{ alignItems: 'end' }}>
+                    <div className="form-group" style={{ flex: 2 }}>
+                      <label className="form-label" style={{ fontSize: '0.75rem' }}>Material</label>
+                      <select className="input input-sm" value={recipeForm.material_id} onChange={(e) => setRecipeForm({ ...recipeForm, material_id: e.target.value })}>
+                        <option value="">— Pilih material —</option>
+                        {allMaterials.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({fmtQty(m.stock_current, m.unit)} {m.unit})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label className="form-label" style={{ fontSize: '0.75rem' }}>Jumlah per Produk</label>
+                      <input className="input input-sm" type="number" step="0.01" min="0" value={recipeForm.quantity_per_order} onChange={(e) => setRecipeForm({ ...recipeForm, quantity_per_order: e.target.value })} />
+                    </div>
+                    <button className="btn btn-primary btn-sm" onClick={addRecipe} style={{ marginBottom: 1 }}>
+                      <Plus size={14} />
+                    </button>
+                  </div>
+
+                  {!recipesQuery.isPending && productRecipes && productRecipes.length > 0 && (
+                    <table style={{ fontSize: '0.8rem' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ padding: '0.25rem 0.5rem', textAlign: 'left' }}>Material</th>
+                          <th style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}>Jumlah</th>
+                          <th style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {productRecipes.map((r) => {
+                          const mat = (r as any).bom_materials as BomMaterial | undefined;
+                          return (
+                            <tr key={r.id}>
+                              <td style={{ padding: '0.25rem 0.5rem', fontWeight: 600 }}>{mat?.name || 'Unknown'}</td>
+                              <td style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}>{r.quantity_per_order} {mat?.unit || ''}</td>
+                              <td style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}>
+                                <button className="btn btn-ghost btn-sm" onClick={() => deleteRecipe(r.id)} style={{ color: 'var(--danger)', padding: '0.15rem' }}>
+                                  <X size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                  {!recipesQuery.isPending && (!productRecipes || productRecipes.length === 0) && (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', margin: '0.5rem 0' }}>
+                      Belum ada resep untuk produk ini. Tambahkan material di atas.
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </Modal>
 

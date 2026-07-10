@@ -4,7 +4,7 @@ import {
   LayoutDashboard, BookOpen, TrendingUp,
   Package, ArrowUpDown, ClipboardCheck, History, CreditCard, DollarSign,
   BarChart3, ChevronLeft, ChevronRight, Database,
-  Bell, HelpCircle, Undo2,
+  Bell, HelpCircle, Undo2, Box,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useStockStore } from '../../store/stockStore';
@@ -38,6 +38,7 @@ export function getNavGroups(status?: string): NavGroup[] {
       children: [
         { to: '/stock/products', label: 'Produk', icon: Package },
         { to: '/stock/categories', label: 'Kategori', icon: Package },
+        { to: '/stock/materials', label: 'Bahan Baku', icon: Box },
         { to: '/stock/movement', label: 'Masuk/Keluar', icon: ArrowUpDown },
         { to: '/stock/opname', label: 'Opname', icon: ClipboardCheck },
         { to: '/stock/retur', label: 'Retur Jual', icon: Undo2 },

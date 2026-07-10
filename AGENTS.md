@@ -82,6 +82,7 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 6 | Klasifikasi transaksi (`src/config/keywords.ts` + `message.ts`) | **[BELUM SELESAI]** Frasa multi-kata harus word-boundary regex terhadap `body` penuh | `"transfer masuk 100rb"` → `'masuk'` |
 | 7 | Session store (`src/config/session.ts:82`) | `schemaName: 'public'` di PgBouncer pool | Log startup TIDAK ada error `no schema has been selected` |
 | 8 | `sendUpgradeNotification` (`src/jobs/scheduler.ts`) | **[BELUM DIPERBAIKI]** Null-check WA client sudah ada, tapi method `getChat` bisa error kalau client belum siap (`pupPage`/chat store) | Tambah guard kesiapan client (bukan cuma null-check) |
+| 9 | BOM/Packaging — fitur baru | Implementasi lengkap: 3 tabel DB + 5 fungsi backend + 8 API endpoint + halaman Materials CRUD + resep di modal produk + WA command + pgPool fallback | Cek `src/routes/api.ts` ada 8 route `materials`; `src/frontend/src/pages/stock/StockMaterials.tsx` ada; sidebar ada menu "Bahan Baku" |
 
 Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
 
