@@ -289,22 +289,18 @@ async function handleTransaction(msg: any, sender: string, user: any, effectiveS
   let type: string | null = null, amount: number | null = null;
   const descWords: string[] = [];
 
-  const bodyWords = body.split(/\s+/);
-  const wordInSet = (w: string, set: readonly string[]) => set.includes(w);
-  const exactMasuk = bodyWords.some((w: string) => wordInSet(w, KW_MASUK));
-  const exactKeluar = bodyWords.some((w: string) => wordInSet(w, KW_KELUAR));
+  const wordBoundaryInSet = (s: string, set: readonly string[]) =>
+    set.some((k: string) => new RegExp('\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(s));
+  const exactMasuk = wordBoundaryInSet(body, KW_MASUK);
+  const exactKeluar = wordBoundaryInSet(body, KW_KELUAR);
 
   if (exactMasuk && !exactKeluar) type = 'masuk';
   else if (exactKeluar && !exactMasuk) type = 'keluar';
   else if (exactMasuk && exactKeluar) {
-    const countMasuk = bodyWords.filter((w: string) => wordInSet(w, KW_MASUK)).length;
-    const countKeluar = bodyWords.filter((w: string) => wordInSet(w, KW_KELUAR)).length;
+    const countMasuk = KW_MASUK.filter((k) => new RegExp('\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(body)).length;
+    const countKeluar = KW_KELUAR.filter((k) => new RegExp('\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(body)).length;
+    // Tie-break: default ke 'masuk' kalau count sama — perlu dikonfirmasi ke pemilik produk apakah ini memang disengaja
     type = countMasuk >= countKeluar ? 'masuk' : 'keluar';
-  } else {
-    const wordBoundaryInSet = (s: string, set: readonly string[]) =>
-      set.some((k: string) => new RegExp('\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(s));
-    if (wordBoundaryInSet(body, KW_KELUAR)) type = 'keluar';
-    else if (wordBoundaryInSet(body, KW_MASUK)) type = 'masuk';
   }
 
   let matchedProductKeyword: string | null = null;
