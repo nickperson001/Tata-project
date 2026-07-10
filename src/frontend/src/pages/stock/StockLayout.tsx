@@ -1,19 +1,18 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { toast } from '../../components/Toast';
 import { useStockToken } from '../../hooks/useStockToken';
 import { useStockStore } from '../../store/stockStore';
 import { NotificationBell } from '../../components/NotificationBell';
 import { UserMenu } from '../../components/UserMenu';
-import { HelpCircle } from 'lucide-react';
-import { StockSidebar } from './StockSidebar';
+import { HelpCircle, Settings } from 'lucide-react';
 import { ChatbotWidget } from './ChatbotWidget';
 import { StockLogin } from './StockLogin';
 import { getSocket, disconnectSocket } from '../../services/socket';
 import { useNotificationStore, StockAlert } from '../../store/notificationStore';
 import { stockApi } from '../../services/api';
 import {
-  LayoutDashboard, BookOpen, Package, BarChart3, Settings,
+  LayoutDashboard, BookOpen, Package, BarChart3,
 } from 'lucide-react';
 
 const BOTTOM_NAV_ALL = [
@@ -32,7 +31,6 @@ const BOTTOM_NAV_DEMO = [
 export function StockLayout() {
   const { isLoading } = useStockToken();
   const { token, user } = useStockStore();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
 
   const bottomNav = user?.status === 'demo' ? BOTTOM_NAV_DEMO : BOTTOM_NAV_ALL;
@@ -101,8 +99,6 @@ export function StockLayout() {
 
   return (
     <div className="stock-layout">
-      <StockSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-
       <div className="stock-main">
         <header className="stock-topbar">
           <div className="topbar-left">
@@ -118,6 +114,14 @@ export function StockLayout() {
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
             >
               <HelpCircle size={18} />
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => navigate('/stock/settings')}
+              title="Settings"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
+            >
+              <Settings size={18} />
             </button>
             <NotificationBell />
             <UserMenu />
