@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageCircle, X, Send, Bot, Loader2 } from 'lucide-react';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
+import { Z } from '../../lib/zIndex';
 
 export function ChatbotWidget() {
   const [open, setOpen] = useState(false);
@@ -13,6 +14,9 @@ export function ChatbotWidget() {
   const { token } = useStockStore();
   const chatEnd = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const close = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,6 +25,30 @@ export function ChatbotWidget() {
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: KeyboardEvent) {
+      if (e.key === 'Escape') close();
+      if (e.key === 'Tab') {
+        const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, close]);
 
   const sendMessage = async () => {
     if (!input.trim() || !token) return;
@@ -39,9 +67,9 @@ export function ChatbotWidget() {
   };
 
   return (
-    <div className="chatbot-wrapper">
+    <div className="chatbot-wrapper" style={{ zIndex: Z.CHATBOT }}>
       {open && (
-        <div className="chatbot-panel">
+        <div ref={panelRef} className="chatbot-panel">
           <div className="chatbot-header">
             <Bot size={18} />
             <span>Tata AI Assistant</span>

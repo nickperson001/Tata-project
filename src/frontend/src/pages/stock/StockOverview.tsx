@@ -60,24 +60,44 @@ function buildReport(o: OverviewData, storeName: string, preset: string): string
   return lines;
 }
 
+import { Z } from '../../lib/zIndex';
+
 function AiWelcomePopup({ overview, storeName, preset, onClose }: { overview: OverviewData; storeName: string; preset: string; onClose: () => void }) {
   const [visibleLines, setVisibleLines] = useState(0);
   const lines = buildReport(overview, storeName, preset);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     setVisibleLines(0);
-    const timer = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setVisibleLines(prev => {
-        if (prev >= lines.length) { clearInterval(timer); return prev; }
+        if (prev >= lines.length) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = null;
+          return prev;
+        }
         return prev + 1;
       });
     }, 400);
-    return () => clearInterval(timer);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
   }, [overview, lines.length]);
+
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
+      position: 'fixed', inset: 0, zIndex: Z.AI_POPUP,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
       animation: 'fadeIn 0.3s ease-out',
@@ -100,6 +120,7 @@ function AiWelcomePopup({ overview, storeName, preset, onClose }: { overview: Ov
         }}>
           <button
             onClick={onClose}
+            className="ai-popup-close"
             style={{
               position: 'absolute', right: 14, top: 14,
               width: 32, height: 32, borderRadius: '50%',
@@ -107,8 +128,6 @@ function AiWelcomePopup({ overview, storeName, preset, onClose }: { overview: Ov
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--text-muted)', transition: 'all 0.2s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.12)'; e.currentTarget.style.color = 'var(--text)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
           >
             <X size={16} />
           </button>

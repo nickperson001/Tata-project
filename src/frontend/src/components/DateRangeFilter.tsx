@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
+import { Z } from '../lib/zIndex';
 
 export interface DateRange {
   startDate: string | null;
@@ -102,14 +103,14 @@ export function DateRangeFilter({ value, onChange }: DateRangeFilterProps) {
             top: '100%',
             left: 0,
             marginTop: 4,
-            background: 'var(--card-bg)',
+            background: 'var(--bg-card)',
             border: '1px solid var(--border)',
             borderRadius: 8,
             padding: '0.75rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
-            zIndex: 100,
+            zIndex: Z.DATERANGE_POPUP,
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           }}
         >

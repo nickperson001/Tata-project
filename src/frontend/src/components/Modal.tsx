@@ -1,5 +1,7 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useId, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { Portal } from '../lib/Portal';
+import { Z } from '../lib/zIndex';
 
 interface ModalProps {
   open: boolean;
@@ -13,13 +15,20 @@ interface ModalProps {
 export function Modal({ open, onClose, title, children, footer, large }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement;
-    const timer = setTimeout(() => {
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+
+    requestAnimationFrame(() => {
       modalRef.current?.focus();
-    }, 50);
+    });
+
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'Tab') {
@@ -41,28 +50,33 @@ export function Modal({ open, onClose, title, children, footer, large }: ModalPr
     document.addEventListener('keydown', handler);
     return () => {
       document.removeEventListener('keydown', handler);
-      clearTimeout(timer);
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, scrollY);
       previousFocusRef.current?.focus();
     };
   }, [open, onClose]);
 
   if (!open) return null;
 
-  return (
+  const modal = (
     <div
       className="overlay"
       role="dialog"
       aria-modal="true"
-      aria-label={title}
+      aria-labelledby={titleId}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ zIndex: Z.MODAL_OVERLAY }}
     >
       <div
         ref={modalRef}
         className={`modal ${large ? 'modal-lg' : ''}`}
         tabIndex={-1}
+        style={{ zIndex: Z.MODAL_CONTENT }}
       >
         <div className="modal-header">
-          <h3 id="modal-title">{title}</h3>
+          <h3 id={titleId}>{title}</h3>
           <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label={`Tutup ${title}`}>
             <X size={18} />
           </button>
@@ -72,4 +86,6 @@ export function Modal({ open, onClose, title, children, footer, large }: ModalPr
       </div>
     </div>
   );
+
+  return <Portal>{modal}</Portal>;
 }

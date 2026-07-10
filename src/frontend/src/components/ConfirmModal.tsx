@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Modal } from './Modal';
 
 interface ConfirmModalProps {
@@ -22,11 +23,23 @@ export function ConfirmModal({
   danger, loading,
 }: ConfirmModalProps) {
   const handleClose = onCancel || onClose || (() => {});
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: KeyboardEvent) {
+      if (e.key === 'Enter' && !loading) {
+        onConfirm();
+      }
+    }
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, onConfirm, loading]);
 
   return (
     <Modal
       open={open}
-      onClose={handleClose}
+      onClose={loading ? () => {} : handleClose}
       title={title}
       footer={
         <>
@@ -34,6 +47,7 @@ export function ConfirmModal({
             {cancelLabel}
           </button>
           <button
+            ref={confirmRef}
             className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`}
             onClick={onConfirm}
             disabled={loading}

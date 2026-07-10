@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from './Modal';
 
 interface PromptModalProps {
@@ -10,10 +10,23 @@ interface PromptModalProps {
   cancelLabel?: string;
   onConfirm: (value: string) => void;
   onCancel: () => void;
+  inputType?: string;
 }
 
-export function PromptModal({ open, title, message, defaultValue = '', confirmLabel = 'Simpan', cancelLabel = 'Batal', onConfirm, onCancel }: PromptModalProps) {
+export function PromptModal({
+  open, title, message, defaultValue = '',
+  confirmLabel = 'Simpan', cancelLabel = 'Batal',
+  onConfirm, onCancel, inputType = 'number',
+}: PromptModalProps) {
   const [value, setValue] = useState(defaultValue);
+  const initialDefault = useRef(defaultValue);
+
+  useEffect(() => {
+    if (initialDefault.current !== defaultValue) {
+      initialDefault.current = defaultValue;
+      setValue(defaultValue);
+    }
+  }, [defaultValue]);
 
   return (
     <Modal
@@ -30,7 +43,7 @@ export function PromptModal({ open, title, message, defaultValue = '', confirmLa
       <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '0.75rem' }}>{message}</p>
       <input
         className="input"
-        type="number"
+        type={inputType}
         min="0"
         step="any"
         value={value}
