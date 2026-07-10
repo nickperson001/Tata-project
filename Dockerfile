@@ -54,7 +54,16 @@ WORKDIR /app
 
 # ── 2. Install Node.js Dependencies ──────────────────────────
 COPY package*.json ./
-RUN npm install -g npm@11 && npm install
+
+# PUPPETEER_SKIP_CHROMIUM_DOWNLOAD harus SEBELUM npm install
+# agar postinstall puppeteer tidak mendownload Chromium (~300MB)
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    CHROME_PATH=/usr/bin/chromium
+
+RUN npm install -g npm@11 \
+    && npm install --no-audit --no-fund \
+    && npm cache clean --force
 
 # ── 3. Copy Source Code ───────────────────────────────────────
 COPY . .
@@ -63,26 +72,21 @@ COPY . .
 RUN npm run build:frontend
 
 # ── 5. Environment Variables ──────────────────────────────────
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    CHROME_PATH=/usr/bin/chromium \
-    PORT=7860 \
+ENV PORT=7860 \
     HOME=/tmp \
-    NODE_OPTIONS="--max-old-space-size=512"
+    NODE_OPTIONS="--max-old-space-size=512" \
+    NODE_ENV=production
 
-# ── 6. Production Mode ─────────────────────────────────────────
-ENV NODE_ENV=production
-
-# ── 7. Permissions + Temp Directories ─────────────────────────
+# ── 6. Permissions + Temp Directories ─────────────────────────
 RUN chmod -R 777 /app \
     && mkdir -p /tmp/.config /tmp/.cache \
     && chmod -R 777 /tmp
 
-# ── 8. Health Check ───────────────────────────────────────────
+# ── 7. Health Check ───────────────────────────────────────────
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
     CMD node -e "fetch('http://localhost:7860/ping').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
 
 EXPOSE 7860
 
-# ── 9. Start ──────────────────────────────────────────────────
+# ── 8. Start ──────────────────────────────────────────────────
 CMD ["node", "index.js"]
