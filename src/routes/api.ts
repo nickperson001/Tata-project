@@ -15,7 +15,6 @@ import { ErrorCode } from '../types/errors';
 import { validate } from '../middleware/validate';
 import {
   waAuthSchema,
-  chatSchema,
   movementSchema,
   pembukuanSchema,
   hutangSchema,
@@ -2722,18 +2721,6 @@ router.get('/api/stock/dashboard/charts', stockAuth, async (req: StockRequest, r
       .slice(0, 5);
 
     apiSuccess(res, { labels, revenue, expense, expenseLabels, expenseValues, topProducts });
-  } catch (e: any) {
-    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
-  }
-});
-
-router.post('/api/stock/chat', stockAuth, validate(chatSchema), async (req: StockRequest, res: Response) => {
-  const userId = req.stockUser!.id;
-  const { message } = req.body;
-  try {
-    const chatbot = require('../utils/chatbot');
-    const result = await chatbot.processMessage(userId, message);
-    apiSuccess(res, { reply: result });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }

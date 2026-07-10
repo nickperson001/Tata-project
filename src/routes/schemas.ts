@@ -45,10 +45,6 @@ export const waAuthSchema = z.object({
   whatsapp: z.string().min(1, 'Nomor WhatsApp wajib diisi'),
 });
 
-export const chatSchema = z.object({
-  message: z.string().min(1, 'Pesan tidak boleh kosong'),
-});
-
 export const movementSchema = z.object({
   product_id: z.string().min(1, 'Produk wajib dipilih'),
   type: z.enum(['in', 'out', 'adjustment'], { message: 'Tipe harus in, out, atau adjustment' }),

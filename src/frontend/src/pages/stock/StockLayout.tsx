@@ -6,12 +6,11 @@ import { useStockStore } from '../../store/stockStore';
 import { NotificationBell } from '../../components/NotificationBell';
 import { UserMenu } from '../../components/UserMenu';
 import {
-  HelpCircle, Settings, LayoutDashboard, BookOpen, Package, BarChart3,
+  LayoutDashboard, BookOpen, Package, BarChart3,
   ArrowUpDown, ClipboardCheck, History, CreditCard, DollarSign,
   Database, Undo2, Box, TrendingUp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { ChatbotWidget } from './ChatbotWidget';
 import { StockLogin } from './StockLogin';
 import { getSocket, disconnectSocket } from '../../services/socket';
 import { useNotificationStore, StockAlert } from '../../store/notificationStore';
@@ -172,27 +171,11 @@ export function StockLayout() {
       <div className="stock-main">
         <header className="stock-topbar">
           <div className="topbar-left">
-            <img src="/stock/logo.svg" alt="Tata" style={{ height: 22, marginRight: 6 }} />
+            <img src="/stock/logo.svg" alt="Tata" style={{ height: 28, marginRight: 8 }} />
             <span className="topbar-brand">Tata Business Suite</span>
             {user && <span className="topbar-store">— {user.store_name}</span>}
           </div>
           <div className="topbar-right">
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => navigate('/stock/bantuan')}
-              title="Bantuan"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
-            >
-              <HelpCircle size={18} />
-            </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => navigate('/stock/settings')}
-              title="Settings"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
-            >
-              <Settings size={18} />
-            </button>
             <NotificationBell />
             <UserMenu />
           </div>
@@ -233,7 +216,6 @@ export function StockLayout() {
         ))}
       </nav>
 
-      <ChatbotWidget />
     </div>
   );
 }
