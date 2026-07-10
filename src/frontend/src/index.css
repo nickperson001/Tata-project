@@ -877,7 +877,7 @@ tr:hover .row-actions { opacity: 1; }
   background: var(--bg-card); flex-shrink: 0;
 }
 .admin-topbar-brand { display: flex; align-items: center; gap: 0.5rem; }
-.admin-topbar-brand-img { height: 28px; }
+.admin-topbar-brand-img { height: 36px; }
 .admin-topbar-brand-name { font-weight: 700; font-size: 0.9rem; }
 .admin-topbar-brand-sub { font-size: 0.65rem; color: var(--text-muted); }
 .admin-topbar-actions { display: flex; gap: 0.25rem; align-items: center; }
@@ -912,7 +912,7 @@ tr:hover .row-actions { opacity: 1; }
 
 @media (max-width: 480px) {
   .stock-content { padding: 0.75rem; padding-bottom: 4.5rem; }
-  .topbar-brand { font-size: 0.85rem; }
+  .topbar-brand { font-size: 0.9rem; }
 }
 
 /* ── Bento Grid ── */

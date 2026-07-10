@@ -1,16 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, X, Package, Undo2, Undo2 as Undo2Icon, ClipboardCheck, ArrowUpDown } from 'lucide-react';
+import { Plus, Package, Undo2, Undo2 as Undo2Icon, ClipboardCheck, ArrowUpDown } from 'lucide-react';
 import { Portal } from '../lib/Portal';
 import { Z } from '../lib/zIndex';
 import { MovementModal } from './MovementModal';
+import { ReturnModal } from './ReturnModal';
+import { PurchaseReturnModal } from './PurchaseReturnModal';
+import { OpnameModal } from './OpnameModal';
 
 interface QuickAction {
   id: string;
   label: string;
   icon: typeof Package;
   route?: string;
-  modal?: 'movement';
+  modal?: 'movement' | 'return' | 'purchaseReturn' | 'opname';
   modalType?: 'in' | 'out' | 'adjustment';
   color: string;
 }
@@ -18,15 +21,18 @@ interface QuickAction {
 const actions: QuickAction[] = [
   { id: 'masuk', label: 'Stok Masuk', icon: Package, modal: 'movement', modalType: 'in', color: 'var(--primary)' },
   { id: 'keluar', label: 'Stok Keluar', icon: ArrowUpDown, modal: 'movement', modalType: 'out', color: 'var(--danger)' },
-  { id: 'opname', label: 'Opname', icon: ClipboardCheck, route: '/stock/opname', color: 'var(--warning)' },
-  { id: 'retur', label: 'Retur Jual', icon: Undo2, route: '/stock/retur', color: '#8b5cf6' },
-  { id: 'retur-beli', label: 'Retur Beli', icon: Undo2Icon, route: '/stock/retur-beli', color: '#f59e0b' },
+  { id: 'opname', label: 'Opname', icon: ClipboardCheck, modal: 'opname', color: 'var(--warning)' },
+  { id: 'retur', label: 'Retur Jual', icon: Undo2, modal: 'return', color: '#8b5cf6' },
+  { id: 'retur-beli', label: 'Retur Beli', icon: Undo2Icon, modal: 'purchaseReturn', color: '#f59e0b' },
 ];
 
 export function QuickActions() {
   const [open, setOpen] = useState(false);
   const [movementOpen, setMovementOpen] = useState(false);
   const [movementType, setMovementType] = useState<'in' | 'out' | 'adjustment'>('in');
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [purchaseReturnOpen, setPurchaseReturnOpen] = useState(false);
+  const [opnameOpen, setOpnameOpen] = useState(false);
   const navigate = useNavigate();
   const fabRef = useRef<HTMLButtonElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -45,6 +51,12 @@ export function QuickActions() {
     if (a.modal === 'movement') {
       setMovementType(a.modalType || 'in');
       setMovementOpen(true);
+    } else if (a.modal === 'return') {
+      setReturnOpen(true);
+    } else if (a.modal === 'purchaseReturn') {
+      setPurchaseReturnOpen(true);
+    } else if (a.modal === 'opname') {
+      setOpnameOpen(true);
     } else if (a.route) {
       navigate(a.route);
     }
@@ -146,6 +158,18 @@ export function QuickActions() {
         open={movementOpen}
         onClose={() => setMovementOpen(false)}
         initialType={movementType}
+      />
+      <ReturnModal
+        open={returnOpen}
+        onClose={() => setReturnOpen(false)}
+      />
+      <PurchaseReturnModal
+        open={purchaseReturnOpen}
+        onClose={() => setPurchaseReturnOpen(false)}
+      />
+      <OpnameModal
+        open={opnameOpen}
+        onClose={() => setOpnameOpen(false)}
       />
     </>
   );

@@ -7,8 +7,8 @@ import { NotificationBell } from '../../components/NotificationBell';
 import { UserMenu } from '../../components/UserMenu';
 import {
   LayoutDashboard, BookOpen, Package, BarChart3,
-  ArrowUpDown, ClipboardCheck, History, CreditCard, DollarSign,
-  Database, Undo2, Box, TrendingUp, Settings,
+  History, CreditCard, DollarSign,
+  Database, Box, TrendingUp, Settings,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { StockLogin } from './StockLogin';
@@ -56,10 +56,6 @@ function getNavGroups(status?: string): NavGroup[] {
         { to: '/stock/products', label: 'Produk', icon: Package },
         { to: '/stock/categories', label: 'Kategori', icon: Package },
         { to: '/stock/materials', label: 'Bahan Baku', icon: Box },
-        { to: '/stock/movement', label: 'Masuk/Keluar', icon: ArrowUpDown },
-        { to: '/stock/opname', label: 'Opname', icon: ClipboardCheck },
-        { to: '/stock/retur', label: 'Retur Jual', icon: Undo2 },
-        { to: '/stock/retur-beli', label: 'Retur Beli', icon: Undo2 },
         { to: '/stock/history', label: 'Riwayat', icon: History },
         { to: '/stock/product-stats', label: 'Analisa Produk', icon: TrendingUp },
       ],
@@ -172,7 +168,7 @@ export function StockLayout() {
       <div className="stock-main">
         <header className="stock-topbar">
           <div className="topbar-left">
-            <img src="/stock/logo.svg" alt="Tata" style={{ height: 28, marginRight: 8 }} />
+            <img src="/stock/logo.svg" alt="Tata" style={{ height: 36, marginRight: 8 }} />
             <span className="topbar-brand">Tata Business Suite</span>
             {user && <span className="topbar-store">— {user.store_name}</span>}
           </div>

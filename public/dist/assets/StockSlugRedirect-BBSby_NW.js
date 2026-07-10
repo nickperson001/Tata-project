@@ -1,1 +1,0 @@
-import{i as o,j as c,u as n,r as u}from"./vendor-b_LKtaka.js";function g(){const{slug:a}=o(),[t]=c(),e=n();return u.useEffect(()=>{const s=t.get("token"),r=s?`?token=${s}`:"";e(`/stock${r}`,{replace:!0})},[a,t,e]),null}export{g as StockSlugRedirect};

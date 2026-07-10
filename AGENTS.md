@@ -93,6 +93,10 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 17 | StockLayout blank page — `useLocation` | Dead code `const location = useLocation()` masih ada setelah `useLocation` dihapus dari import (regresi hapus subnav) | `StockLayout.tsx` tidak lagi import `useLocation` atau panggil `useLocation()` |
 | 18 | Sidebar dihapus total | Tidak dipakai setelah UI refactor — navigasi via bottom bar + Settings di topbar | `StockSidebar.tsx` di-delete; semua CSS sidebar dihapus |
 
+| 19 | Chatbot dihapus total | Frontend (ChatbotWidget.tsx + CSS + zIndex) + backend (route /api/stock/chat + chatbot.ts) dihapus karena tidak terpakai. Tombol Bantuan/Settings di topbar juga dihapus (sudah ada di dropdown UserMenu); topbar diperbesar + shadow | ChatbotWidget.tsx & chatbot.ts tidak ada; StockLayout.tsx tidak import/ render ChatbotWidget; api.ts tidak ada route chat |
+| 20 | Topbar — shadow + gedein | `.stock-topbar` padding 0.625→0.75rem, `box-shadow` ditambah, `--topbar-height: 56px`, logo 22→28px, brand 1rem→1.15rem | `.stock-topbar` di index.css punya `box-shadow` |
+| 21 | Regresi — `Settings is not defined` | Hapus `Settings` dari import padahal masih dipakai di `BOTTOM_NAV_DEMO` baris 41. Fix: tambah `Settings` kembali ke import. | `grep "Settings" StockLayout.tsx` harus ada di import + di `BOTTOM_NAV_DEMO` |
+
 Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
 
 ---

@@ -22,7 +22,7 @@ export function NotFound() {
         position: 'absolute', bottom: '-5%', left: '-5%', pointerEvents: 'none',
       }} />
 
-      <img src="/stock/logo.svg" alt="Tata" style={{ height: 48, marginBottom: '0.25rem', position: 'relative' }} />
+      <img src="/stock/logo.svg" alt="Tata" style={{ height: 64, marginBottom: '0.25rem', position: 'relative' }} />
       <div style={{ fontSize: '5rem', fontWeight: 800, color: '#1e293b', lineHeight: 1, position: 'relative' }}>404</div>
       <div style={{ fontSize: '1.125rem', fontWeight: 600, position: 'relative' }}>Halaman tidak ditemukan</div>
       <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.5rem', position: 'relative' }}>

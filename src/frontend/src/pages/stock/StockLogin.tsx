@@ -73,7 +73,7 @@ export function StockLogin() {
 
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
-            <img src="/stock/logo.svg" alt="Tata" style={{ height: 40 }} />
+            <img src="/stock/logo.svg" alt="Tata" style={{ height: 48 }} />
             <div>
               <div style={{ color: '#f1f5f9', fontWeight: 800, fontSize: '1.25rem' }}>Tata</div>
               <div style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.5px' }}>BUSINESS SUITE</div>
