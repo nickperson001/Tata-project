@@ -6,6 +6,7 @@ import { toast } from '../../components/Toast';
 import { Skeleton } from '../../components/LoadingSkeleton';
 import type { Product } from '../../types';
 import { Package, ArrowUpDown, ShoppingCart, Car, AlertTriangle } from 'lucide-react';
+import { fmtRp } from '../../lib/utils';
 
 const TYPE_BUTTONS = [
   { value: 'in', label: 'Stok Masuk', icon: ShoppingCart, color: 'var(--primary)' },
@@ -29,6 +30,7 @@ export function StockMovement() {
   const [form, setForm] = useState({ product_id: '', type: 'in' as 'in' | 'out' | 'adjustment', quantity: '', note: '', channel: '' });
   const [activeChannels, setActiveChannels] = useState<string[]>(['offline', 'whatsapp', 'shopee', 'tokopedia']);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [noteTouched, setNoteTouched] = useState(false);
 
   const settingsQuery = useQuery({
     queryKey: ['settings', token],
@@ -42,6 +44,17 @@ export function StockMovement() {
   }, [settingsQuery.data]);
 
   const loading = productsLoading || settingsQuery.isPending;
+
+  useEffect(() => {
+    if (noteTouched) return;
+    const labels: Record<string, string> = { in: 'Stok masuk', out: 'Stok keluar', adjustment: 'Penyesuaian stok' };
+    setForm((prev) => ({ ...prev, note: labels[prev.type] || '' }));
+  }, [form.type, noteTouched]);
+
+  function handleNoteChange(value: string) {
+    setNoteTouched(true);
+    setForm((prev) => ({ ...prev, note: value }));
+  }
 
   function handleProductChange(id: string) {
     const prod = products.find(p => p.id === id) || null;
@@ -172,7 +185,7 @@ export function StockMovement() {
 
           <div className="form-group">
             <label className="form-label">Catatan</label>
-            <input className="input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Misal: restok dari supplier" />
+            <input className="input" value={form.note} onChange={(e) => handleNoteChange(e.target.value)} placeholder="Otomatis: Stok masuk / Stok keluar" />
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>

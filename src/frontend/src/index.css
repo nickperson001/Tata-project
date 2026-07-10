@@ -874,25 +874,9 @@ tr:hover .row-actions { opacity: 1; }
 }
 
 /* ── Content ── */
-.stock-content { flex: 1; padding: 1.25rem; overflow-y: auto; }
+.stock-content { flex: 1; padding: 1.25rem; padding-bottom: 4.5rem; overflow-y: auto; }
 
-/* ── Mobile Sub-nav ── */
-.stock-subnav {
-  display: none; overflow-x: auto; gap: 0.35rem;
-  padding: 0.5rem 0.75rem; background: var(--bg-card);
-  border-bottom: 1px solid var(--border); flex-shrink: 0;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none;
-}
-.stock-subnav::-webkit-scrollbar { display: none; }
-.sn-item {
-  flex-shrink: 0; display: flex; align-items: center; gap: 0.3rem;
-  padding: 0.35rem 0.65rem; border-radius: 999px;
-  font-size: 0.75rem; font-weight: 600; color: var(--text-muted);
-  text-decoration: none; white-space: nowrap; transition: all 0.15s;
-}
-.sn-item.active {
-  color: #fff; background: var(--primary);
-}
+/* ── (Sub-nav removed, using bottom nav consistently) ── */
 
 /* ── Charts (legacy) ── */
 .chart-container { position: relative; width: 100%; }
@@ -900,7 +884,7 @@ tr:hover .row-actions { opacity: 1; }
 
 /* ── Bottom Nav ── */
 .stock-bottom-nav {
-  display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
   background: var(--bg-card); border-top: 1px solid var(--border);
   justify-content: space-around; padding: 0.375rem 0;
   padding-bottom: env(safe-area-inset-bottom, 0.375rem);
@@ -995,9 +979,7 @@ tr:hover .row-actions { opacity: 1; }
 /* ── Mobile responsive ── */
 @media (max-width: 900px) {
   .stock-sidebar.expanded { display: none; }
-  .stock-subnav { display: flex; }
-  .stock-bottom-nav { display: flex; }
-  .stock-content { padding-bottom: 4.5rem; }
+  .stock-content { padding-bottom: 5rem; }
   .topbar-store { display: inline; }
 }
 
@@ -1094,6 +1076,6 @@ tr:hover .row-actions { opacity: 1; }
 @keyframes chatSlideInRtl { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 [dir="rtl"] .chat-msg.user { margin-left: 0; margin-right: auto; flex-direction: row; }
 [dir="rtl"] .chat-msg.ai { margin-right: 0; margin-left: auto; }
-[dir="rtl"] .stock-subnav { direction: rtl; }
+
 [dir="rtl"] .login-brand { text-align: right; }
 [dir="rtl"] .ov-hero-stats { justify-content: flex-start; }

@@ -51,7 +51,7 @@ export const chatSchema = z.object({
 
 export const movementSchema = z.object({
   product_id: z.string().min(1, 'Produk wajib dipilih'),
-  type: z.enum(['in', 'out'], { message: 'Tipe harus in atau out' }),
+  type: z.enum(['in', 'out', 'adjustment'], { message: 'Tipe harus in, out, atau adjustment' }),
   quantity: z.coerce.number().positive('Jumlah harus lebih dari 0'),
   note: z.string().max(500).optional().default(''),
   unit_price: z.coerce.number().nonnegative().optional(),

@@ -1,19 +1,19 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
-import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { toast } from '../../components/Toast';
 import { useStockToken } from '../../hooks/useStockToken';
 import { useStockStore } from '../../store/stockStore';
 import { NotificationBell } from '../../components/NotificationBell';
 import { UserMenu } from '../../components/UserMenu';
 import { HelpCircle } from 'lucide-react';
-import { StockSidebar, getNavGroups, isActive } from './StockSidebar';
+import { StockSidebar } from './StockSidebar';
 import { ChatbotWidget } from './ChatbotWidget';
 import { StockLogin } from './StockLogin';
 import { getSocket, disconnectSocket } from '../../services/socket';
 import { useNotificationStore, StockAlert } from '../../store/notificationStore';
 import { stockApi } from '../../services/api';
 import {
-  LayoutDashboard, BookOpen, Package, CreditCard, BarChart3, Settings,
+  LayoutDashboard, BookOpen, Package, BarChart3, Settings,
 } from 'lucide-react';
 
 const BOTTOM_NAV_ALL = [
@@ -36,40 +36,50 @@ export function StockLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
 
-  const navGroups = useMemo(() => getNavGroups(user?.status), [user?.status]);
-
-  const subChildren = useMemo(() => {
-    const group = navGroups.find(g => g.children.some(c => isActive(location.pathname, c.to)));
-    return group?.children ?? [];
-  }, [location.pathname, navGroups]);
-
   const bottomNav = user?.status === 'demo' ? BOTTOM_NAV_DEMO : BOTTOM_NAV_ALL;
 
   const userIdRef = useRef<string | undefined>(undefined);
+  const shownAlertIds = useRef(new Set<string>());
+  const registerUser = useCallback(() => {
+    if (user?.id) getSocket().emit('register_user', user.id);
+  }, [user?.id]);
+
   useEffect(() => {
     if (!user?.id) return;
     userIdRef.current = user.id;
-    getSocket().emit('register_user', user.id);
-      const handler = (data: { userId: string; productId: string; alertType: string; stockLevel: number; products?: { name: string } }) => {
-        if (userIdRef.current !== data.userId) return;
-        const productName = data.products?.name || `Produk #${data.productId}`;
-        if (data.alertType === 'out_of_stock') {
-          toast.error(`Stok Habis — ${productName} (${data.stockLevel} tersisa)`, { duration: 5000 });
-        } else {
-          toast(`Stok Menipis — ${productName} (${data.stockLevel} tersisa)`, { duration: 5000 });
-        }
-        const currentToken = token;
-        if (currentToken) {
-          stockApi.get<{ alerts: StockAlert[] }>('/api/stock/alerts', currentToken).then((res) => {
-            if (res.alerts) {
-              useNotificationStore.getState().setAlerts(res.alerts);
-            }
-          }).catch(() => {});
-        }
-      };
-    getSocket().on('stock_alert', handler);
-    return () => { getSocket().off('stock_alert', handler); };
-  }, [user?.id]);
+    const socket = getSocket();
+
+    registerUser();
+    socket.on('connect', registerUser);
+
+    const handler = (data: { userId: string; productId: string; alertType: string; stockLevel: number; products?: { name: string } }) => {
+      if (userIdRef.current !== data.userId) return;
+      const dedupKey = `${data.productId}-${data.alertType}-${data.stockLevel}`;
+      if (shownAlertIds.current.has(dedupKey)) return;
+      shownAlertIds.current.add(dedupKey);
+      setTimeout(() => shownAlertIds.current.delete(dedupKey), 6000);
+
+      const productName = data.products?.name || `Produk #${data.productId}`;
+      if (data.alertType === 'out_of_stock') {
+        toast.error(`Stok Habis — ${productName} (${data.stockLevel} tersisa)`, { duration: 5000 });
+      } else {
+        toast(`Stok Menipis — ${productName} (${data.stockLevel} tersisa)`, { duration: 5000 });
+      }
+      const currentToken = useStockStore.getState().token;
+      if (currentToken) {
+        stockApi.get<{ alerts: StockAlert[] }>('/api/stock/alerts', currentToken).then((res) => {
+          if (res.alerts) {
+            useNotificationStore.getState().setAlerts(res.alerts);
+          }
+        }).catch(() => {});
+      }
+    };
+    socket.on('stock_alert', handler);
+    return () => {
+      socket.off('stock_alert', handler);
+      socket.off('connect', registerUser);
+    };
+  }, [user?.id, registerUser]);
 
   useEffect(() => {
     if (!token) {
@@ -114,22 +124,6 @@ export function StockLayout() {
             <UserMenu />
           </div>
         </header>
-
-        {subChildren.length > 0 && (
-          <nav className="stock-subnav">
-            {subChildren.map(child => (
-              <NavLink
-                key={child.to}
-                to={child.to}
-                end={child.to === '/stock'}
-                className={({ isActive: act }) => `sn-item ${act ? 'active' : ''}`}
-              >
-                <child.icon size={15} />
-                <span>{child.label}</span>
-              </NavLink>
-            ))}
-          </nav>
-        )}
 
         <main className="stock-content content-fade">
           <Outlet />

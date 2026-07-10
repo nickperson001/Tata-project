@@ -691,7 +691,7 @@ async function recordTransactionWithJournal(
 async function recordStockAdjustment(opts: {
   userId: string;
   productId: string;
-  type: 'in' | 'out';
+  type: 'in' | 'out' | 'adjustment';
   quantity: number;
   note?: string;
   unitPrice?: number;
@@ -713,7 +713,7 @@ async function recordStockAdjustment(opts: {
   if (!userId) return { success: false, error: 'userId is required' };
   if (!productId) return { success: false, error: 'productId is required' };
   if (!quantity || quantity <= 0) return { success: false, error: 'quantity must be > 0' };
-  if (!['in', 'out'].includes(type)) return { success: false, error: 'type must be in or out' };
+  if (!['in', 'out', 'adjustment'].includes(type)) return { success: false, error: 'type must be in, out, or adjustment' };
   try {
     return await withTransaction(async (client) => {
       const prod = await client.query(
@@ -723,7 +723,7 @@ async function recordStockAdjustment(opts: {
       if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
       const p = prod.rows[0];
       const stockBefore = parseFloat(p.stock_current) || 0;
-      const stockAfter = type === 'in' ? stockBefore + quantity : stockBefore - quantity;
+      const stockAfter = type === 'in' || type === 'adjustment' ? stockBefore + quantity : stockBefore - quantity;
       if (stockAfter < 0) throw new Error(`Stok tidak cukup. Stok saat ini: ${stockBefore} ${p.unit}`);
       await client.query(`UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`, [
         stockAfter,
@@ -759,7 +759,7 @@ async function recordStockAdjustment(opts: {
             ],
           });
         }
-      } else {
+      } else if (type === 'out') {
         const ch = await resolveChannel(userId, channel);
         const sellPrice = parseFloat(p.price_sell) || 0;
         const buyPrice = parseFloat(p.price_buy) || 0;

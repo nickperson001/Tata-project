@@ -98,27 +98,30 @@ export function StockOpname() {
     e.preventDefault();
     if (!token) return;
     setSaving(true);
-    let count = 0;
-    for (const product of products) {
-      const systemQty = product.stock_current;
-      const actualQty = parseFloat(actual[product.id]) || 0;
-      if (actualQty === systemQty) continue;
-      const diff = actualQty - systemQty;
-      try {
-        await stockApi.post('/api/stock/movement', token, {
-          product_id: product.id,
-          type: diff > 0 ? 'in' : 'out',
-          quantity: Math.abs(diff),
-          channel: product.default_channel || '',
-          note: `Opname: sistem ${systemQty}, fisik ${actualQty} (${diff > 0 ? 'lebih' : 'kurang'} ${Math.abs(diff)})`,
-        });
-        count++;
-      } catch {
-        toast.error(`Gagal opname ${product.name}`);
+    try {
+      let count = 0;
+      for (const product of products) {
+        const systemQty = product.stock_current;
+        const actualQty = parseFloat(actual[product.id]) || 0;
+        if (actualQty === systemQty) continue;
+        const diff = actualQty - systemQty;
+        try {
+          await stockApi.post('/api/stock/movement', token, {
+            product_id: product.id,
+            type: diff > 0 ? 'in' : 'out',
+            quantity: Math.abs(diff),
+            channel: product.default_channel || '',
+            note: `Opname: sistem ${systemQty}, fisik ${actualQty} (${diff > 0 ? 'lebih' : 'kurang'} ${Math.abs(diff)})`,
+          });
+          count++;
+        } catch {
+          toast.error(`Gagal opname ${product.name}`);
+        }
       }
+      toast(`${count} produk diupdate`);
+    } finally {
+      setSaving(false);
     }
-    toast(`${count} produk diupdate`);
-    setSaving(false);
   }
 
   function diff(id: string): number {

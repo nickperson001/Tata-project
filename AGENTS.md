@@ -83,6 +83,13 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 7 | Session store (`src/config/session.ts:82`) | `schemaName: 'public'` di PgBouncer pool | Log startup TIDAK ada error `no schema has been selected` |
 | 8 | `sendUpgradeNotification` (`src/jobs/scheduler.ts`) | **[BELUM DIPERBAIKI]** Null-check WA client sudah ada, tapi method `getChat` bisa error kalau client belum siap (`pupPage`/chat store) | Tambah guard kesiapan client (bukan cuma null-check) |
 | 9 | BOM/Packaging — fitur baru | Implementasi lengkap: 3 tabel DB + 5 fungsi backend + 8 API endpoint + halaman Materials CRUD + resep di modal produk + WA command + pgPool fallback | Cek `src/routes/api.ts` ada 8 route `materials`; `src/frontend/src/pages/stock/StockMaterials.tsx` ada; sidebar ada menu "Bahan Baku" |
+| 10 | `POST /api/stock/movement 400` — adjustment type | Schema `movementSchema.type` hanya `'in'\|'out'`, tapi UI kirim `'adjustment'`. Fix: tambah `'adjustment'` ke enum + sesuaikan `recordStockAdjustment` | `src/routes/schemas.ts:54` enum include `'adjustment'`; `src/utils/transactionRecorder.ts:694` type include `'adjustment'` |
+| 11 | `POST /api/stock/pembukuan 400` — amount parsing | `Number(form.amount)` dari RupiahInput bisa jadi `NaN`. Fix: client-side validasi + parse pakai `replace(/[^0-9,-]/g, '')` | `StockFinance.tsx:save()` parse amount sebelum kirim |
+| 12 | FilterDate/Channel di Riwayat Stok | `StockHistory.tsx` + `GET /api/stock/movements` belum punya filter date/channel. Fix: tambah `FilterBar` + query params `channel`, `start_date`, `end_date` | `StockHistory.tsx` pake `FilterBar`; `api.ts:1408-1412` tambah filter query |
+| 13 | Catatan tidak auto-populate | `StockMovement.tsx` — note field manual. Fix: `useEffect` set default "Stok masuk/keluar" berdasarkan type | `StockMovement.tsx` ada `useEffect` depend `form.type` + `noteTouched` guard |
+| 14 | Notifikasi double (multi-tab) | Setiap tab socket terima `stock_alert` dan tampilkan toast sendiri. Fix: dedup via `shownAlertIds` Set + reconnect handler `socket.on('connect')` | `StockLayout.tsx` ada `shownAlertIds` ref + registerUser callback |
+| 15 | Loading state hilang di Finance | `StockFinance.tsx` `save()` tidak punya `saving` state. Fix: tambah `saving` + `disabled` + "Menyimpan..." + `finally` | `StockFinance.tsx` `save()` ada `setSaving` + disabled button |
+| 16 | StockOpname `finally` | `setSaving(false)` tidak di `finally` — bisa stuck. Fix: bungkus loop dalam `try/finally` | `StockOpname.tsx:100-121` ada `try { ... } finally { setSaving(false); }` |
 
 Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
 

@@ -96,6 +96,7 @@ function TransactionsTab() {
     category: '', channel: '',
   });
   const [activeChannels, setActiveChannels] = useState<string[]>(['offline', 'whatsapp']);
+  const [saving, setSaving] = useState(false);
   const [showConfirmHapus, setShowConfirmHapus] = useState<string | null>(null);
   const [filterChannel, setFilterChannel] = useState('');
   const [searchText, setSearchText] = useState('');
@@ -153,10 +154,15 @@ function TransactionsTab() {
   }
 
   async function save() {
-    if (!token) return;
+    if (!token || saving) return;
+    if (!form.description.trim()) { toast.error('Keterangan wajib diisi'); return; }
+    const amount = parseFloat(form.amount.replace(/[^0-9,-]/g, '').replace(',', '.')) || 0;
+    if (amount <= 0) { toast.error('Jumlah harus lebih dari 0'); return; }
+    if (!form.category && !editingId) { toast.error('Pilih kategori'); return; }
+    setSaving(true);
     const body: Record<string, any> = {
       type: form.type === 'masuk' ? (form.category || 'modal') : (form.category || 'beban_operasional'),
-      amount: Number(form.amount),
+      amount,
       description: form.description,
     };
     if (form.customerName.trim()) body.customerName = form.customerName.trim();
@@ -174,6 +180,8 @@ function TransactionsTab() {
       pembukuanQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -307,7 +315,7 @@ function TransactionsTab() {
         footer={
           <>
             <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>
-            <button className="btn btn-primary" onClick={save}>Simpan</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
           </>
         }
       >
