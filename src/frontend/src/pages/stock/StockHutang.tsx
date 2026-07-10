@@ -6,6 +6,7 @@ import { Skeleton } from '../../components/LoadingSkeleton';
 import { Modal } from '../../components/Modal';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { PromptModal } from '../../components/PromptModal';
+import { RupiahInput } from '../../components/RupiahInput';
 import { Badge } from '../../components/Badge';
 import { toast } from '../../components/Toast';
 import { fmtRp, fmtDate } from '../../lib/utils';
@@ -240,7 +241,7 @@ export function StockHutang() {
           </div>
           <div className="form-group">
             <label className="form-label">Jumlah Hutang (Rp)</label>
-            <input className="input" type="number" min="0" value={form.nominal_hutang} onChange={(e) => setForm({ ...form, nominal_hutang: e.target.value })} required />
+            <RupiahInput value={form.nominal_hutang} onChange={(v) => setForm({ ...form, nominal_hutang: v })} required />
           </div>
           <div className="form-group">
             <label className="form-label">Keterangan</label>
@@ -258,6 +259,7 @@ export function StockHutang() {
         title="Bayar Hutang"
         message={`Bayar hutang ke ${showBayar?.nama_supplier} (sisa: ${showBayar ? fmtRp(showBayar.nominal_hutang - showBayar.jumlah_dibayar) : 'Rp0'})`}
         defaultValue={showBayar ? String(showBayar.nominal_hutang - showBayar.jumlah_dibayar) : ''}
+        inputType="rupiah"
         confirmLabel="Bayar"
         onConfirm={(v) => { if (showBayar) { prosesBayar(showBayar, v); setShowBayar(null); } }}
         onCancel={() => setShowBayar(null)}

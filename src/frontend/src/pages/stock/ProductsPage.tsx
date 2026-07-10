@@ -4,6 +4,7 @@ import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Modal } from '../../components/Modal';
 import { ConfirmModal } from '../../components/ConfirmModal';
+import { RupiahInput } from '../../components/RupiahInput';
 import { Badge } from '../../components/Badge';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { toast } from '../../components/Toast';
@@ -300,11 +301,11 @@ export function ProductsPage() {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Harga Beli</label>
-              <input className="input" type="number" value={form.price_buy} onChange={(e) => setForm({ ...form, price_buy: e.target.value })} />
+              <RupiahInput value={form.price_buy} onChange={(v) => setForm({ ...form, price_buy: v })} />
             </div>
             <div className="form-group">
               <label className="form-label">Harga Jual</label>
-              <input className="input" type="number" value={form.price_sell} onChange={(e) => setForm({ ...form, price_sell: e.target.value })} required />
+              <RupiahInput value={form.price_sell} onChange={(v) => setForm({ ...form, price_sell: v })} required />
             </div>
           </div>
           <div className="form-group">

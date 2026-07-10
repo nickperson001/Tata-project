@@ -192,6 +192,4 @@ export function StockMovement() {
   );
 }
 
-function fmtRp(v: number): string {
-  return `Rp ${v.toLocaleString('id-ID')}`;
-}
+

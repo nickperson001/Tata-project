@@ -15,22 +15,40 @@ interface ModalProps {
 export function Modal({ open, onClose, title, children, footer, large }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const scrollYRef = useRef(0);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const titleId = useId();
+  const wasOpen = useRef(false);
+
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      wasOpen.current = true;
+      previousFocusRef.current = document.activeElement as HTMLElement;
+      scrollYRef.current = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollYRef.current}px`;
+      document.body.style.width = '100%';
+
+      requestAnimationFrame(() => {
+        modalRef.current?.focus();
+      });
+    }
+
+    if (!open && wasOpen.current) {
+      wasOpen.current = false;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, scrollYRef.current);
+      previousFocusRef.current?.focus();
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    previousFocusRef.current = document.activeElement as HTMLElement;
-    const scrollY = window.scrollY;
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = '100%';
-
-    requestAnimationFrame(() => {
-      modalRef.current?.focus();
-    });
-
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
       if (e.key === 'Tab') {
         const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -48,15 +66,8 @@ export function Modal({ open, onClose, title, children, footer, large }: ModalPr
       }
     };
     document.addEventListener('keydown', handler);
-    return () => {
-      document.removeEventListener('keydown', handler);
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      window.scrollTo(0, scrollY);
-      previousFocusRef.current?.focus();
-    };
-  }, [open, onClose]);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open]);
 
   if (!open) return null;
 
@@ -66,7 +77,7 @@ export function Modal({ open, onClose, title, children, footer, large }: ModalPr
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCloseRef.current(); }}
       style={{ zIndex: Z.MODAL_OVERLAY }}
     >
       <div
@@ -77,7 +88,7 @@ export function Modal({ open, onClose, title, children, footer, large }: ModalPr
       >
         <div className="modal-header">
           <h3 id={titleId}>{title}</h3>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label={`Tutup ${title}`}>
+          <button className="btn btn-ghost btn-sm" onClick={() => onCloseRef.current()} aria-label={`Tutup ${title}`}>
             <X size={18} />
           </button>
         </div>

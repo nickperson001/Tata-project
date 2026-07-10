@@ -4,6 +4,7 @@ import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton, TableSkeleton } from '../../components/LoadingSkeleton';
 import { Modal } from '../../components/Modal';
+import { RupiahInput } from '../../components/RupiahInput';
 import { toast } from '../../components/Toast';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtDate } from '../../lib/utils';
@@ -157,7 +158,7 @@ export function StockReturn() {
             </div>
             <div className="form-group">
               <label className="form-label">Harga Jual (Rp)</label>
-              <input className="input" type="number" min="0" value={form.priceSell} onChange={(e) => setForm({ ...form, priceSell: e.target.value })} />
+              <RupiahInput value={form.priceSell} onChange={(v) => setForm({ ...form, priceSell: v })} />
             </div>
           </div>
           <div className="form-group">

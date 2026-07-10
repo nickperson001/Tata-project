@@ -41,17 +41,33 @@ export function PromptModal({
       }
     >
       <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '0.75rem' }}>{message}</p>
-      <input
-        className="input"
-        type={inputType}
-        min="0"
-        step="any"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        autoFocus
-        style={{ width: '100%' }}
-        onKeyDown={(e) => { if (e.key === 'Enter' && value) onConfirm(value); }}
-      />
+      {inputType === 'rupiah' ? (
+        <input
+          className="input"
+          type="text"
+          inputMode="numeric"
+          value={value ? `Rp ${parseFloat(value).toLocaleString('id-ID')}` : ''}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^0-9]/g, '');
+            setValue(raw);
+          }}
+          autoFocus
+          style={{ width: '100%' }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && value) onConfirm(value); }}
+        />
+      ) : (
+        <input
+          className="input"
+          type={inputType}
+          min="0"
+          step="any"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          autoFocus
+          style={{ width: '100%' }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && value) onConfirm(value); }}
+        />
+      )}
     </Modal>
   );
 }

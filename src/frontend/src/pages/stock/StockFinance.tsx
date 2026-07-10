@@ -6,6 +6,7 @@ import { Skeleton, TableSkeleton } from '../../components/LoadingSkeleton';
 import { Pagination } from '../../components/Pagination';
 import { Modal } from '../../components/Modal';
 import { ConfirmModal } from '../../components/ConfirmModal';
+import { RupiahInput } from '../../components/RupiahInput';
 import { FilterBar } from '../../components/FilterBar';
 import type { DateRange } from '../../components/DateRangeFilter';
 
@@ -351,7 +352,7 @@ function TransactionsTab() {
 
           <div className="form-group">
             <label className="form-label">Jumlah (Rp)</label>
-            <input className="input" type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
+            <RupiahInput value={form.amount} onChange={(v) => setForm({ ...form, amount: v })} required />
           </div>
 
           <div className="form-group">
