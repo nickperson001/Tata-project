@@ -5,7 +5,7 @@ import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtQty } from '../../lib/utils';
-import { TrendingUp, Package } from 'lucide-react';
+import { TrendingUp, Package, ShoppingCart } from 'lucide-react';
 import { toast } from '../../components/Toast';
 import type { ReportData } from '../../types/api';
 
@@ -98,7 +98,7 @@ export function StockReport() {
           {data.byCategory && Object.keys(data.byCategory).length > 0 && (
             <div className="card card-p">
               <h3 style={{ fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Package size={18} /> Kategori
+                <Package size={18} /> Inventori per Kategori
               </h3>
               <div className="tbl-wrap">
                 <table>
@@ -106,7 +106,7 @@ export function StockReport() {
                     <tr>
                       <th>Kategori</th>
                       <th>Jumlah</th>
-                      <th>Nilai</th>
+                      <th>Nilai Inventori</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -119,6 +119,27 @@ export function StockReport() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {data.salesByCategory && data.salesByCategory.length > 0 && (
+            <div className="card card-p">
+              <h3 style={{ fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ShoppingCart size={18} /> Penjualan per Kategori
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {data.salesByCategory.map((cat, i) => (
+                  <div key={i}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                      <span style={{ fontWeight: 600 }}>{cat.category}</span>
+                      <span>{fmtQty(cat.qty, 'pcs')} · {fmtRp(cat.revenue)}</span>
+                    </div>
+                    <div className="progress">
+                      <div className="progress-fill" style={{ width: `${cat.pct}%`, background: 'var(--success)' }} />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

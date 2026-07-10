@@ -430,14 +430,53 @@ export interface PembukuanData {
   totalKeluar: number;
 }
 
+// ── Real Sales Analytics ──
+export interface RealProductSale {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  unit: string;
+  price_sell: number;
+  price_buy: number;
+  qty: number;
+  revenue: number;
+  hpp: number;
+  profit: number;
+  txCount: number;
+  avgMargin: number;
+}
+
+export interface SalesByCategory {
+  category: string;
+  qty: number;
+  revenue: number;
+  hpp: number;
+  profit: number;
+  productCount: number;
+}
+
+export interface SalesReportData {
+  summary: {
+    totalRevenue: number;
+    totalHPP: number;
+    totalProfit: number;
+    totalQty: number;
+    totalProducts: number;
+  };
+  products: RealProductSale[];
+  byCategory: SalesByCategory[];
+}
+
 // ── Stock Report ──
 export interface ReportData {
   totalIn: number;
   totalOut: number;
   totalAdj: number;
   count: number;
-  topOut: Array<{ name: string; sku: string; total: number; pct: number; unit: string }>;
+  topOut: Array<{ name: string; sku: string; category: string; total: number; pct: number; unit: string }>;
   byCategory: Record<string, { count: number; value: number }>;
+  salesByCategory: Array<{ category: string; qty: number; revenue: number; pct: number }>;
   total: number;
 }
 

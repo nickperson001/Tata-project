@@ -1456,7 +1456,7 @@ router.get('/api/stock/report', stockAuth, async (req: StockRequest, res: Respon
         .range((page - 1) * limit, page * limit - 1),
       supabase
         .from('stock_movements')
-        .select('type, quantity, product_id, products(id, name, sku, unit, price_buy, price_sell)')
+        .select('type, quantity, product_id, products(id, name, sku, unit, price_buy, price_sell, category)')
         .eq('user_id', userId)
         .gte('created_at', since),
     ]);
@@ -1467,6 +1467,7 @@ router.get('/api/stock/report', stockAuth, async (req: StockRequest, res: Respon
       totalOut = 0,
       totalAdj = 0;
     const outByProduct: Record<string, any> = {};
+    const salesByCategoryMap: Record<string, any> = {};
     allMovs.forEach((m: any) => {
       const qty = parseFloat(m.quantity) || 0;
       const unitPrice = m.products
@@ -1481,7 +1482,11 @@ router.get('/api/stock/report', stockAuth, async (req: StockRequest, res: Respon
       if (m.type === 'out' && m.products) {
         const key = m.product_id;
         if (!outByProduct[key]) outByProduct[key] = { ...m.products, total: 0 };
-        outByProduct[key].total += parseFloat(m.quantity);
+        outByProduct[key].total += qty;
+        const cat = m.products.category || 'Umum';
+        if (!salesByCategoryMap[cat]) salesByCategoryMap[cat] = { category: cat, qty: 0, revenue: 0 };
+        salesByCategoryMap[cat].qty += qty;
+        salesByCategoryMap[cat].revenue += qty * (parseFloat(m.products.price_sell) || 0);
       }
     });
     const maxOut = Math.max(...Object.values(outByProduct).map((p: any) => p.total), 1);
@@ -1507,7 +1512,11 @@ router.get('/api/stock/report', stockAuth, async (req: StockRequest, res: Respon
       });
       cacheSet(catCacheKey, byCategory, 120_000);
     }
-    apiSuccess(res, { totalIn, totalOut, totalAdj, count: totalCount, topOut, byCategory, page, limit, total: totalCount });
+    const maxSalesCat = Math.max(...Object.values(salesByCategoryMap).map((c: any) => c.revenue), 1);
+    const salesByCategory = Object.values(salesByCategoryMap)
+      .sort((a: any, b: any) => b.revenue - a.revenue)
+      .map((c: any) => ({ ...c, pct: Math.round((c.revenue / maxSalesCat) * 100) }));
+    apiSuccess(res, { totalIn, totalOut, totalAdj, count: totalCount, topOut, byCategory, salesByCategory, page, limit, total: totalCount });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
@@ -1690,6 +1699,95 @@ router.get('/api/stock/product-stats', stockAuth, async (req: StockRequest, res:
       })
       .sort((a: any, b: any) => b.stockValue - a.stockValue);
     apiSuccess(res, { products: result });
+  } catch (e: any) {
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
+  }
+});
+
+// ── Real Sales Data (riil, dari transaksi, bukan teoritis) ──
+router.get('/api/stock/product-sales', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const days = Math.min(365, parseInt(req.query.days as string) || 30);
+  const since = new Date(Date.now() - days * DAY_MS).toISOString();
+  try {
+    const { data: sales } = (await supabase
+      .from('transactions')
+      .select(`
+        product_id,
+        amount,
+        quantity,
+        hpp,
+        profit,
+        products!inner(id, name, sku, category, unit, price_sell, price_buy)
+      `)
+      .eq('user_id', userId)
+      .eq('type', 'masuk')
+      .in('reference_type', ['cashier', 'stock_out'])
+      .gte('created_at', since)
+      .not('product_id', 'is', null)) as any;
+
+    const byProduct: Record<string, any> = {};
+    (sales || []).forEach((t: any) => {
+      const p = t.products;
+      if (!p) return;
+      const pid = String(t.product_id);
+      if (!byProduct[pid]) {
+        byProduct[pid] = {
+          id: pid,
+          name: p.name,
+          sku: p.sku,
+          category: p.category || 'Umum',
+          unit: p.unit,
+          price_sell: Number(p.price_sell) || 0,
+          price_buy: Number(p.price_buy) || 0,
+          qty: 0,
+          revenue: 0,
+          hpp: 0,
+          profit: 0,
+          txCount: 0,
+        };
+      }
+      const r = byProduct[pid];
+      r.qty += Number(t.quantity) || 1;
+      r.revenue += Number(t.amount) || 0;
+      r.hpp += Number(t.hpp) || 0;
+      r.profit += Number(t.profit) || 0;
+      r.txCount++;
+    });
+
+    const products = Object.values(byProduct)
+      .map((p: any) => ({
+        ...p,
+        avgMargin: p.revenue > 0 ? Math.round((p.profit / p.revenue) * 100) : 0,
+      }))
+      .sort((a: any, b: any) => b.revenue - a.revenue);
+
+    const byCategoryMap: Record<string, any> = {};
+    products.forEach((p: any) => {
+      const cat = p.category;
+      if (!byCategoryMap[cat]) {
+        byCategoryMap[cat] = { category: cat, qty: 0, revenue: 0, hpp: 0, profit: 0, productCount: 0 };
+      }
+      byCategoryMap[cat].qty += p.qty;
+      byCategoryMap[cat].revenue += p.revenue;
+      byCategoryMap[cat].hpp += p.hpp;
+      byCategoryMap[cat].profit += p.profit;
+      byCategoryMap[cat].productCount++;
+    });
+
+    const summary = {
+      totalRevenue: products.reduce((s: number, p: any) => s + p.revenue, 0),
+      totalHPP: products.reduce((s: number, p: any) => s + p.hpp, 0),
+      totalProfit: products.reduce((s: number, p: any) => s + p.profit, 0),
+      totalQty: products.reduce((s: number, p: any) => s + p.qty, 0),
+      totalProducts: products.length,
+    };
+
+    apiSuccess(res, {
+      summary,
+      products,
+      byCategory: Object.values(byCategoryMap).sort((a: any, b: any) => b.revenue - a.revenue),
+    });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
