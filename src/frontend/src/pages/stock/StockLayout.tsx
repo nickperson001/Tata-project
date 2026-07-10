@@ -8,7 +8,7 @@ import { UserMenu } from '../../components/UserMenu';
 import {
   LayoutDashboard, BookOpen, Package, BarChart3,
   ArrowUpDown, ClipboardCheck, History, CreditCard, DollarSign,
-  Database, Undo2, Box, TrendingUp,
+  Database, Undo2, Box, TrendingUp, Settings,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { StockLogin } from './StockLogin';
