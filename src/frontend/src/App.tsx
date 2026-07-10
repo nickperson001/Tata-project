@@ -30,7 +30,6 @@ const StockProductStats = lazy(() => import('./pages/stock/StockProductStats').t
 
 const StockReturn = lazy(() => import('./pages/stock/StockReturn').then(m => ({ default: m.StockReturn })));
 const StockPurchaseReturn = lazy(() => import('./pages/stock/StockPurchaseReturn').then(m => ({ default: m.StockPurchaseReturn })));
-const StockTransfer = lazy(() => import('./pages/stock/StockTransfer').then(m => ({ default: m.StockTransfer })));
 const StockBantuan = lazy(() => import('./pages/stock/StockBantuan').then(m => ({ default: m.StockBantuan })));
 const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
@@ -52,7 +51,6 @@ export function App() {
             <Route path="products" element={<ProductsPage />} />
             <Route path="movement" element={<StockMovement />} />
             <Route path="opname" element={<StockOpname />} />
-            <Route path="transfer" element={<StockTransfer />} />
             <Route path="retur" element={<StockReturn />} />
             <Route path="retur-beli" element={<StockPurchaseReturn />} />
             <Route path="report" element={<StockReport />} />

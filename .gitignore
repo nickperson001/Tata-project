@@ -35,9 +35,9 @@ docs/me.md
 
 # TypeScript build output
 dist/
+!public/dist/
 
-# Vite React build output (served by Express)
-public/dist/
+# Vite React build output (served by Express) — committed for HF Space
 
 # Application logs
 logs/

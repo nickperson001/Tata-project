@@ -117,7 +117,7 @@ export function StockHistory() {
                       </Badge>
                     </td>
                     <td style={{ fontWeight: 700 }}>{fmtQty(m.quantity, m.products?.unit)}</td>
-                    <td>{m.unit_price ? fmtRp(m.unit_price) : '-'}</td>
+                    <td>{m.total_value ? fmtRp(m.total_value) : (m.unit_price ? fmtRp(m.unit_price * m.quantity) : '-')}</td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{m.note || '-'}</td>
                     <td>
                       <div className="row-actions">

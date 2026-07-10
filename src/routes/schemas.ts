@@ -139,20 +139,6 @@ export const opnameDetailSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
-export const warehouseTransferSchema = z.object({
-  productId: z.string().min(1, 'ID produk wajib diisi'),
-  quantity: z.coerce.number().positive('Jumlah transfer harus lebih dari 0'),
-  fromWarehouse: z.string().min(1, 'Gudang asal wajib diisi'),
-  toWarehouse: z.string().min(1, 'Gudang tujuan wajib diisi'),
-  notes: z.string().max(500).optional(),
-});
-
-export const warehouseCreateSchema = z.object({
-  name: z.string().min(1, 'Nama gudang wajib diisi').max(100),
-  code: z.string().min(1, 'Kode gudang wajib diisi').max(20),
-  isDefault: z.boolean().optional().default(false),
-});
-
 export const settingUpdateSchema = z
   .object({
     channel_fees: z

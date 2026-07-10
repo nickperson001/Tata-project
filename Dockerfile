@@ -52,23 +52,23 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# ── 2. Environment Variables ──────────────────────────────────
+# ── 2. Install Node.js Dependencies ──────────────────────────
+COPY package*.json ./
+RUN npm install -g npm@11 && npm install
+
+# ── 3. Copy Source Code ───────────────────────────────────────
+COPY . .
+
+# ── 4. Build Frontend (SPA) ────────────────────────────────────
+RUN npm run build:frontend
+
+# ── 5. Environment Variables ──────────────────────────────────
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     CHROME_PATH=/usr/bin/chromium \
     PORT=7860 \
     HOME=/tmp \
     NODE_OPTIONS="--max-old-space-size=512"
-
-# ── 3. Install Node.js Dependencies ──────────────────────────
-COPY package*.json ./
-RUN npm install -g npm@11 && npm install
-
-# ── 4. Copy Source Code ───────────────────────────────────────
-COPY . .
-
-# ── 5. Build Frontend (SPA) ────────────────────────────────────
-RUN npm run build:frontend
 
 # ── 6. Production Mode ─────────────────────────────────────────
 ENV NODE_ENV=production

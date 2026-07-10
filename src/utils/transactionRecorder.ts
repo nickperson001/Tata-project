@@ -486,15 +486,6 @@ interface InventoryAdjustmentOpts {
   notes?: string;
 }
 
-interface WarehouseTransferOpts {
-  userId: string;
-  productId: string;
-  quantity: number;
-  fromWarehouse: string;
-  toWarehouse: string;
-  notes?: string;
-}
-
 const PEMBUKUAN_COA_MAP: Record<string, { debit: string; credit: string; label: string }> = {
   beban_gaji: { debit: '6101', credit: '1101', label: 'Beban Gaji' },
   beban_sewa: { debit: '6102', credit: '1101', label: 'Beban Sewa' },
@@ -1239,61 +1230,6 @@ async function recordInventoryAdjustment(opts: InventoryAdjustmentOpts): Promise
   }
 }
 
-// ===== WAREHOUSE TRANSFER =====
-async function recordWarehouseTransfer(opts: WarehouseTransferOpts): Promise<RecordResult> {
-  const { userId, productId, quantity, fromWarehouse, toWarehouse, notes } = opts;
-  if (!userId) return { success: false, error: 'userId is required' };
-  if (!quantity || quantity <= 0) return { success: false, error: 'quantity must be > 0' };
-  if (fromWarehouse === toWarehouse) return { success: false, error: 'Gudang asal dan tujuan harus berbeda' };
-
-  const qty = parseFloat(String(quantity));
-
-  try {
-    return await withTransaction(async (client) => {
-      // 1. Read product stock_current (single source of truth)
-      const prod = await client.query(
-        `SELECT stock_current FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
-        [productId, userId],
-      );
-      if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
-
-      // 2. Update inventory per warehouse
-      const fromCurrent = await client.query(
-        `SELECT quantity FROM inventory WHERE user_id = $1 AND product_id = $2 AND warehouse = $3 FOR UPDATE`,
-        [userId, productId, fromWarehouse],
-      );
-      const fromQty = parseFloat(fromCurrent.rows[0]?.quantity) || 0;
-      if (fromQty < qty) throw new Error(`Stok di ${fromWarehouse} tidak cukup. Tersedia: ${fromQty}`);
-
-      await client.query(
-        `INSERT INTO inventory (user_id, product_id, quantity, warehouse)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id, product_id, warehouse)
-         DO UPDATE SET quantity = inventory.quantity + $3, updated_at = now()`,
-        [userId, productId, qty, toWarehouse],
-      );
-
-      await client.query(
-        `UPDATE inventory SET quantity = quantity - $1, updated_at = now()
-         WHERE user_id = $2 AND product_id = $3 AND warehouse = $4`,
-        [qty, userId, productId, fromWarehouse],
-      );
-
-      // 3. Insert stock_movements
-      await client.query(
-        `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_by, from_warehouse, to_warehouse)
-         VALUES ($1, $2, 'adjustment', $3, $4, $5, 'warehouse_transfer', $6, 'system', $7, $8)`,
-        [userId, productId, qty, fromQty, fromQty - qty, notes || `Transfer ${fromWarehouse} → ${toWarehouse}`, fromWarehouse, toWarehouse],
-      );
-
-      return { success: true, data: { productId, quantity: qty, fromWarehouse, toWarehouse } };
-    });
-  } catch (err: any) {
-    addLog('error', '[TRX-RECORDER] recordWarehouseTransfer failed: ' + err.message);
-    return { success: false, error: err.message };
-  }
-}
-
 export {
   recordTransaction,
   recordTransactionWithJournal,
@@ -1307,7 +1243,7 @@ export {
   recordSalesReturn,
   recordPurchaseReturn,
   recordInventoryAdjustment,
-  recordWarehouseTransfer,
+
   PEMBUKUAN_COA_MAP,
   invalidateChannelCache,
 };

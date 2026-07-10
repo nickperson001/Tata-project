@@ -1,4 +1,4 @@
-import supabase from '../config/supabase';
+import supabase, { pgPool } from '../config/supabase';
 import { addLog, getIO } from '../config/state';
 import { recordSale } from './transactionRecorder';
 import { withTransaction } from './db';
@@ -399,7 +399,7 @@ async function resolveStockAlerts(productId: string, userId?: string): Promise<v
   }
 }
 
-async function getPendingAlerts(userId: string): Promise<{ success: boolean; alerts?: unknown[]; error?: string }> {
+async function getPendingAlerts(userId: string): Promise<{ success: boolean; alerts?: any[]; error?: string }> {
   try {
     let query: any = supabase
       .from('stock_alerts')
@@ -411,7 +411,28 @@ async function getPendingAlerts(userId: string): Promise<{ success: boolean; ale
     if (error) throw error;
     return { success: true, alerts: data || [], error: undefined };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    try {
+      const pool = pgPool;
+      if (!pool) return { success: false, error: err.message };
+      const { rows } = await pool.query(
+        `SELECT sa.id, sa.product_id, sa.alert_type, sa.stock_level, sa.alerted_at, sa.resolved_at,
+                row_to_json(p.*) AS products
+         FROM stock_alerts sa
+         LEFT JOIN products p ON p.id = sa.product_id AND p.user_id = sa.user_id
+         WHERE sa.user_id = $1 AND sa.resolved_at IS NULL
+         ORDER BY sa.alerted_at DESC`,
+        [userId],
+      );
+      const alerts = rows.map((r: any) => ({
+        ...r,
+        alert_type: r.alert_type,
+        products: r.products,
+      }));
+      return { success: true, alerts, error: undefined };
+    } catch (pgErr: any) {
+      addLog('error', '[STOCK] getPendingAlerts pgPool fallback error: ' + pgErr.message);
+      return { success: false, error: err.message };
+    }
   }
 }
 

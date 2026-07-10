@@ -50,10 +50,14 @@ export function StockLayout() {
     if (!user?.id) return;
     userIdRef.current = user.id;
     getSocket().emit('register_user', user.id);
-      const handler = (data: { userId: string; productId: string; alertType: string; stockLevel: number }) => {
+      const handler = (data: { userId: string; productId: string; alertType: string; stockLevel: number; products?: { name: string } }) => {
         if (userIdRef.current !== data.userId) return;
-        const label = data.alertType === 'out_of_stock' ? 'Stok Habis' : 'Stok Menipis';
-        toast.error(`${label} — Produk #${data.productId} (${data.stockLevel} tersisa)`, { duration: 5000 });
+        const productName = data.products?.name || `Produk #${data.productId}`;
+        if (data.alertType === 'out_of_stock') {
+          toast.error(`Stok Habis — ${productName} (${data.stockLevel} tersisa)`, { duration: 5000 });
+        } else {
+          toast(`Stok Menipis — ${productName} (${data.stockLevel} tersisa)`, { duration: 5000 });
+        }
         const currentToken = token;
         if (currentToken) {
           stockApi.get<{ alerts: StockAlert[] }>('/api/stock/alerts', currentToken).then((res) => {

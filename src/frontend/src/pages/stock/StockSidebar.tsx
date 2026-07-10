@@ -40,7 +40,6 @@ export function getNavGroups(status?: string): NavGroup[] {
         { to: '/stock/categories', label: 'Kategori', icon: Package },
         { to: '/stock/movement', label: 'Masuk/Keluar', icon: ArrowUpDown },
         { to: '/stock/opname', label: 'Opname', icon: ClipboardCheck },
-        { to: '/stock/transfer', label: 'Transfer Gudang', icon: ArrowUpDown },
         { to: '/stock/retur', label: 'Retur Jual', icon: Undo2 },
         { to: '/stock/retur-beli', label: 'Retur Beli', icon: Undo2 },
         { to: '/stock/history', label: 'Riwayat', icon: History },

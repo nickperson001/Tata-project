@@ -29,8 +29,7 @@ import {
   purchaseReturnSchema,
   opnameCreateSchema,
   opnameDetailSchema,
-  warehouseTransferSchema,
-  warehouseCreateSchema,
+
 } from './schemas';
 import qrcode from 'qrcode';
 import * as stockManager from '../utils/stockManager';
@@ -1164,7 +1163,7 @@ router.post('/api/stock/movement', stockAuth, validate(movementSchema), async (r
           if (io)
             io.to(userId).emit('stock_alert', {
               userId,
-              product_id,
+              productId: product_id,
               alertType: 'low_stock',
               stockLevel: d.stockAfter,
             });
@@ -1179,7 +1178,7 @@ router.post('/api/stock/movement', stockAuth, validate(movementSchema), async (r
           if (io)
             io.to(userId).emit('stock_alert', {
               userId,
-              product_id,
+              productId: product_id,
               alertType: 'out_of_stock',
               stockLevel: d.stockAfter,
             });
@@ -1284,11 +1283,12 @@ router.delete('/api/stock/movement/:id', stockAuth, async (req: StockRequest, re
 router.get('/api/stock/movements', stockAuth, async (req: StockRequest, res: Response) => {
   const limit = Math.min(100, parseInt(req.query.limit as string) || 30);
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const userId = req.stockUser!.id;
   try {
     let query: any = supabase
       .from('stock_movements')
       .select('*, products(id, sku, name, unit)', { count: 'exact' })
-      .eq('user_id', req.stockUser!.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
     if (req.query.product_id) query = query.eq('product_id', req.query.product_id);
@@ -1297,7 +1297,31 @@ router.get('/api/stock/movements', stockAuth, async (req: StockRequest, res: Res
     if (error) throw error;
     apiSuccess(res, { movements: data || [], total: count || 0, page, limit });
   } catch (e: any) {
-    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
+    try {
+      const pool = pgPool;
+      if (!pool) throw e;
+      let where = 'user_id = $1';
+      const params: any[] = [userId];
+      let paramIdx = 2;
+      if (req.query.product_id) { where += ` AND product_id = $${paramIdx++}`; params.push(req.query.product_id); }
+      if (req.query.type) { where += ` AND type = $${paramIdx++}`; params.push(req.query.type); }
+      const offset = (page - 1) * limit;
+      const [{ rows }, { rows: countRows }] = await Promise.all([
+        pool.query(
+          `SELECT sm.*, row_to_json(p.*) AS products
+           FROM stock_movements sm
+           LEFT JOIN products p ON p.id = sm.product_id AND p.user_id = sm.user_id
+           WHERE ${where}
+           ORDER BY sm.created_at DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+          [...params, limit, offset],
+        ),
+        pool.query(`SELECT COUNT(*) AS total FROM stock_movements WHERE ${where}`, params.slice(0, paramIdx - 2)),
+      ]);
+      const total = parseInt(countRows[0]?.total) || 0;
+      apiSuccess(res, { movements: rows || [], total, page, limit });
+    } catch (pgErr: any) {
+      apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
+    }
   }
 });
 
@@ -2146,65 +2170,6 @@ router.get('/api/stock/returns', stockAuth, async (req: StockRequest, res: Respo
     if (type === 'sales_return') query = query.eq('type', 'sales_return');
     if (type === 'purchase_return') query = query.eq('type', 'purchase_return');
     const { data, error } = await query;
-    if (error) throw error;
-    apiSuccess(res, (data as any[]) || []);
-  } catch (e: any) { apiError(res, e.message, 500); }
-});
-
-// ── Warehouses ──
-router.get('/api/stock/warehouses', stockAuth, async (req: StockRequest, res: Response) => {
-  const userId = req.stockUser!.id;
-  try {
-    const { data, error } = await supabase
-      .from('warehouses')
-      .select('*')
-      .eq('user_id', userId)
-      .order('name', { ascending: true });
-    if (error) throw error;
-    apiSuccess(res, (data as any[]) || []);
-  } catch (e: any) { apiError(res, e.message, 500); }
-});
-
-router.post('/api/stock/warehouses', stockAuth, validate(warehouseCreateSchema), async (req: StockRequest, res: Response) => {
-  const userId = req.stockUser!.id;
-  const { name, code, isDefault } = req.body;
-  try {
-    const { data, error } = await supabase.from('warehouses').insert([{ user_id: userId, name, code, is_default: isDefault || false }]).select().single();
-    if (error) throw error;
-    apiSuccess(res, data, 201);
-  } catch (e: any) { apiError(res, e.message, 500); }
-});
-
-router.delete('/api/stock/warehouses/:id', stockAuth, async (req: StockRequest, res: Response) => {
-  const userId = req.stockUser!.id;
-  try {
-    const { error } = await supabase.from('warehouses').delete().eq('id', req.params.id).eq('user_id', userId);
-    if (error) throw error;
-    apiSuccess(res, { deleted: true });
-  } catch (e: any) { apiError(res, e.message, 500); }
-});
-
-// ── Warehouse Transfer ──
-router.post('/api/stock/transfer', stockAuth, validate(warehouseTransferSchema), async (req: StockRequest, res: Response) => {
-  const userId = req.stockUser!.id;
-  try {
-    const result = await transactionRecorder.recordWarehouseTransfer({ ...req.body, userId });
-    if (!result.success) { apiError(res, result.error!, 400); return; }
-    cacheInvalidate(userId);
-    apiSuccess(res, result.data);
-  } catch (e: any) { apiError(res, e.message, 500); }
-});
-
-router.get('/api/stock/transfers', stockAuth, async (req: StockRequest, res: Response) => {
-  const userId = req.stockUser!.id;
-  try {
-    const { data, error } = await supabase
-      .from('stock_movements')
-      .select('*, products(id, sku, name, unit)')
-      .eq('user_id', userId)
-      .eq('reference_type', 'warehouse_transfer')
-      .order('created_at', { ascending: false })
-      .limit(100);
     if (error) throw error;
     apiSuccess(res, (data as any[]) || []);
   } catch (e: any) { apiError(res, e.message, 500); }

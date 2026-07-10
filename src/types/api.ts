@@ -88,30 +88,12 @@ export interface StockMovement {
   type: 'in' | 'out' | 'adjustment';
   quantity: number;
   unit_price: number | null;
+  total_value: number | null;
   note: string | null;
   created_via: string | null;
   user_id: string;
   created_at: string;
   products?: { id: string; sku: string; name: string; unit: string };
-}
-
-export interface InventoryItem {
-  id: string;
-  user_id: string;
-  product_id: string;
-  quantity: number;
-  warehouse: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Warehouse {
-  id: string;
-  user_id: string;
-  name: string;
-  code: string;
-  is_default: boolean;
-  created_at: string;
 }
 
 export interface ReturnTransaction {
