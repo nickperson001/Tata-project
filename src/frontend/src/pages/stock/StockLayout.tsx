@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { StockLogin } from './StockLogin';
+import { QuickActions } from '../../components/QuickActions';
 import { getSocket, disconnectSocket } from '../../services/socket';
 import { useNotificationStore, StockAlert } from '../../store/notificationStore';
 import { stockApi } from '../../services/api';
@@ -216,6 +217,7 @@ export function StockLayout() {
         ))}
       </nav>
 
+      <QuickActions />
     </div>
   );
 }
