@@ -75,17 +75,36 @@ async function stockAuth(req: StockRequest, res: Response, next: NextFunction): 
   }
 
   try {
-    const { data: user, error } = (await supabase
+    let user: any = null;
+    const { data: supabaseUser, error } = (await supabase
       .from('users')
       .select('id, store_name, status, dashboard_token')
       .eq('dashboard_token', token)
       .maybeSingle()) as any;
     if (error) {
       const errMsg = sanitizeError(error);
-      addLog('error', `[AUTH] Gagal query users: ${errMsg}`);
+      addLog('error', `[AUTH] Supabase SDK gagal query users: ${errMsg} — fallback ke pgPool...`);
       if (errMsg.includes('[SUPABASE ERROR]')) circuitRecordFailure();
-      apiError(res, 'Token tidak valid', ErrorCode.AUTH_INVALID, 401);
-      return;
+      if (pgPool) {
+        try {
+          const pgResult = await pgPool.query(
+            `SELECT id, store_name, status, dashboard_token FROM users WHERE dashboard_token = $1 LIMIT 1`,
+            [token],
+          );
+          if (pgResult.rows.length > 0) {
+            user = pgResult.rows[0];
+            addLog('info', `[AUTH] Fallback pgPool sukses untuk user ${user.id}`);
+          }
+        } catch (pgErr: any) {
+          addLog('error', `[AUTH] Fallback pgPool juga gagal: ${sanitizeError(pgErr)}`);
+        }
+      }
+      if (!user) {
+        apiError(res, 'Token tidak valid', ErrorCode.AUTH_INVALID, 401);
+        return;
+      }
+    } else {
+      user = supabaseUser;
     }
     if (!user) {
       apiError(res, 'Token tidak valid atau sudah kadaluarsa', ErrorCode.AUTH_INVALID, 401);
@@ -1010,7 +1029,22 @@ router.get('/api/stock/categories', stockAuth, async (req: StockRequest, res: Re
     if (error) throw error;
     apiSuccess(res, { categories: data || [] });
   } catch (e: any) {
-    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
+    const errMsg = sanitizeError(e);
+    addLog('error', `[CATEGORIES] Supabase SDK error: ${errMsg} — fallback ke pg pool...`);
+    if (pgPool && userId) {
+      try {
+        const result = await pgPool.query(
+          `SELECT * FROM product_categories WHERE user_id = $1 AND is_active = true ORDER BY name`,
+          [userId],
+        );
+        addLog('info', `[CATEGORIES] Fallback pg pool sukses — ${result.rows.length} kategori`);
+        apiSuccess(res, { categories: result.rows || [] });
+        return;
+      } catch (pgErr: any) {
+        addLog('error', `[CATEGORIES] Fallback pg pool gagal: ${sanitizeError(pgErr)}`);
+      }
+    }
+    apiError(res, errMsg, ErrorCode.INTERNAL, 500);
   }
 });
 
