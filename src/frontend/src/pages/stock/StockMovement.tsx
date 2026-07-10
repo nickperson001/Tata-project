@@ -153,12 +153,12 @@ export function StockMovement() {
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Jumlah</label>
-              <input className="input" type="number" min="0" step="any" value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: e.target.value })} required placeholder="0" />
-            </div>
+          <div className="form-group">
+            <label className="form-label">Jumlah</label>
+            <input className="input" type="number" min="0" step="any" value={form.quantity}
+              onChange={(e) => setForm({ ...form, quantity: e.target.value })} required placeholder="0" />
+          </div>
+          {form.type === 'out' && (
             <div className="form-group">
               <label className="form-label">Channel</label>
               <select className="input" value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}>
@@ -168,7 +168,7 @@ export function StockMovement() {
                 ))}
               </select>
             </div>
-          </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Catatan</label>

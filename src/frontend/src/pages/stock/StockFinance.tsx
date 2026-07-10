@@ -369,20 +369,22 @@ function TransactionsTab() {
             </div>
           )}
 
-          <div className="form-group">
-            <label className="form-label">Channel</label>
-            <select className="input" value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}>
-              <option value="">— Tanpa channel —</option>
-              {activeChannels.map((ch) => {
-                const tmpl = CHANNEL_TEMPLATES[ch];
-                return (
-                  <option key={ch} value={ch}>
-                    {tmpl ? tmpl.label : ch.replace('custom_', '').replace(/_/g, ' ')}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+          {form.type !== 'keluar' && (
+            <div className="form-group">
+              <label className="form-label">Channel</label>
+              <select className="input" value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}>
+                <option value="">— Tanpa channel —</option>
+                {activeChannels.map((ch) => {
+                  const tmpl = CHANNEL_TEMPLATES[ch];
+                  return (
+                    <option key={ch} value={ch}>
+                      {tmpl ? tmpl.label : ch.replace('custom_', '').replace(/_/g, ' ')}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
         </div>
       </Modal>
 
