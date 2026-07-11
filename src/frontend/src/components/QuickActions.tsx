@@ -26,7 +26,7 @@ const actions: QuickAction[] = [
   { id: 'retur-beli', label: 'Retur Beli', icon: Undo2Icon, modal: 'purchaseReturn', color: '#f59e0b' },
 ];
 
-export function QuickActions() {
+export function QuickActions({ inNav = false }: { inNav?: boolean }) {
   const [open, setOpen] = useState(false);
   const [movementOpen, setMovementOpen] = useState(false);
   const [movementType, setMovementType] = useState<'in' | 'out' | 'adjustment'>('in');
@@ -69,7 +69,22 @@ export function QuickActions() {
         className="fab"
         onClick={() => setOpen(!open)}
         aria-label={open ? 'Tutup aksi cepat' : 'Aksi cepat'}
-        style={{
+        style={inNav ? {
+          width: 44,
+          height: 44,
+          borderRadius: '50%',
+          border: 'none',
+          background: 'linear-gradient(135deg, var(--primary), #059669)',
+          color: '#fff',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 2px 12px rgba(16,185,129,0.5)',
+          transition: 'transform 0.2s',
+          marginTop: -16,
+          flexShrink: 0,
+        } : {
           position: 'fixed',
           bottom: '5.5rem',
           right: '1.25rem',
@@ -91,7 +106,7 @@ export function QuickActions() {
         onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
       >
         <div style={{ transition: 'transform 0.25s', transform: open ? 'rotate(45deg)' : 'rotate(0)' }}>
-          <Plus size={24} />
+          <Plus size={inNav ? 22 : 24} />
         </div>
       </button>
 
@@ -110,8 +125,9 @@ export function QuickActions() {
             className="fab-sheet"
             style={{
               position: 'fixed',
-              bottom: 'calc(5.5rem + 64px)',
-              right: '1.25rem',
+              bottom: inNav ? 'calc(4.5rem)' : 'calc(5.5rem + 64px)',
+              right: inNav ? '50%' : '1.25rem',
+              transform: inNav ? 'translateX(50%)' : 'none',
               zIndex: Z.DROPDOWN,
               minWidth: 200,
               background: 'var(--bg-card)',

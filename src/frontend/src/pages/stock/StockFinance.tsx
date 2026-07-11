@@ -16,8 +16,10 @@ import { fmtRp, fmtQty, fmtDateTime } from '../../lib/utils';
 import type { PaginationMeta } from '../../types';
 import type { TransItem, PembukuanData } from '../../types';
 import type { LabaRugiData, TrialBalanceData, StockSummaryData } from '../../types';
-import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, Download, Package, AlertTriangle, Info } from 'lucide-react';
+import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, Download, Package, AlertTriangle, Info, DollarSign, CreditCard } from 'lucide-react';
 import { DownloadButton } from '../../components/DownloadButton';
+import { StockHutang } from './StockHutang';
+import { StockPiutang } from './StockPiutang';
 
 const CATEGORY_OPTIONS: { value: string; label: string; group: string }[] = [
   { value: 'beban_gaji',        label: 'Gaji',      group: 'expense' },
@@ -47,7 +49,7 @@ const periods = [
   { label: '1 Tahun', days: 365 },
 ];
 
-type Tab = 'transactions' | 'summary';
+type Tab = 'transactions' | 'summary' | 'hutang' | 'piutang';
 
 export function StockFinance() {
   const { token, user } = useStockStore();
@@ -79,9 +81,23 @@ export function StockFinance() {
         >
           <TrendingUp size={15} /> Ringkasan
         </button>
+        <button
+          className={`sn-item ${tab === 'hutang' ? 'active' : ''}`}
+          onClick={() => setTab('hutang')}
+          style={{ whiteSpace: 'nowrap', border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+        >
+          <CreditCard size={15} /> Hutang
+        </button>
+        <button
+          className={`sn-item ${tab === 'piutang' ? 'active' : ''}`}
+          onClick={() => setTab('piutang')}
+          style={{ whiteSpace: 'nowrap', border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+        >
+          <DollarSign size={15} /> Piutang
+        </button>
       </div>
 
-      {tab === 'transactions' ? <TransactionsTab /> : <SummaryTab />}
+      {tab === 'transactions' ? <TransactionsTab /> : tab === 'summary' ? <SummaryTab /> : tab === 'hutang' ? <StockHutang /> : <StockPiutang />}
     </div>
   );
 }

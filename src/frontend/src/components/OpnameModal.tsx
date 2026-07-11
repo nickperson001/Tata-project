@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../store/stockStore';
 import { stockApi } from '../services/api';
@@ -6,7 +6,7 @@ import { toast } from './Toast';
 import { Modal } from './Modal';
 import { fmtQty } from '../lib/utils';
 import type { Product } from '../types';
-import { Camera, X, Save, AlertCircle } from 'lucide-react';
+import { Camera, X, Save, AlertCircle, Search, Filter } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
 interface Props {
@@ -15,12 +15,16 @@ interface Props {
   onSuccess?: () => void;
 }
 
+const DRAFT_KEY = 'tbs_opname_draft';
+
 export function OpnameModal({ open, onClose, onSuccess }: Props) {
   const { token } = useStockStore();
   const [actual, setActual] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scannerError, setScannerError] = useState('');
+  const [search, setSearch] = useState('');
+  const [showDiffOnly, setShowDiffOnly] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   const productsQuery = useQuery({
@@ -39,6 +43,14 @@ export function OpnameModal({ open, onClose, onSuccess }: Props) {
 
   useEffect(() => {
     if (!products.length) return;
+    const draft = sessionStorage.getItem(DRAFT_KEY);
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft) as Record<string, string>;
+        setActual(parsed);
+        return;
+      } catch { /* ignore */ }
+    }
     const init: Record<string, string> = {};
     products.forEach((p: Product) => { init[p.id] = p.stock_current.toString(); });
     setActual(init);
@@ -49,9 +61,17 @@ export function OpnameModal({ open, onClose, onSuccess }: Props) {
       setActual({});
       setShowScanner(false);
       setScannerError('');
+      setSearch('');
+      setShowDiffOnly(false);
       return;
     }
   }, [open]);
+
+  useEffect(() => {
+    if (open && Object.keys(actual).length > 0) {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(actual));
+    }
+  }, [actual, open]);
 
   function scanFeedback() {
     try {
@@ -107,6 +127,21 @@ export function OpnameModal({ open, onClose, onSuccess }: Props) {
     return () => { scanner.clear().catch(() => {}); };
   }, [showScanner, open, products]);
 
+  const filteredProducts = useMemo(() => {
+    let list = products;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+    }
+    if (showDiffOnly) {
+      list = list.filter(p => {
+        const d = (parseFloat(actual[p.id]) || 0) - p.stock_current;
+        return d !== 0;
+      });
+    }
+    return list;
+  }, [products, search, showDiffOnly, actual]);
+
   function diff(id: string): number {
     const p = products.find((x) => x.id === id);
     if (!p) return 0;
@@ -137,6 +172,7 @@ export function OpnameModal({ open, onClose, onSuccess }: Props) {
           toast.error(`Gagal opname ${product.name}`);
         }
       }
+      sessionStorage.removeItem(DRAFT_KEY);
       toast(`${count} produk diupdate`);
       onSuccess?.();
       onClose();
@@ -189,7 +225,29 @@ export function OpnameModal({ open, onClose, onSuccess }: Props) {
         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Belum ada produk</div>
       ) : (
         <form id="opname-form" onSubmit={submit}>
-          <div className="tbl-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                className="input input-sm"
+                style={{ paddingLeft: '2rem', width: '100%' }}
+                placeholder="Cari produk atau SKU..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className={`btn btn-sm ${showDiffOnly ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setShowDiffOnly(!showDiffOnly)}
+              style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <Filter size={14} />
+              {showDiffOnly ? 'Semua' : 'Selisih'}
+            </button>
+          </div>
+
+          <div className="tbl-wrap" style={{ maxHeight: 360, overflowY: 'auto' }}>
             <table>
               <thead>
                 <tr>
@@ -201,33 +259,37 @@ export function OpnameModal({ open, onClose, onSuccess }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => {
-                  const d = diff(p.id);
-                  return (
-                    <tr key={p.id}>
-                      <td style={{ fontWeight: 600 }}>{p.name}</td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.sku}</td>
-                      <td>{fmtQty(p.stock_current, p.unit)}</td>
-                      <td>
-                        <input
-                          id={`opname-input-${p.id}`}
-                          className="input input-sm"
-                          type="number"
-                          step="any"
-                          style={{ width: 100 }}
-                          value={actual[p.id] || ''}
-                          onChange={(e) => setActual({ ...actual, [p.id]: e.target.value })}
-                        />
-                      </td>
-                      <td style={{
-                        fontWeight: 700,
-                        color: d === 0 ? 'var(--text-muted)' : d > 0 ? 'var(--primary)' : 'var(--danger)',
-                      }}>
-                        {d === 0 ? '-' : `${d > 0 ? '+' : ''}${fmtQty(d, p.unit)}`}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filteredProducts.length === 0 ? (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Tidak ada produk ditemukan</td></tr>
+                ) : (
+                  filteredProducts.map((p) => {
+                    const d = diff(p.id);
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ fontWeight: 600 }}>{p.name}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.sku}</td>
+                        <td>{fmtQty(p.stock_current, p.unit)}</td>
+                        <td>
+                          <input
+                            id={`opname-input-${p.id}`}
+                            className="input input-sm"
+                            type="number"
+                            step="any"
+                            style={{ width: 100 }}
+                            value={actual[p.id] || ''}
+                            onChange={(e) => setActual({ ...actual, [p.id]: e.target.value })}
+                          />
+                        </td>
+                        <td style={{
+                          fontWeight: 700,
+                          color: d === 0 ? 'var(--text-muted)' : d > 0 ? 'var(--primary)' : 'var(--danger)',
+                        }}>
+                          {d === 0 ? '-' : `${d > 0 ? '+' : ''}${fmtQty(d, p.unit)}`}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

@@ -7,8 +7,7 @@ import { NotificationBell } from '../../components/NotificationBell';
 import { UserMenu } from '../../components/UserMenu';
 import {
   LayoutDashboard, BookOpen, Package, BarChart3,
-  History, CreditCard, DollarSign,
-  Database, Box, TrendingUp, Settings,
+  History, Box, TrendingUp, Settings,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { StockLogin } from './StockLogin';
@@ -58,13 +57,6 @@ function getNavGroups(status?: string): NavGroup[] {
         { to: '/stock/materials', label: 'Bahan Baku', icon: Box },
         { to: '/stock/history', label: 'Riwayat', icon: History },
         { to: '/stock/product-stats', label: 'Analisa Produk', icon: TrendingUp },
-      ],
-    },
-    {
-      label: 'Piutang & Hutang', icon: CreditCard,
-      children: [
-        { to: '/stock/piutang', label: 'Piutang', icon: DollarSign },
-        { to: '/stock/hutang', label: 'Hutang', icon: CreditCard },
       ],
     },
     {
@@ -199,7 +191,23 @@ export function StockLayout() {
       </div>
 
       <nav className="stock-bottom-nav">
-        {bottomNav.map(item => (
+        {bottomNav.slice(0, bottomNav.length <= 3 ? 1 : 2).map(item => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/stock'}
+            className={({ isActive }) => `bnav-item ${isActive ? 'active' : ''}`}
+          >
+            <item.icon size={20} />
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+
+        <div className="bnav-fab-cell">
+          <QuickActions inNav />
+        </div>
+
+        {bottomNav.slice(bottomNav.length <= 3 ? 1 : 2).map(item => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -211,8 +219,6 @@ export function StockLayout() {
           </NavLink>
         ))}
       </nav>
-
-      <QuickActions />
     </div>
   );
 }

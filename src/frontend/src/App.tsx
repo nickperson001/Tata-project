@@ -18,8 +18,6 @@ import { StockMovement } from './pages/stock/StockMovement';
 import { StockOpname } from './pages/stock/StockOpname';
 import { StockReport } from './pages/stock/StockReport';
 import { StockHistory } from './pages/stock/StockHistory';
-import { StockPiutang } from './pages/stock/StockPiutang';
-import { StockHutang } from './pages/stock/StockHutang';
 import { StockFinance } from './pages/stock/StockFinance';
 import { StockSlugRedirect } from './pages/stock/StockSlugRedirect';
 import { StockSettings } from './pages/stock/StockSettings';
@@ -53,8 +51,8 @@ export function App() {
           <Route path="retur-beli" element={<StockPurchaseReturn />} />
           <Route path="report" element={<StockReport />} />
           <Route path="history" element={<StockHistory />} />
-          <Route path="piutang" element={<StockPiutang />} />
-          <Route path="hutang" element={<StockHutang />} />
+          <Route path="piutang" element={<Navigate to="/stock/keuangan" replace />} />
+          <Route path="hutang" element={<Navigate to="/stock/keuangan" replace />} />
           <Route path="keuangan" element={<StockFinance />} />
           <Route path="pembukuan" element={<Navigate to="/stock/keuangan" replace />} />
           <Route path="laba-rugi" element={<Navigate to="/stock/keuangan" replace />} />
