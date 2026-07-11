@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useStockStore } from '../../store/stockStore';
 import { stockApi, bomApi } from '../../services/api';
@@ -10,12 +10,29 @@ import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { toast } from '../../components/Toast';
 import { fmtRp, fmtQty } from '../../lib/utils';
 import type { Product, BomMaterial, BomRecipe } from '../../types';
-import { Plus, Edit2, Trash2, Search, Globe, AlertTriangle, RefreshCw, Package, X } from 'lucide-react';
+import {
+  Plus, Edit2, Trash2, Search, Globe, AlertTriangle,
+  RefreshCw, Package, X, ChevronLeft, ChevronRight, Check
+} from 'lucide-react';
 import { DownloadButton } from '../../components/DownloadButton';
 
-interface Category {
-  id: string;
-  name: string;
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  'Makanan & Minuman': ['makanan', 'minuman', 'kopi', 'teh', 'susu', 'roti', 'kue', 'snack', 'cemilan', 'sembako', 'beras', 'gula', 'minyak', 'bumbu', 'mie', 'sarden', 'saos', 'kecap'],
+  'Pakaian & Aksesoris': ['baju', 'kemeja', 'kaos', 'celana', 'rok', 'dress', 'jaket', 'sepatu', 'sandal', 'tas', 'topi', 'sarung', 'hijab', 'jilbab'],
+  'Elektronik': ['elektronik', 'lampu', 'kabel', 'charger', 'baterai', 'adaptor', 'kipas', 'setrika', 'rice cooker', 'blender'],
+  'Rumah Tangga': ['sapu', 'pel', 'ember', 'panci', 'wajan', 'piring', 'gelas', 'sendok', 'garpu', 'taplak', 'keset'],
+  'Kesehatan & Kecantikan': ['sabun', 'shampoo', 'pasta gigi', 'sikat gigi', 'lotion', 'parfum', 'masker', 'vitamin', 'obat', 'kosmetik', 'bedak'],
+  'ATK & Kantor': ['buku', 'pulpen', 'pensil', 'penghapus', 'kertas', 'stapler', 'amplop', 'map', 'lem', 'gunting', 'penggaris'],
+  'Lainnya': [],
+};
+
+function detectCategory(name: string): string {
+  const lower = name.toLowerCase();
+  for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.length === 0) continue;
+    if (keywords.some(kw => lower.includes(kw))) return cat;
+  }
+  return '';
 }
 
 export function ProductsPage() {
@@ -27,6 +44,14 @@ export function ProductsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [form, setForm] = useState({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '' });
   const [saving, setSaving] = useState(false);
+  const [categoryTouched, setCategoryTouched] = useState(false);
+
+  // wizard state (create only)
+  const [wizardStep, setWizardStep] = useState(1);
+  const [stockInitial, setStockInitial] = useState('');
+  const [bomRows, setBomRows] = useState<Array<{ material_id: string; quantity: string }>>([]);
+
+  // edit mode BOM
   const [showRecipes, setShowRecipes] = useState(false);
   const [recipeForm, setRecipeForm] = useState({ material_id: '', quantity_per_order: '' });
 
@@ -37,14 +62,6 @@ export function ProductsPage() {
     staleTime: 30_000,
     gcTime: 60_000,
     select: (data) => data.products ?? [],
-  });
-
-  const categoriesQuery = useQuery({
-    queryKey: ['categories', token],
-    queryFn: () => stockApi.get<{ categories: Category[] }>('/api/stock/categories', token!),
-    enabled: !!token,
-    staleTime: 60_000,
-    select: (data) => data.categories ?? [],
   });
 
   const channelsQuery = useQuery({
@@ -65,18 +82,17 @@ export function ProductsPage() {
   const recipesQuery = useQuery({
     queryKey: ['recipes', token, editProduct?.id],
     queryFn: () => bomApi.listRecipes(token!, editProduct?.id || undefined),
-    enabled: !!token && showRecipes,
+    enabled: !!token && showRecipes && !!editProduct,
     staleTime: 10_000,
     select: (data) => data.recipes ?? [],
   });
 
   const products = productsQuery.data ?? [];
-  const categories = categoriesQuery.data ?? [];
   const activeChannels = channelsQuery.data ?? [];
   const allMaterials = (materialsQuery.data?.materials ?? []) as BomMaterial[];
   const productRecipes = recipesQuery.data as BomRecipe[] | undefined;
-  const loading = productsQuery.isPending || categoriesQuery.isPending || channelsQuery.isPending;
-  const error = productsQuery.isError || categoriesQuery.isError || channelsQuery.isError;
+  const loading = productsQuery.isPending || channelsQuery.isPending;
+  const error = productsQuery.isError || channelsQuery.isError;
 
   const isDemo = user?.status === 'demo';
   const demoLimitReached = isDemo && products.length >= 3;
@@ -86,9 +102,27 @@ export function ProductsPage() {
     p.sku.toLowerCase().includes(search.toLowerCase()),
   );
 
+  // auto-detect category when name changes (only if not manually touched)
+  useEffect(() => {
+    if (!categoryTouched && !editProduct) {
+      const detected = detectCategory(form.name);
+      if (detected !== form.category) {
+        setForm(prev => ({ ...prev, category: detected }));
+      }
+    }
+  }, [form.name]);
+
+  function resetWizard() {
+    setWizardStep(1);
+    setStockInitial('');
+    setBomRows([]);
+    setCategoryTouched(false);
+  }
+
   function openCreate() {
     setEditProduct(null);
     setForm({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '' });
+    resetWizard();
     setShowModal(true);
   }
 
@@ -104,31 +138,74 @@ export function ProductsPage() {
       stock_min: p.stock_min?.toString() || '',
       default_channel: p.default_channel || '',
     });
+    resetWizard();
     setShowModal(true);
   }
 
-  async function save() {
+  function isStep1Valid(): boolean {
+    return form.name.trim().length > 0 && form.sku.trim().length > 0 && form.price_sell.trim().length > 0;
+  }
+
+  function nextStep() {
+    if (wizardStep === 1 && !isStep1Valid()) {
+      toast.error('Lengkapi nama, SKU, dan harga jual');
+      return;
+    }
+    setWizardStep(s => Math.min(s + 1, 3));
+  }
+
+  function prevStep() {
+    setWizardStep(s => Math.max(s - 1, 1));
+  }
+
+  async function handleSave() {
     if (!token || saving) return;
     setSaving(true);
-    const body: Record<string, unknown> = {
-      sku: form.sku,
-      name: form.name,
-      category: form.category || undefined,
-      unit: form.unit || undefined,
-      price_buy: form.price_buy ? Number(form.price_buy) : undefined,
-      price_sell: Number(form.price_sell),
-      stock_min: form.stock_min ? Number(form.stock_min) : undefined,
-      default_channel: form.default_channel || '',
-    };
-
     try {
       if (editProduct) {
-        await stockApi.put(`/api/stock/products/${editProduct.id}`, token, body);
+        // ── Edit: update product only ──
+        await stockApi.put(`/api/stock/products/${editProduct.id}`, token, {
+          sku: form.sku,
+          name: form.name,
+          category: form.category || undefined,
+          unit: form.unit || undefined,
+          price_buy: form.price_buy ? Number(form.price_buy) : undefined,
+          price_sell: Number(form.price_sell),
+          stock_min: form.stock_min ? Number(form.stock_min) : undefined,
+          default_channel: form.default_channel || '',
+        });
         toast('Produk diupdate');
-      } else {
-        await stockApi.post('/api/stock/products', token, body);
-        toast('Produk dibuat');
+        setShowModal(false);
+        productsQuery.refetch();
+        return;
       }
+
+      // ── Create: product → BOM → initial stock ──
+      const body: Record<string, unknown> = {
+        sku: form.sku,
+        name: form.name,
+        category: form.category || undefined,
+        unit: form.unit || undefined,
+        price_buy: form.price_buy ? Number(form.price_buy) : undefined,
+        price_sell: Number(form.price_sell),
+        stock_min: form.stock_min ? Number(form.stock_min) : undefined,
+        default_channel: form.default_channel || '',
+        stock_initial: Number(stockInitial) || 0,
+      };
+      const result = await stockApi.post<{ product: Product }>('/api/stock/products', token, body);
+      const newProduct = result.product;
+
+      // BOM recipes
+      const validRows = bomRows.filter(r => r.material_id && r.quantity);
+      for (const row of validRows) {
+        await bomApi.setRecipe(token, {
+          material_id: row.material_id,
+          product_id: newProduct.id,
+          quantity_per_order: Number(row.quantity),
+        });
+      }
+
+      toast('Produk dibuat');
       setShowModal(false);
       productsQuery.refetch();
     } catch (err: unknown) {
@@ -174,11 +251,32 @@ export function ProductsPage() {
     }
   }
 
+  function addBomRow() {
+    setBomRows(prev => [...prev, { material_id: '', quantity: '' }]);
+  }
+
+  function removeBomRow(index: number) {
+    setBomRows(prev => prev.filter((_, i) => i !== index));
+  }
+
+  function updateBomRow(index: number, field: 'material_id' | 'quantity', value: string) {
+    setBomRows(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row));
+  }
+
+  const handleClose = useCallback(() => {
+    setShowModal(false);
+    setEditProduct(null);
+    resetWizard();
+  }, []);
+
   function stockStatus(stock: number, min: number | null): string {
     if (stock <= 0) return 'habis';
     if (min && stock <= min) return 'menipis';
     return 'aman';
   }
+
+  // ── Wizard step indicator ──
+  const wizardTabs = ['Informasi', 'Stok Awal', 'Bahan Baku'];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -306,142 +404,274 @@ export function ProductsPage() {
         </div>
       )}
 
+      {/* ── Modal: Create (wizard) / Edit ── */}
       <Modal
         open={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={handleClose}
         title={editProduct ? 'Edit Produk' : 'Tambah Produk'}
         footer={
-          <>
-            <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>
-            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
-          </>
+          editProduct ? (
+            <>
+              <button className="btn btn-secondary" onClick={handleClose}>Batal</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </>
+          ) : wizardStep === 3 ? (
+            <>
+              <button className="btn btn-secondary" onClick={prevStep}>
+                <ChevronLeft size={14} /> Kembali
+              </button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Menyimpan...' : <><Check size={14} /> Simpan</>}
+              </button>
+            </>
+          ) : (
+            <>
+              {wizardStep > 1 && (
+                <button className="btn btn-secondary" onClick={prevStep}>
+                  <ChevronLeft size={14} /> Kembali
+                </button>
+              )}
+              <button className="btn btn-primary" onClick={nextStep}>
+                Lanjut <ChevronRight size={14} />
+              </button>
+            </>
+          )
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">SKU</label>
-              <input className="input" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Nama Produk</label>
-              <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            </div>
+        {!editProduct && (
+          <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1rem' }}>
+            {wizardTabs.map((label, i) => (
+              <div
+                key={label}
+                style={{
+                  flex: 1, textAlign: 'center', padding: '0.4rem 0', fontSize: '0.75rem', fontWeight: 600,
+                  borderRadius: '6px',
+                  background: wizardStep === i + 1 ? 'var(--primary)' : 'transparent',
+                  color: wizardStep === i + 1 ? '#fff' : 'var(--text-muted)',
+                  border: wizardStep === i + 1 ? 'none' : '1px solid var(--border)',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {i + 1}. {label}
+              </div>
+            ))}
           </div>
-          <div className="form-row">
+        )}
+
+        {/* ── Step 1: Informasi Produk ── */}
+        {(!editProduct && wizardStep === 1) || editProduct ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">SKU</label>
+                <input className="input" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Nama Produk</label>
+                <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+              </div>
+            </div>
             <div className="form-group">
               <label className="form-label">Kategori</label>
-              <select className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                <option value="">— Pilih kategori —</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.name}>{c.name}</option>
-                ))}
-              </select>
+              <input
+                className="input"
+                value={form.category}
+                onChange={(e) => { setForm({ ...form, category: e.target.value }); setCategoryTouched(true); }}
+                placeholder="Otomatis terdeteksi dari nama"
+              />
+              {!categoryTouched && form.category && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: '0.2rem', display: 'block' }}>
+                  Terdeteksi otomatis dari nama produk
+                </span>
+              )}
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Satuan</label>
+                <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="pcs, kg, dll" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Harga Beli</label>
+                <RupiahInput value={form.price_buy} onChange={(v) => setForm({ ...form, price_buy: v })} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Harga Jual</label>
+                <RupiahInput value={form.price_sell} onChange={(v) => setForm({ ...form, price_sell: v })} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Channel Default</label>
+                <select className="input" value={form.default_channel} onChange={(e) => setForm({ ...form, default_channel: e.target.value })}>
+                  <option value="">— Semua channel —</option>
+                  {activeChannels.map((ch) => (
+                    <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Satuan</label>
-              <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="pcs, kg, dll" />
+              <label className="form-label">Stok Minimal</label>
+              <input className="input" type="number" value={form.stock_min} onChange={(e) => setForm({ ...form, stock_min: e.target.value })} placeholder="Untuk peringatan stok menipis" />
             </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Harga Beli</label>
-              <RupiahInput value={form.price_buy} onChange={(v) => setForm({ ...form, price_buy: v })} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Harga Jual</label>
-              <RupiahInput value={form.price_sell} onChange={(v) => setForm({ ...form, price_sell: v })} required />
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Channel Default</label>
-            <select className="input" value={form.default_channel} onChange={(e) => setForm({ ...form, default_channel: e.target.value })}>
-              <option value="">— Semua channel —</option>
-              {activeChannels.map((ch) => (
-                <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>
-              ))}
-            </select>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Channel utama penjualan produk ini</span>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Stok Minimal</label>
-            <input className="input" type="number" value={form.stock_min} onChange={(e) => setForm({ ...form, stock_min: e.target.value })} placeholder="Untuk peringatan stok menipis" />
-          </div>
 
-          {editProduct && (
-            <>
-              <hr style={{ margin: '0.5rem 0', borderColor: 'var(--border)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>Resep BOM (Bahan Baku)</label>
+            {/* BOM management inline for edit mode */}
+            {editProduct && (
+              <>
+                <hr style={{ margin: '0.5rem 0', borderColor: 'var(--border)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>Resep BOM (Bahan Baku)</label>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => { setShowRecipes(!showRecipes); if (!showRecipes) recipesQuery.refetch(); }}
+                    style={{ fontSize: '0.8rem' }}
+                  >
+                    <Package size={14} /> {showRecipes ? 'Tutup' : 'Atur Resep'}
+                  </button>
+                </div>
+                {showRecipes && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.75rem', background: 'rgba(0,0,0,0.02)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div className="form-row" style={{ alignItems: 'end' }}>
+                      <div className="form-group" style={{ flex: 2 }}>
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Material</label>
+                        <select className="input input-sm" value={recipeForm.material_id} onChange={(e) => setRecipeForm({ ...recipeForm, material_id: e.target.value })}>
+                          <option value="">— Pilih material —</option>
+                          {allMaterials.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name} ({fmtQty(m.stock_current, m.unit)} {m.unit})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ flex: 1 }}>
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Jumlah per Produk</label>
+                        <input className="input input-sm" type="number" step="0.01" min="0" value={recipeForm.quantity_per_order} onChange={(e) => setRecipeForm({ ...recipeForm, quantity_per_order: e.target.value })} />
+                      </div>
+                      <button className="btn btn-primary btn-sm" onClick={addRecipe} style={{ marginBottom: 1 }}>
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    {!recipesQuery.isPending && productRecipes && productRecipes.length > 0 && (
+                      <table style={{ fontSize: '0.8rem' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ padding: '0.25rem 0.5rem', textAlign: 'left' }}>Material</th>
+                            <th style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}>Jumlah</th>
+                            <th style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {productRecipes.map((r) => {
+                            const mat = (r as any).bom_materials as BomMaterial | undefined;
+                            return (
+                              <tr key={r.id}>
+                                <td style={{ padding: '0.25rem 0.5rem', fontWeight: 600 }}>{mat?.name || 'Unknown'}</td>
+                                <td style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}>{r.quantity_per_order} {mat?.unit || ''}</td>
+                                <td style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}>
+                                  <button className="btn btn-ghost btn-sm" onClick={() => deleteRecipe(r.id)} style={{ color: 'var(--danger)', padding: '0.15rem' }}>
+                                    <X size={12} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                    {!recipesQuery.isPending && (!productRecipes || productRecipes.length === 0) && (
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', margin: '0.5rem 0' }}>
+                        Belum ada resep untuk produk ini.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : null}
+
+        {/* ── Step 2: Stok Awal (create only) ── */}
+        {!editProduct && wizardStep === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem 0' }}>
+            <div className="form-group">
+              <label className="form-label">Stok Awal</label>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={stockInitial}
+                onChange={(e) => setStockInitial(e.target.value)}
+                placeholder="0"
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Jumlah stok saat pertama kali produk ditambahkan. Biarkan 0 jika belum ada stok.
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: BOM (create only) ── */}
+        {!editProduct && wizardStep === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>Bahan Baku (Resep)</label>
+              <button className="btn btn-ghost btn-sm" onClick={addBomRow}>
+                <Plus size={14} /> Tambah Baris
+              </button>
+            </div>
+
+            {bomRows.length === 0 && (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem 0' }}>
+                Belum ada bahan baku. Klik "Tambah Baris" untuk menambahkan.
+              </p>
+            )}
+
+            {bomRows.map((row, index) => (
+              <div key={index} className="form-row" style={{ alignItems: 'end' }}>
+                <div className="form-group" style={{ flex: 2 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Material</label>
+                  <select
+                    className="input input-sm"
+                    value={row.material_id}
+                    onChange={(e) => updateBomRow(index, 'material_id', e.target.value)}
+                  >
+                    <option value="">— Pilih material —</option>
+                    {allMaterials.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({fmtQty(m.stock_current, m.unit)} {m.unit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Jumlah per Produk</label>
+                  <input
+                    className="input input-sm"
+                    type="number" step="0.01" min="0"
+                    value={row.quantity}
+                    onChange={(e) => updateBomRow(index, 'quantity', e.target.value)}
+                    placeholder="1"
+                  />
+                </div>
                 <button
                   className="btn btn-ghost btn-sm"
-                  onClick={() => { setShowRecipes(!showRecipes); if (!showRecipes) recipesQuery.refetch(); }}
-                  style={{ fontSize: '0.8rem' }}
+                  onClick={() => removeBomRow(index)}
+                  style={{ color: 'var(--danger)', marginBottom: 1 }}
                 >
-                  <Package size={14} /> {showRecipes ? 'Tutup' : 'Atur Resep'}
+                  <X size={14} />
                 </button>
               </div>
+            ))}
 
-              {showRecipes && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.75rem', background: 'rgba(0,0,0,0.02)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                  <div className="form-row" style={{ alignItems: 'end' }}>
-                    <div className="form-group" style={{ flex: 2 }}>
-                      <label className="form-label" style={{ fontSize: '0.75rem' }}>Material</label>
-                      <select className="input input-sm" value={recipeForm.material_id} onChange={(e) => setRecipeForm({ ...recipeForm, material_id: e.target.value })}>
-                        <option value="">— Pilih material —</option>
-                        {allMaterials.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name} ({fmtQty(m.stock_current, m.unit)} {m.unit})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <label className="form-label" style={{ fontSize: '0.75rem' }}>Jumlah per Produk</label>
-                      <input className="input input-sm" type="number" step="0.01" min="0" value={recipeForm.quantity_per_order} onChange={(e) => setRecipeForm({ ...recipeForm, quantity_per_order: e.target.value })} />
-                    </div>
-                    <button className="btn btn-primary btn-sm" onClick={addRecipe} style={{ marginBottom: 1 }}>
-                      <Plus size={14} />
-                    </button>
-                  </div>
-
-                  {!recipesQuery.isPending && productRecipes && productRecipes.length > 0 && (
-                    <table style={{ fontSize: '0.8rem' }}>
-                      <thead>
-                        <tr>
-                          <th style={{ padding: '0.25rem 0.5rem', textAlign: 'left' }}>Material</th>
-                          <th style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}>Jumlah</th>
-                          <th style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {productRecipes.map((r) => {
-                          const mat = (r as any).bom_materials as BomMaterial | undefined;
-                          return (
-                            <tr key={r.id}>
-                              <td style={{ padding: '0.25rem 0.5rem', fontWeight: 600 }}>{mat?.name || 'Unknown'}</td>
-                              <td style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}>{r.quantity_per_order} {mat?.unit || ''}</td>
-                              <td style={{ padding: '0.25rem 0.5rem', textAlign: 'right' }}>
-                                <button className="btn btn-ghost btn-sm" onClick={() => deleteRecipe(r.id)} style={{ color: 'var(--danger)', padding: '0.15rem' }}>
-                                  <X size={12} />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                  {!recipesQuery.isPending && (!productRecipes || productRecipes.length === 0) && (
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', margin: '0.5rem 0' }}>
-                      Belum ada resep untuk produk ini. Tambahkan material di atas.
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+            {allMaterials.length === 0 && (
+              <div className="card card-p" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid var(--warning)', textAlign: 'center', fontSize: '0.8rem' }}>
+                Belum ada bahan baku. <a href="/stock/materials" style={{ fontWeight: 700 }}>Tambahkan material</a> terlebih dahulu.
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
 
       <ConfirmModal

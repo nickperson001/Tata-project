@@ -106,15 +106,6 @@ export async function setupDemoAccount() {
       }
     }
 
-    // Categories
-    const categoryNames = ['Konsumsi', 'Rumah Tangga', 'Sembako', 'Elektronik', 'Minuman'];
-    for (const catName of categoryNames) {
-      await client.query(`INSERT INTO product_categories (user_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [
-        userId,
-        catName,
-      ]);
-    }
-
     // Products
     const products = [
       {

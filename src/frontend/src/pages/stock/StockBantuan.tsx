@@ -20,7 +20,6 @@ const menuItems = [
     icon: Package,
     items: [
       { to: '/stock/products', label: 'Produk', desc: 'Tambah/edit/hapus produk, atur harga, SKU, kategori, stok minimal.' },
-      { to: '/stock/categories', label: 'Kategori', desc: 'Kelola grouping produk untuk filter dan laporan.' },
       { to: '#', label: 'Masuk/Keluar', desc: 'Catat pergerakan stok via tombol + (FAB) di kanan bawah — pilih Stok Masuk/Keluar.' },
       { to: '#', label: 'Opname', desc: 'Stok opname fisik via tombol + (FAB) di kanan bawah — pilih Opname.' },
       { to: '/stock/history', label: 'Riwayat', desc: 'Log seluruh pergerakan stok — filter, cari, hapus.' },

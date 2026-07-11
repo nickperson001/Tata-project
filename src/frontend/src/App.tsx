@@ -21,7 +21,6 @@ import { StockHistory } from './pages/stock/StockHistory';
 import { StockFinance } from './pages/stock/StockFinance';
 import { StockSlugRedirect } from './pages/stock/StockSlugRedirect';
 import { StockSettings } from './pages/stock/StockSettings';
-import { StockCategories } from './pages/stock/StockCategories';
 import { StockMaterials } from './pages/stock/StockMaterials';
 import { StockBatch } from './pages/stock/StockBatch';
 import { StockProductStats } from './pages/stock/StockProductStats';
@@ -65,7 +64,6 @@ export function App() {
           <Route path="summary" element={<Navigate to="/stock/keuangan" replace />} />
           <Route path="batch" element={<StockBatch />} />
           <Route path="product-stats" element={<StockProductStats />} />
-          <Route path="categories" element={<StockCategories />} />
           <Route path="materials" element={<StockMaterials />} />
           <Route path="settings" element={<StockSettings />} />
           <Route path="bantuan" element={<StockBantuan />} />

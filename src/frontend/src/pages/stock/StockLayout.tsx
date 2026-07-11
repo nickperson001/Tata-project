@@ -53,7 +53,6 @@ function getNavGroups(status?: string): NavGroup[] {
       label: 'Inventori', icon: Package,
       children: [
         { to: '/stock/products', label: 'Produk', icon: Package },
-        { to: '/stock/categories', label: 'Kategori', icon: Package },
         { to: '/stock/materials', label: 'Bahan Baku', icon: Box },
         { to: '/stock/history', label: 'Riwayat', icon: History },
         { to: '/stock/product-stats', label: 'Analisa Produk', icon: TrendingUp },

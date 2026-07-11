@@ -109,8 +109,9 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 32 | recipeUpsertSchema type mismatch (string→bigint) → 400 + sanitasi massal | `schemas.ts` material_id/product_id pakai `z.string()` tapi kolom DB `bigint`. Fix: ganti `z.coerce.number()`. Ditambah sanitasi `err.message` di stockManager.ts (39), transactionRecorder.ts (10), accountingEngine.ts (5), api.ts (24 if(!result.success)). Juga tambah menu Dashboard & Token baru di bantuan WA. | `grep "error: (err\|e\|pgErr)\.message" src/utils/` hanya mediaProcessor (log, aman); menu bantuan mention Dashboard & Token baru |
 | 33 | Input fee channel 0 tidak bisa dihapus | `StockSettings.tsx:232` — controlled input `value={getChannelFee(ch.name)}` return 0, `Number('')` = 0, user tak bisa hapus. Fix: track raw string di `feeRaw` state, parse di `onBlur`. | `StockSettings.tsx` ada `feeRaw` state + `onBlur` handler |
 | 34 | Tombol Install PWA tidak muncul (race condition) | `StockSettings.tsx:45-62` — `beforeinstallprompt` cuma fire sekali. StockLayout simpan ke `window.__tbsDeferredPrompt` tapi Settings tidak baca. Fix: tambah pengecekan `__tbsDeferredPrompt` di mount. | `StockSettings.tsx` useEffect cek `window.__tbsDeferredPrompt` |
-
-Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
+| 35 | Hapus Kategori (redesign wizard 3-step) | Hapus `StockCategories.tsx`, route CRUD categories di api.ts, seeding product_categories di demoSetup.ts, nav & bantuan. Rewrite `ProductsPage.tsx` → auto-category via `CATEGORY_KEYWORDS`, wizard 3-step (Informasi → Stok Awal → BOM), multi-material BOM saat create, stock_initial. | `StockCategories.tsx` tidak ada; `api.ts` tidak ada route `/api/stock/categories`; `ProductsPage.tsx` pakai wizard + `detectCategory()` |
+ 
+Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini. Bug #29 (StockCategories saving state) sudah obsolete karena file dihapus.
 
 ---
 
@@ -191,10 +192,10 @@ SQL di `migrations/` — jalankan manual via Supabase SQL Editor. Ada auto-migra
 - whatsapp-web.js (WA bot) — masalah utama: timeout ke `web.whatsapp.com` di HF Space (IP block / RAM 512MB kurang)
 
 ### Frontend routes (`/stock/*`)
-`movement`, `opname`, `retur`, `retur-beli`, `report`, `history`, `piutang`, `hutang`, `keuangan`, `products`, `batch`, `product-stats`, `categories`, `settings`, `bantuan`, `channels` (redirect → keuangan).
+`movement`, `opname`, `retur`, `retur-beli`, `report`, `history`, `piutang`, `hutang`, `keuangan`, `products`, `batch`, `product-stats`, `settings`, `bantuan`, `channels` (redirect → keuangan).
 
 ### DB key tables
-`products`, `stock_movements`, `financial_transactions`, `accounts`, `journal_entries`, `inventory`, `warehouses` (DROPPED via migration 014), `user_sessions`, `wa_session_backup`, `user_profiles`, `admins`, `alerts`, `notifications`.
+`products`, `stock_movements`, `financial_transactions`, `accounts`, `journal_entries`, `inventory`, `warehouses` (DROPPED via migration 014), `user_sessions`, `wa_session_backup`, `user_profiles`, `admins`, `alerts`, `notifications`. (`product_categories` table tidak lagi dipakai — kategori produk pakai string bebas via `CATEGORY_KEYWORDS`.)
 
 ### Design
 - CSS variables + `index.css` (no Tailwind)
