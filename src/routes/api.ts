@@ -966,7 +966,7 @@ router.post('/api/stock/products', stockAuth, requireBody('name'), validate(prod
     cacheInvalidate(userId);
     apiSuccess(res, { product: result.product });
   } catch (e: any) {
-    apiError(res, e.message, 500);
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
 });
 
@@ -1002,7 +1002,7 @@ router.put('/api/stock/products/:productId', stockAuth, async (req: StockRequest
     cacheInvalidate(userId);
     apiSuccess(res, {});
   } catch (e: any) {
-    apiError(res, e.message, 500);
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
 });
 
@@ -1178,7 +1178,7 @@ router.post('/api/stock/categories', stockAuth, requireBody('name'), async (req:
       .select()
       .single()) as any;
     if (error) {
-      apiError(res, error.message);
+      apiError(res, sanitizeError(error));
       return;
     }
     apiSuccess(res, { category: data });
@@ -1201,7 +1201,7 @@ router.put('/api/stock/categories/:id', stockAuth, async (req: StockRequest, res
       .eq('id', req.params.id)
       .eq('user_id', userId)) as any;
     if (error) {
-      apiError(res, error.message);
+      apiError(res, sanitizeError(error));
       return;
     }
     apiSuccess(res, { success: true });
@@ -1219,7 +1219,7 @@ router.delete('/api/stock/categories/:id', stockAuth, async (req: StockRequest, 
       .eq('id', req.params.id)
       .eq('user_id', userId)) as any;
     if (error) {
-      apiError(res, error.message);
+      apiError(res, sanitizeError(error));
       return;
     }
     // Reset category produk yang menggunakan kategori ini ke kosong
@@ -1391,7 +1391,7 @@ router.delete('/api/stock/movement/:id', stockAuth, async (req: StockRequest, re
     cacheInvalidate(userId);
     apiSuccess(res, {});
   } catch (e: any) {
-    apiError(res, e.message, 500);
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
 });
 
@@ -1974,7 +1974,7 @@ router.put('/api/stock/transactions/:id', stockAuth, async (req: StockRequest, r
       apiError(res, 'Hanya deskripsi yang bisa diubah. Untuk mengubah nominal/tipe, hapus dan buat ulang.', 400);
     }
   } catch (e: any) {
-    apiError(res, e.message, 500);
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
 });
 
@@ -2053,7 +2053,7 @@ router.delete('/api/stock/transactions/:id', stockAuth, async (req: StockRequest
     cacheInvalidate(userId);
     apiSuccess(res, {});
   } catch (e: any) {
-    apiError(res, e.message, 500);
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
 });
 
@@ -2183,7 +2183,7 @@ router.post('/api/stock/pembukuan', stockAuth, validate(pembukuanSchema), async 
     cacheInvalidate(userId);
     apiSuccess(res, {});
   } catch (e: any) {
-    apiError(res, e.message, 500);
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
 });
 
@@ -2270,7 +2270,7 @@ router.post('/api/stock/hutang', stockAuth, validate(hutangSchema), async (req: 
     cacheInvalidate(userId);
     apiSuccess(res, { hutang: result.data });
   } catch (e: any) {
-    apiError(res, e.message, 500);
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
 });
 
@@ -2298,7 +2298,7 @@ router.put('/api/stock/hutang/:id', stockAuth, async (req: StockRequest, res: Re
     cacheInvalidate(userId);
     apiSuccess(res, {});
   } catch (e: any) {
-    apiError(res, e.message, 500);
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
 });
 
@@ -2314,7 +2314,7 @@ router.delete('/api/stock/hutang/:id', stockAuth, async (req: StockRequest, res:
     cacheInvalidate(userId);
     apiSuccess(res, {});
   } catch (e: any) {
-    apiError(res, e.message, 500);
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }
 });
 
@@ -2330,7 +2330,7 @@ router.post('/api/stock/hutang/:id/bayar', stockAuth, async (req: StockRequest, 
     if (!result.success) { apiError(res, result.error!, 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 router.post('/api/stock/piutang/:id/terima', stockAuth, async (req: StockRequest, res: Response) => {
@@ -2345,7 +2345,7 @@ router.post('/api/stock/piutang/:id/terima', stockAuth, async (req: StockRequest
     if (!result.success) { apiError(res, result.error!, 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 // ── Returns ──
@@ -2356,7 +2356,7 @@ router.post('/api/stock/return/sales', stockAuth, validate(salesReturnSchema), a
     if (!result.success) { apiError(res, result.error!, 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 router.post('/api/stock/return/purchase', stockAuth, validate(purchaseReturnSchema), async (req: StockRequest, res: Response) => {
@@ -2366,7 +2366,7 @@ router.post('/api/stock/return/purchase', stockAuth, validate(purchaseReturnSche
     if (!result.success) { apiError(res, result.error!, 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 router.get('/api/stock/returns', stockAuth, async (req: StockRequest, res: Response) => {
@@ -2385,7 +2385,7 @@ router.get('/api/stock/returns', stockAuth, async (req: StockRequest, res: Respo
     const { data, error } = await query;
     if (error) throw error;
     apiSuccess(res, (data as any[]) || []);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 // ── Stock Opname ──
@@ -2398,7 +2398,7 @@ router.post('/api/stock/opname', stockAuth, validate(opnameCreateSchema), async 
     ]).select().single();
     if (error) throw error;
     apiSuccess(res, data, 201);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 router.get('/api/stock/opname', stockAuth, async (req: StockRequest, res: Response) => {
@@ -2412,7 +2412,7 @@ router.get('/api/stock/opname', stockAuth, async (req: StockRequest, res: Respon
       .limit(20);
     if (error) throw error;
     apiSuccess(res, (data as any[]) || []);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 router.get('/api/stock/opname/:id', stockAuth, async (req: StockRequest, res: Response) => {
@@ -2426,7 +2426,7 @@ router.get('/api/stock/opname/:id', stockAuth, async (req: StockRequest, res: Re
       .single();
     if (error) throw error;
     apiSuccess(res, data);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 router.post('/api/stock/opname/:id/details', stockAuth, validate(opnameDetailSchema), async (req: StockRequest, res: Response) => {
@@ -2448,7 +2448,7 @@ router.post('/api/stock/opname/:id/details', stockAuth, validate(opnameDetailSch
     ]).select().single();
     if (error) throw error;
     apiSuccess(res, data, 201);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 router.post('/api/stock/opname/:id/complete', stockAuth, async (req: StockRequest, res: Response) => {
@@ -2482,7 +2482,7 @@ router.post('/api/stock/opname/:id/complete', stockAuth, async (req: StockReques
     await supabase.from('stock_opnames').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', opnameId);
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 // ── Inventory Adjustment (quick, without opname session) ──
@@ -2495,7 +2495,7 @@ router.post('/api/stock/adjustment', stockAuth, async (req: StockRequest, res: R
     if (!result.success) { apiError(res, result.error!, 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
-  } catch (e: any) { apiError(res, e.message, 500); }
+  } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
 });
 
 router.get('/api/stock/coa', stockAuth, async (req: StockRequest, res: Response) => {
@@ -2757,7 +2757,7 @@ router.patch('/api/stock/alerts/read', stockAuth, async (req: StockRequest, res:
           [userId],
         );
       } else {
-        apiError(res, error.message, ErrorCode.DB_ERROR, 500);
+        apiError(res, sanitizeError(error), ErrorCode.DB_ERROR, 500);
         return;
       }
     }
