@@ -100,6 +100,7 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 23 | UNIQUE `users.store_name` | WA register (`message.ts:549`) cek duplikasi + rename append random. Auto-migration `uq_users_store_name` di `src/index.ts` | `message.ts:551-555` ada check + rename |
 | 24 | PWA beforeinstallprompt | StockLayout.tsx listener simpan ke `window.__tbsDeferredPrompt` (StockSettings.tsx sudah punya listener sendiri) | StockLayout.tsx ada `beforeinstallprompt` effect |
 | 25 | `Database is not defined` — regresi | `StockLayout.tsx` pakai icon `Database` di nav `/stock/batch` tapi tidak di-import dari `lucide-react`. Fix: tambah `Database` ke import. | `StockLayout.tsx:8-11` ada `Database` di import |
+| 26 | Tab Keuangan teks hilang saat aktif | Inline `background: 'none'` override `.sn-item.active` (`background: var(--primary)`). Fix: hapus `background: 'none'` dari keempat button tab. | `StockFinance.tsx:73-94` tidak ada `background: 'none'` di inline style |
 
 Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
 
