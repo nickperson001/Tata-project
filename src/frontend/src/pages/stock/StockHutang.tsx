@@ -26,6 +26,7 @@ export function StockHutang() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<HutangItem | null>(null);
   const [form, setForm] = useState({ nama_supplier: '', nominal_hutang: '', deskripsi: '', jatuh_tempo: '' });
+  const [saving, setSaving] = useState(false);
 
   const query = useQuery({
     queryKey: ['hutang', token],
@@ -54,7 +55,8 @@ export function StockHutang() {
   }
 
   async function save() {
-    if (!token) return;
+    if (!token || saving) return;
+    setSaving(true);
     try {
       if (editing) {
         await stockApi.put(`/api/stock/hutang/${editing.id}`, token, {
@@ -77,6 +79,8 @@ export function StockHutang() {
       query.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -230,7 +234,7 @@ export function StockHutang() {
         footer={
           <>
             <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>
-            <button className="btn btn-primary" onClick={save}>Simpan</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
           </>
         }
       >

@@ -994,7 +994,7 @@ router.put('/api/stock/products/:productId', stockAuth, async (req: StockRequest
         supplier,
         location,
         notes,
-        default_channel: defaultChannel || null,
+        default_channel: defaultChannel || '',
       })
       .eq('id', productId)
       .eq('user_id', userId)) as any;

@@ -93,7 +93,7 @@ async function addProduct(
           description || null,
           supplier || null,
           location || null,
-          defaultChannel || null,
+          defaultChannel || '',
         ],
       );
       const product = prod.rows[0];

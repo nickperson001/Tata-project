@@ -26,6 +26,7 @@ export function ProductsPage() {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [form, setForm] = useState({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '' });
+  const [saving, setSaving] = useState(false);
   const [showRecipes, setShowRecipes] = useState(false);
   const [recipeForm, setRecipeForm] = useState({ material_id: '', quantity_per_order: '' });
 
@@ -107,7 +108,8 @@ export function ProductsPage() {
   }
 
   async function save() {
-    if (!token) return;
+    if (!token || saving) return;
+    setSaving(true);
     const body: Record<string, unknown> = {
       sku: form.sku,
       name: form.name,
@@ -116,7 +118,7 @@ export function ProductsPage() {
       price_buy: form.price_buy ? Number(form.price_buy) : undefined,
       price_sell: Number(form.price_sell),
       stock_min: form.stock_min ? Number(form.stock_min) : undefined,
-      default_channel: form.default_channel || undefined,
+      default_channel: form.default_channel || '',
     };
 
     try {
@@ -131,6 +133,8 @@ export function ProductsPage() {
       productsQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal simpan produk');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -313,7 +317,7 @@ export function ProductsPage() {
         footer={
           <>
             <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>
-            <button className="btn btn-primary" onClick={save}>Simpan</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
           </>
         }
       >
