@@ -104,6 +104,23 @@ server.listen(PORT, async () => {
     } catch (err: any) {
       addLog('warn', `[DB] Add default_channel (non-fatal): ${err.message}`);
     }
+    try {
+      // Prevent duplicate product names per user
+      await pgPool.query(
+        `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_products_user_name') THEN ALTER TABLE products ADD CONSTRAINT uq_products_user_name UNIQUE (user_id, name); END IF; END $$`,
+      );
+      addLog('info', '[DB] Constraint uq_products_user_name added (if missing)');
+    } catch (err: any) {
+      addLog('warn', `[DB] Add uq_products_user_name (non-fatal): ${err.message}`);
+    }
+    try {
+      await pgPool.query(
+        `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_users_store_name') THEN ALTER TABLE users ADD CONSTRAINT uq_users_store_name UNIQUE (store_name); END IF; END $$`,
+      );
+      addLog('info', '[DB] Constraint uq_users_store_name added (if missing)');
+    } catch (err: any) {
+      addLog('warn', `[DB] Add uq_users_store_name (non-fatal): ${err.message}`);
+    }
   }
 
   resetBootStatus();

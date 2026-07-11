@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from '../../components/Toast';
 import { useStockToken } from '../../hooks/useStockToken';
@@ -141,6 +141,16 @@ export function StockLayout() {
       disconnectSocket();
     }
   }, [token]);
+
+  // PWA install prompt handler
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      (window as any).__tbsDeferredPrompt = e;
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   if (isLoading) {
     return (

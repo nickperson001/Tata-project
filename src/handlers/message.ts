@@ -549,6 +549,13 @@ async function checkAndRegisterUser(sender: string, rawBody: string, msg: any): 
   let storeName = isDaftar[1].trim().substring(0, 50);
   if (!storeName) storeName = 'Toko Saya';
 
+  // Check if store_name already taken
+  const { data: nameTaken } = await supabase.from('users').select('id').eq('store_name', storeName).maybeSingle() as any;
+  if (nameTaken) {
+    storeName = storeName + ' ' + Math.random().toString(36).substring(2, 5).toUpperCase();
+    addLog('info', `[NEW USER] store_name taken, renamed to "${storeName}"`);
+  }
+
   addLog('info', `[NEW USER] Registering: ${sender} as "${storeName}"`);
 
   const slug = await generateUniqueSlug(storeName, supabase);

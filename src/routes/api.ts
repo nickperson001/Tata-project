@@ -2704,7 +2704,7 @@ router.get('/api/stock/dashboard/charts', stockAuth, async (req: StockRequest, r
 
     const { data: prodTrans } = (await supabase
       .from('transactions')
-      .select('description, amount, quantity')
+      .select('product_id, amount, quantity, products!inner(name)')
       .eq('user_id', userId)
       .eq('type', 'masuk')
       .not('product_id', 'is', null)
@@ -2712,7 +2712,7 @@ router.get('/api/stock/dashboard/charts', stockAuth, async (req: StockRequest, r
       .limit(1000)) as any;
     const productMap: Record<string, { revenue: number; qty: number }> = {};
     (prodTrans || []).forEach((t: any) => {
-      const name = (t.description || 'Unknown').split(' ').slice(0, 4).join(' ');
+      const name = t.products?.name || 'Unknown';
       productMap[name] = productMap[name] || { revenue: 0, qty: 0 };
       productMap[name].revenue += Number(t.amount) || 0;
       productMap[name].qty += Number(t.quantity) || 1;
