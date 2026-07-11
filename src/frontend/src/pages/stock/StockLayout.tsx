@@ -154,9 +154,9 @@ export function StockLayout() {
 
   if (isLoading) {
     return (
-      <div className="loading-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
-        <div className="spinner" style={{ width: 48, height: 48, border: '4px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Memuat dashboard...</span>
+      <div className="loading-screen">
+        <div className="loading-screen__spinner" />
+        <span className="loading-screen__text">Memuat dashboard...</span>
       </div>
     );
   }
@@ -168,34 +168,39 @@ export function StockLayout() {
   return (
     <div className="stock-layout">
       <div className="stock-main">
-        <header className="stock-topbar">
-          <div className="topbar-left">
-            <img src="/stock/logo.svg" alt="Tata" style={{ height: 36, marginRight: 8 }} />
-            <span className="topbar-brand">Tata Business Suite</span>
-          </div>
-          <div className="topbar-right">
-            <NotificationBell />
-            <UserMenu />
-          </div>
-        </header>
+        <div className="stock-shell-head">
+          <header className="stock-topbar">
+            <div className="topbar-left">
+              <img src="/stock/logo.svg" alt="Tata" className="topbar-logo" />
+              <div className="topbar-brand-stack">
+                <span className="topbar-brand">Tata Business Suite</span>
+                <span className="topbar-kicker">Stok, kas, dan laporan dalam satu tempat</span>
+              </div>
+            </div>
+            <div className="topbar-right">
+              <NotificationBell />
+              <UserMenu />
+            </div>
+          </header>
 
-        {subChildren.length > 0 && (
-          <nav className="stock-subnav">
-            {subChildren.map(child => (
-              <NavLink
-                key={child.to}
-                to={child.to}
-                end={child.to === '/stock'}
-                className={({ isActive: act }) => `sn-item ${act ? 'active' : ''}`}
-              >
-                <child.icon size={15} />
-                <span>{child.label}</span>
-              </NavLink>
-            ))}
-          </nav>
-        )}
+          {subChildren.length > 0 && (
+            <nav className="stock-subnav">
+              {subChildren.map(child => (
+                <NavLink
+                  key={child.to}
+                  to={child.to}
+                  end={child.to === '/stock'}
+                  className={({ isActive: act }) => `sn-item ${act ? 'active' : ''}`}
+                >
+                  <child.icon size={15} />
+                  <span>{child.label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          )}
+        </div>
 
-        <main className="stock-content content-fade">
+        <main className="stock-content stock-content-shell content-fade">
           <Outlet />
         </main>
       </div>

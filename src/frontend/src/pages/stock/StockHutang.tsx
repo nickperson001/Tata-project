@@ -63,7 +63,7 @@ export function StockHutang() {
           nama_supplier: form.nama_supplier,
           nominal_hutang: Number(form.nominal_hutang),
           deskripsi: form.deskripsi,
-          jatuh_tempo: form.jatuh_tempo || null,
+          jatuh_tempo: form.jatuh_tempo || undefined,
         });
         toast('Hutang diupdate');
       } else {
@@ -71,7 +71,7 @@ export function StockHutang() {
           nama_supplier: form.nama_supplier,
           nominal_hutang: Number(form.nominal_hutang),
           deskripsi: form.deskripsi,
-          jatuh_tempo: form.jatuh_tempo || null,
+          jatuh_tempo: form.jatuh_tempo || undefined,
         });
         toast('Hutang dicatat');
       }

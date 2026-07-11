@@ -5,6 +5,7 @@ import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
 import { FilterBar } from '../../components/FilterBar';
+import { PageHeader, SectionCard } from '../../components/layout';
 import type { DateRange } from '../../components/DateRangeFilter';
 import { fmtRp } from '../../lib/utils';
 import { EskalasiChart } from './EskalasiChart';
@@ -255,57 +256,56 @@ export function StockOverview() {
   return (
     <div className="ov-page">
       {user?.status === 'demo' && (
-        <div className="card card-p data-enter" style={{
-          background: 'linear-gradient(135deg, #f59e0b, #ea580c)',
-          border: 'none', borderRadius: 16, marginBottom: '1.5rem',
-          color: '#fff', padding: '1rem 1.5rem',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: '1rem', flexWrap: 'wrap',
-        }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+        <div className="card card-p data-enter ov-demo-banner">
+          <span className="ov-demo-banner__text">
             🔒 Anda menggunakan mode Demo. Upgrade ke PRO untuk akses laporan keuangan, piutang, hutang, dan produk tak terbatas.
           </span>
           <a
             href="https://wa.me/6283121376756?text=Halo%20saya%20ingin%20upgrade%20Tata%20Business%20Suite%20ke%20PRO"
             target="_blank" rel="noopener noreferrer"
-            style={{
-              background: 'rgba(255,255,255,0.2)', color: '#fff',
-              border: '2px solid rgba(255,255,255,0.5)', borderRadius: 10,
-              padding: '0.5rem 1.25rem', fontWeight: 700, fontSize: '0.85rem',
-              cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
-            }}
+            className="ov-demo-banner__action"
           >
             Upgrade Sekarang
           </a>
         </div>
       )}
 
-      <FilterBar
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        showChannel
-        channel={filterChannel}
-        onChannelChange={setFilterChannel}
-        channels={activeChannels}
-        showSearch={false}
-      />
+      <div className="ov-page-intro">
+        <PageHeader
+          className="ov-page-header"
+          title="Dashboard Stok"
+          subtitle="Pantau saldo, profitabilitas, dan produk yang perlu perhatian dari satu ringkasan yang lebih rapi."
+          actions={!showAiPopup && overview ? (
+            <button
+              className="btn btn-secondary btn-sm ov-inline-action"
+              onClick={() => {
+                sessionStorage.removeItem('tbs_ai_popup_shown');
+                setShowAiPopup(true);
+              }}
+            >
+              <Bot size={16} />
+              Lihat Analisis
+            </button>
+          ) : undefined}
+        />
 
-      {!showAiPopup && overview && (
-        <button
-          className="btn btn-outline btn-sm"
-          onClick={() => {
-            sessionStorage.removeItem('tbs_ai_popup_shown');
-            setShowAiPopup(true);
-          }}
-          style={{
-            alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            borderRadius: 12, padding: '0.5rem 1rem',
-          }}
+        <SectionCard
+          className="ov-toolbar-card"
+          padding="1rem"
+          title="Filter Dashboard"
+          subtitle="Sesuaikan periode dan channel tanpa mengubah isi data."
         >
-          <Bot size={16} />
-          Lihat Analisis
-        </button>
-      )}
+          <FilterBar
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            showChannel
+            channel={filterChannel}
+            onChannelChange={setFilterChannel}
+            channels={activeChannels}
+            showSearch={false}
+          />
+        </SectionCard>
+      </div>
 
       {/* Bento Grid Layout (Saldo, Stats) */}
       <div className="bento-grid">
@@ -376,58 +376,62 @@ export function StockOverview() {
 
       {/* Channel Profitability */}
       {(loading || channelProfit.length > 0) && (
-      <div className="card card-p">
-        <div className="ov-section-title">
-          <Globe size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          Profitability per Channel
-        </div>
-        <div className="ov-channels-grid">
-          {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="ov-channel-card" style={{ animationDelay: `${i * 0.08}s` }}>
+        <SectionCard
+          className="data-enter"
+          title="Profitability per Channel"
+          subtitle="Membandingkan omzet, HPP, dan margin bersih per channel aktif."
+          action={<Globe size={16} color="var(--text-muted)" />}
+        >
+          <div className="ov-channels-grid">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="ov-channel-card" style={{ animationDelay: `${i * 0.08}s` }}>
+                  <div className="ov-channel-header">
+                    <Skeleton width="80px" height="0.8rem" />
+                    <Skeleton width="40px" height="0.8rem" />
+                  </div>
+                  <Skeleton width="120px" height="1rem" />
+                  <div className="ov-channel-detail" style={{ marginTop: 4 }}>
+                    <Skeleton width="100px" height="0.75rem" />
+                  </div>
+                  <div className="progress-bar" style={{ marginTop: 6 }}><Skeleton width="100%" height="6px" /></div>
+                </div>
+              ))
+            ) : channelProfit.map(ch => (
+              <div key={ch.channel} className="ov-channel-card data-enter">
                 <div className="ov-channel-header">
-                  <Skeleton width="80px" height="0.8rem" />
-                  <Skeleton width="40px" height="0.8rem" />
+                  <span className="ov-channel-name">{ch.channel}</span>
+                  <span className="ov-channel-margin" style={{ color: ch.netProfit >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
+                    {ch.margin}%
+                  </span>
                 </div>
-                <Skeleton width="120px" height="1rem" />
-                <div className="ov-channel-detail" style={{ marginTop: 4 }}>
-                  <Skeleton width="100px" height="0.75rem" />
+                <div className="ov-channel-revenue">{fmtRp(ch.revenue)}</div>
+                <div className="ov-channel-detail">
+                  <span>HPP: {fmtRp(ch.hpp)}</span>
+                  <span style={{ color: ch.netProfit >= 0 ? 'var(--primary)' : 'var(--danger)', fontWeight: 600 }}>
+                    {ch.netProfit >= 0 ? '+' : ''}{fmtRp(ch.netProfit)}
+                  </span>
                 </div>
-                <div className="progress-bar" style={{ marginTop: 6 }}><Skeleton width="100%" height="6px" /></div>
+                <div className="progress-bar" style={{ marginTop: 6 }}>
+                  <div className="progress-bar-fill" style={{
+                    width: `${Math.min(100, ch.revenue / Math.max(...channelProfit.map(c => c.revenue)) * 100)}%`,
+                    background: ch.netProfit >= 0 ? 'var(--primary)' : 'var(--danger)',
+                    opacity: 0.6,
+                  }} />
+                </div>
               </div>
-            ))
-          ) : channelProfit.map(ch => (
-            <div key={ch.channel} className="ov-channel-card data-enter">
-              <div className="ov-channel-header">
-                <span className="ov-channel-name">{ch.channel}</span>
-                <span className="ov-channel-margin" style={{ color: ch.netProfit >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
-                  {ch.margin}%
-                </span>
-              </div>
-              <div className="ov-channel-revenue">{fmtRp(ch.revenue)}</div>
-              <div className="ov-channel-detail">
-                <span>HPP: {fmtRp(ch.hpp)}</span>
-                <span style={{ color: ch.netProfit >= 0 ? 'var(--primary)' : 'var(--danger)', fontWeight: 600 }}>
-                  {ch.netProfit >= 0 ? '+' : ''}{fmtRp(ch.netProfit)}
-                </span>
-              </div>
-              <div className="progress-bar" style={{ marginTop: 6 }}>
-                <div className="progress-bar-fill" style={{
-                  width: `${Math.min(100, ch.revenue / Math.max(...channelProfit.map(c => c.revenue)) * 100)}%`,
-                  background: ch.netProfit >= 0 ? 'var(--primary)' : 'var(--danger)',
-                  opacity: 0.6,
-                }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            ))}
+          </div>
+        </SectionCard>
       )}
 
       {/* Ringkasan Laba Rugi */}
       {overview && (overview.total_omzet > 0 || overview.total_hpp > 0) && (
-        <div className="card card-p ov-labarugi data-enter">
-          <div className="ov-section-title">Ringkasan Laba Rugi</div>
+        <SectionCard
+          className="ov-labarugi data-enter"
+          title="Ringkasan Laba Rugi"
+          subtitle="Perbandingan cepat antara pendapatan, HPP, dan laba bersih."
+        >
           <div className="ov-labarugi-bars">
             <div>
               <div className="ov-bar-label">
@@ -462,7 +466,7 @@ export function StockOverview() {
               </div>
             </div>
           </div>
-        </div>
+        </SectionCard>
       )}
 
       {/* Charts */}

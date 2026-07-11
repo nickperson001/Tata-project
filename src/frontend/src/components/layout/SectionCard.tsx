@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 interface SectionCardProps {
   title?: string;
@@ -12,35 +12,27 @@ interface SectionCardProps {
 export function SectionCard({ title, subtitle, children, action, className, padding = '1.25rem' }: SectionCardProps) {
   return (
     <div
-      className={`card ${className || ''}`}
-      style={{ padding, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+      className={['card', 'section-card', className].filter(Boolean).join(' ')}
+      style={{ '--section-card-padding': padding } as CSSProperties}
     >
       {(title || action) && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: '0.5rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
+        <div className="section-card__header">
+          <div className="section-card__heading">
             {title && (
-              <h2 style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0 }}>
+              <h2 className="section-card__title">
                 {title}
               </h2>
             )}
             {subtitle && (
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+              <p className="section-card__subtitle">
                 {subtitle}
               </p>
             )}
           </div>
-          {action}
+          {action && <div className="section-card__action">{action}</div>}
         </div>
       )}
-      {children}
+      <div className="section-card__body">{children}</div>
     </div>
   );
 }
