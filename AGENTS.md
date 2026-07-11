@@ -108,6 +108,8 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 
 Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
 
+Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
+
 ---
 
 ## 7. FORMAT LAPORAN AKHIR
