@@ -8,7 +8,7 @@ import * as stockManager from '../utils/stockManager';
 import * as transactionRecorder from '../utils/transactionRecorder';
 import accountingEngine from '../utils/accountingEngine';
 import * as geminiRouter from '../utils/geminiRouter';
-import { parseCurrency, parseQuantity, formatPhone, formatRupiah, getDailyTransactionCount, getEffectiveStatus, getDaysRemaining, buildStatusMessage } from '../utils/helpers';
+import { parseCurrency, parseQuantity, formatPhone, formatRupiah, getDailyTransactionCount, getEffectiveStatus, getDaysRemaining, buildStatusMessage, fuzzyMatchKeywords } from '../utils/helpers';
 import { PACKAGES, PAYMENT } from '../config/packages';
 import { KW_KELUAR, KW_MASUK, KW_STATUS, KW_LAPORAN, KW_BANTUAN, KW_UPGRADE, KW_BATAL, KW_STOCK, KW_PRODUCT, KW_DASHBOARD, KW_BAHAN, KW_BAHAN_MASUK, KW_BAHAN_KELUAR, KW_RESEP } from '../config/keywords';
 import { addLog } from '../config/state';
@@ -321,8 +321,8 @@ async function handleTransaction(msg: any, sender: string, user: any, effectiveS
 
   const wordBoundaryInSet = (s: string, set: readonly string[]) =>
     set.some((k: string) => new RegExp('\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(s));
-  const exactMasuk = wordBoundaryInSet(body, KW_MASUK);
-  const exactKeluar = wordBoundaryInSet(body, KW_KELUAR);
+  const exactMasuk = wordBoundaryInSet(body, KW_MASUK) || fuzzyMatchKeywords(body, KW_MASUK);
+  const exactKeluar = wordBoundaryInSet(body, KW_KELUAR) || fuzzyMatchKeywords(body, KW_KELUAR);
 
   if (exactMasuk && !exactKeluar) type = 'masuk';
   else if (exactKeluar && !exactMasuk) type = 'keluar';
@@ -697,7 +697,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
     if (user?.is_upgrading && msg.hasMedia) { handleTransferProof(msg, client, sender, user); return; }
 
     if (user?.is_upgrading && !msg.hasMedia) {
-      const isGlobalCmd = KW_STATUS.some((k: string) => body === k) || KW_LAPORAN.some((k: string) => body === k || body.startsWith(k)) || KW_BANTUAN.some((k: string) => body === k);
+      const isGlobalCmd = KW_STATUS.some((k: string) => body === k) || fuzzyMatchKeywords(body, KW_STATUS) || KW_LAPORAN.some((k: string) => body === k || body.startsWith(k)) || fuzzyMatchKeywords(body, KW_LAPORAN) || KW_BANTUAN.some((k: string) => body === k) || fuzzyMatchKeywords(body, KW_BANTUAN);
       if (!isGlobalCmd) {
         if (KW_BATAL.some((k: string) => body === k || body.includes(k))) {
           await supabase.from('users').update({ is_upgrading: false, upgrade_package: null }).eq('id', sender) as any;
@@ -722,11 +722,11 @@ async function handleMessage(msg: any, client: any): Promise<any> {
     function shouldBypassDialogs(bodyText: string): boolean {
       if (/\b(?:tagih|kirim\s+tagihan|minta\s+bayar|buat\s+(?:invoice|tagihan|bon)|invoice|nagih)\b/i.test(bodyText)) return true;
       if (/\b(?:setbank|atur\s+rekening|setting\s+bank|set\s+bank)\b/i.test(bodyText)) return true;
-      if (KW_DASHBOARD.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
-      if (KW_STATUS.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
-      if (KW_LAPORAN.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
-      if (KW_BANTUAN.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
-      if (KW_UPGRADE.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText))) return true;
+      if (KW_DASHBOARD.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText)) || fuzzyMatchKeywords(bodyText, KW_DASHBOARD)) return true;
+      if (KW_STATUS.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText)) || fuzzyMatchKeywords(bodyText, KW_STATUS)) return true;
+      if (KW_LAPORAN.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText)) || fuzzyMatchKeywords(bodyText, KW_LAPORAN)) return true;
+      if (KW_BANTUAN.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText)) || fuzzyMatchKeywords(bodyText, KW_BANTUAN)) return true;
+      if (KW_UPGRADE.some((k: string) => new RegExp('\\b' + escapeRegex(k) + '\\b', 'i').test(bodyText)) || fuzzyMatchKeywords(bodyText, KW_UPGRADE)) return true;
       if (/\b(?:paket)\b/i.test(bodyText)) return true;
       return false;
     }
@@ -951,7 +951,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       }
     }
 
-    if (KW_DASHBOARD.some((k: string) => body === k || body.includes(k))) return handleDashboardRequest(msg, sender, user);
+    if (KW_DASHBOARD.some((k: string) => body === k || body.includes(k)) || fuzzyMatchKeywords(body, KW_DASHBOARD)) return handleDashboardRequest(msg, sender, user);
     if (body === 'token baru' || body === 'reset token' || body === 'link baru') return handleNewToken(msg, sender, user);
 
     // Stock list / daftar produk
@@ -976,7 +976,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
-    if (KW_STOCK.some((k: string) => body.includes(k)) || KW_DASHBOARD.some((k: string) => body === k || body.includes(k))) {
+    if (KW_STOCK.some((k: string) => body.includes(k)) || KW_DASHBOARD.some((k: string) => body === k || body.includes(k)) || fuzzyMatchKeywords(body, KW_DASHBOARD)) {
       if (['pro', 'unlimited'].includes(effectiveStatus)) {
         const parts = body.split(/\s+/);
         if (parts.length >= 2) {
@@ -1007,9 +1007,9 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       }
     }
 
-    if (KW_UPGRADE.some((k: string) => body === k) || body === 'paket') { showUpgradeMenu(msg, user, effectiveStatus); return; }
+    if (KW_UPGRADE.some((k: string) => body === k) || body === 'paket' || fuzzyMatchKeywords(body, KW_UPGRADE)) { showUpgradeMenu(msg, user, effectiveStatus); return; }
     if (body.startsWith('pilih ')) { const handled = await handlePackageSelection(msg, sender, user, body); if (handled) return; }
-    if (KW_BATAL.some((k: string) => body === k)) { await safeReply(msg, `Tidak ada proses yang sedang berjalan Bos. 😊\n\nKetik *Bantuan* untuk melihat menu.`); return; }
+    if (KW_BATAL.some((k: string) => body === k) || fuzzyMatchKeywords(body, KW_BATAL)) { await safeReply(msg, `Tidak ada proses yang sedang berjalan Bos. 😊\n\nKetik *Bantuan* untuk melihat menu.`); return; }
 
     // ── TIER 1 — Direct expense commands (gaji, listrik, sewa, dll) ──
     const ACCOUNT_LABELS: Record<string, string> = {
@@ -1216,7 +1216,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
-    if (KW_STATUS.some((k: string) => body === k)) {
+    if (KW_STATUS.some((k: string) => body === k) || fuzzyMatchKeywords(body, KW_STATUS)) {
       let statusBlock = '';
       if (effectiveStatus === 'demo') {
         const todayCount = await getDailyTransactionCount(sender);
@@ -1237,7 +1237,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
-    if (KW_LAPORAN.some((k: string) => body === k || body.startsWith(k))) {
+    if (KW_LAPORAN.some((k: string) => body === k || body.startsWith(k)) || fuzzyMatchKeywords(body, KW_LAPORAN)) {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
       const sent = await sendReport(client, sender, user.store_name, 'Harian (Manual)', todayStart.toISOString());
       if (!sent) {
@@ -1254,7 +1254,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
-    if (KW_BANTUAN.some((k: string) => body === k)) {
+    if (KW_BANTUAN.some((k: string) => body === k) || fuzzyMatchKeywords(body, KW_BANTUAN)) {
       let statusNote = '';
       if (effectiveStatus === 'demo') { const todayCount = await getDailyTransactionCount(sender); statusNote = `⚠️ _Mode DEMO: ${todayCount}/5 transaksi hari ini._`; }
       else if (effectiveStatus === 'pro') { const sisa = getDaysRemaining(user); statusNote = `⭐ _PRO aktif, sisa ${sisa} hari._`; }
@@ -1322,7 +1322,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
-    const bahanListIntent = KW_BAHAN.some(k => body === k || body === k + ' list' || body === 'daftar ' + k);
+    const bahanListIntent = KW_BAHAN.some(k => body === k || body === k + ' list' || body === 'daftar ' + k) || fuzzyMatchKeywords(body, KW_BAHAN);
     if (bahanListIntent && body !== 'bahan masuk' && body !== 'bahan keluar') {
       await handleBahanList(msg, user);
       return;
@@ -1340,60 +1340,64 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
-    const txHandled = await handleTransaction(msg, sender, user, effectiveStatus, rawBody, body, client);
-    if (txHandled) return;
-
-    if (body === '1') {
-      await safeReply(msg,
-        `💰 *Catat Transaksi — ${user.store_name}*\n\n` +
-        `Ketik langsung, contoh:\n\n` +
-        `📥 Pemasukan: *jual nasi goreng 25rb*\n` +
-        `📤 Pengeluaran: *beli stok kopi 500rb*\n\n` +
-        `🧾 Tagihan: *tagih 150rb ke 08123456*\n\n` +
-        `Ketik *Bantuan* untuk panduan lengkap.`
-      );
-      return;
-    }
-    if (body === '2') {
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-      const sent = await sendReport(client, sender, user.store_name, 'Harian (Manual)', todayStart.toISOString());
-      if (!sent) {
+    // ── Menu angka — cek SEBELUM handleTransaction biar "1" ga kedeteksi sebagai nominal Rp 1 ──
+    if (/^[1-4]$/.test(body)) {
+      if (body === '1') {
         await safeReply(msg,
-          `📊 Belum ada transaksi hari ini, Bos.\n\n` +
-          `Mulai catat: *jual nasi goreng 25rb*`
+          `💰 *Catat Transaksi — ${user.store_name}*\n\n` +
+          `Ketik langsung, contoh:\n\n` +
+          `📥 Pemasukan: *jual nasi goreng 25rb*\n` +
+          `📤 Pengeluaran: *beli stok kopi 500rb*\n\n` +
+          `🧾 Tagihan: *tagih 150rb ke 08123456*\n\n` +
+          `Ketik *Bantuan* untuk panduan lengkap.`
         );
         return;
       }
-      return;
-    }
-    if (body === '3') { const statusMsg = buildStatusMessage(user, effectiveStatus, sender); await safeReply(msg, statusMsg); return; }
-    if (body === '4') {
-      let statusNote = '';
-      if (effectiveStatus === 'demo') { const todayCount = await getDailyTransactionCount(sender); statusNote = `⚠️ _Mode DEMO: ${todayCount}/5 transaksi hari ini._`; }
-      else if (effectiveStatus === 'pro') { const sisa = getDaysRemaining(user); statusNote = `⭐ _PRO aktif, sisa ${sisa} hari._`; }
-      else { statusNote = `💎 _UNLIMITED aktif selamanya._`; }
-      await safeReply(msg,
-        `Halo! 👋 Ini buku saku asisten digitalmu. Mau catat apa hari ini?\n\n` +
-        `${statusNote}\n\n` +
-        `💰 *CATAT UANG & JUALAN*\n` +
-        `• Jualan di toko fisik? Ketik:\n  *Jual [barang] [jumlah]*\n  Contoh: *Jual vitamin 2*\n` +
-        `• Jualan dari online? Tambahin nama aplikasinya:\n  *Jual Tokped [barang] [jumlah]*\n  (Bisa pakai: *Tokped*, *TikTok*, *Lazada*, *Shopee*)\n  Contoh: *Jual Tokped serum 3*\n` +
-        `• Catat pengeluaran toko? Ketik:\n  *Beli [keterangan] [nominal]*\n  Contoh: *Beli lakban 30rb*\n\n` +
-        `🧾 *KIRIM TAGIHAN (INVOICE)*\n` +
-        `• Ketik: *Tagih [nominal] ke [nomor WA]*\n  Contoh: *Tagih 150rb ke 08123456789*\n\n` +
-        `📦 *CEK GUDANG*\n` +
-        `• *Stock list* ➡️ Lihat sisa semua barang\n` +
+      if (body === '2') {
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        const sent = await sendReport(client, sender, user.store_name, 'Harian (Manual)', todayStart.toISOString());
+        if (!sent) {
+          await safeReply(msg,
+            `📊 Belum ada transaksi hari ini, Bos.\n\n` +
+            `Mulai catat: *jual nasi goreng 25rb*`
+          );
+          return;
+        }
+        return;
+      }
+      if (body === '3') { const statusMsg = buildStatusMessage(user, effectiveStatus, sender); await safeReply(msg, statusMsg); return; }
+      if (body === '4') {
+        let statusNote = '';
+        if (effectiveStatus === 'demo') { const todayCount = await getDailyTransactionCount(sender); statusNote = `⚠️ _Mode DEMO: ${todayCount}/5 transaksi hari ini._`; }
+        else if (effectiveStatus === 'pro') { const sisa = getDaysRemaining(user); statusNote = `⭐ _PRO aktif, sisa ${sisa} hari._`; }
+        else { statusNote = `💎 _UNLIMITED aktif selamanya._`; }
+        await safeReply(msg,
+          `Halo! 👋 Ini buku saku asisten digitalmu. Mau catat apa hari ini?\n\n` +
+          `${statusNote}\n\n` +
+          `💰 *CATAT UANG & JUALAN*\n` +
+          `• Jualan di toko fisik? Ketik:\n  *Jual [barang] [jumlah]*\n  Contoh: *Jual vitamin 2*\n` +
+          `• Jualan dari online? Tambahin nama aplikasinya:\n  *Jual Tokped [barang] [jumlah]*\n  (Bisa pakai: *Tokped*, *TikTok*, *Lazada*, *Shopee*)\n  Contoh: *Jual Tokped serum 3*\n` +
+          `• Catat pengeluaran toko? Ketik:\n  *Beli [keterangan] [nominal]*\n  Contoh: *Beli lakban 30rb*\n\n` +
+          `🧾 *KIRIM TAGIHAN (INVOICE)*\n` +
+          `• Ketik: *Tagih [nominal] ke [nomor WA]*\n  Contoh: *Tagih 150rb ke 08123456789*\n\n` +
+          `📦 *CEK GUDANG*\n` +
+          `• *Stock list* ➡️ Lihat sisa semua barang\n` +
 `• *Masuk [produk] [jumlah]* ➡️ Restok barang\n` +
 `• *Keluar [produk] [jumlah]* ➡️ Catat penjualan\n\n` +
-        `📋 *LAINNYA*\n` +
-        `• *Dashboard* — Akses dashboard web\n` +
-        `• *Token baru* — Reset link dashboard jika bocor\n` +
-        `• *Laporan* — Rekap transaksi hari ini\n` +
-        `• *Status* — Info & status akun\n` +
-        `• *Paket* — Opsi upgrade & langganan\n\n` +
-        `💡 *TIPS:* Angka bisa diketik bebas, contoh: *20rb*, *1.5jt*, *20000*.`
-      );
+          `📋 *LAINNYA*\n` +
+          `• *Dashboard* — Akses dashboard web\n` +
+          `• *Token baru* — Reset link dashboard jika bocor\n` +
+          `• *Laporan* — Rekap transaksi hari ini\n` +
+          `• *Status* — Info & status akun\n` +
+          `• *Paket* — Opsi upgrade & langganan\n\n` +
+          `💡 *TIPS:* Angka bisa diketik bebas, contoh: *20rb*, *1.5jt*, *20000*.`
+        );
+        return;
+      }
     }
+
+    const txHandled = await handleTransaction(msg, sender, user, effectiveStatus, rawBody, body, client);
+    if (txHandled) return;
 
     await safeReply(msg,
       `Waduh, Tata agak bingung nih sama ketikannya 😅\n\n` +

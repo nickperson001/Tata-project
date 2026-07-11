@@ -137,6 +137,44 @@ function getDaysRemaining(user: UserInfo): number | null {
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 }
 
+function levenshtein(a: string, b: string): number {
+  const alen = a.length;
+  const blen = b.length;
+  const matrix: number[][] = [];
+  for (let i = 0; i <= alen; i++) {
+    matrix[i] = [i];
+    for (let j = 1; j <= blen; j++) {
+      if (i === 0) {
+        matrix[i][j] = j;
+      } else {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost,
+        );
+      }
+    }
+  }
+  return matrix[alen][blen];
+}
+
+function fuzzyMatchKeywords(text: string, keywords: readonly string[]): boolean {
+  const lower = text.toLowerCase().trim();
+  if (lower.length < 3) return false;
+  const words = lower.split(/\s+/);
+  for (const kw of keywords) {
+    const kwLower = kw.toLowerCase();
+    for (const word of words) {
+      if (word.length < 3) continue;
+      const dist = levenshtein(word, kwLower);
+      const threshold = kwLower.length <= 4 ? 1 : kwLower.length <= 7 ? 2 : 3;
+      if (dist <= threshold) return true;
+    }
+  }
+  return false;
+}
+
 function buildStatusMessage(user: UserInfo, effectiveStatus: string, sender: string): string {
   let statusBlock = '';
   if (effectiveStatus === 'demo') {
@@ -164,4 +202,5 @@ export {
   getEffectiveStatus,
   getDaysRemaining,
   buildStatusMessage,
+  fuzzyMatchKeywords,
 };
