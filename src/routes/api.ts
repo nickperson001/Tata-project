@@ -1279,6 +1279,7 @@ router.post('/api/stock/movement', stockAuth, validate(movementSchema), async (r
               productId: product_id,
               alertType: 'low_stock',
               stockLevel: d.stockAfter,
+              products: { name: rp?.name },
             });
         })
         .then(null, () => {});
@@ -1294,6 +1295,7 @@ router.post('/api/stock/movement', stockAuth, validate(movementSchema), async (r
               productId: product_id,
               alertType: 'out_of_stock',
               stockLevel: d.stockAfter,
+              products: { name: rp?.name },
             });
         })
         .then(null, () => {});
@@ -2735,6 +2737,31 @@ router.get('/api/stock/alerts', stockAuth, async (req: StockRequest, res: Respon
       return;
     }
     apiSuccess(res, { alerts: result.alerts || [] });
+  } catch (e: any) {
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
+  }
+});
+
+router.patch('/api/stock/alerts/read', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  try {
+    const { error } = await supabase
+      .from('stock_alerts')
+      .update({ resolved_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .is('resolved_at', null);
+    if (error) {
+      if (pgPool) {
+        await pgPool.query(
+          `UPDATE stock_alerts SET resolved_at = NOW() WHERE user_id = $1 AND resolved_at IS NULL`,
+          [userId],
+        );
+      } else {
+        apiError(res, error.message, ErrorCode.DB_ERROR, 500);
+        return;
+      }
+    }
+    apiSuccess(res, { success: true });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
   }

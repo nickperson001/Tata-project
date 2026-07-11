@@ -170,7 +170,6 @@ export function StockLayout() {
           <div className="topbar-left">
             <img src="/stock/logo.svg" alt="Tata" style={{ height: 36, marginRight: 8 }} />
             <span className="topbar-brand">Tata Business Suite</span>
-            {user && <span className="topbar-store">— {user.store_name}</span>}
           </div>
           <div className="topbar-right">
             <NotificationBell />

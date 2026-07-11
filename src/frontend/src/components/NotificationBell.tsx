@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { useNotificationStore, StockAlert } from '../store/notificationStore';
 import { stockApi } from '../services/api';
@@ -8,6 +9,7 @@ import { Z } from '../lib/zIndex';
 
 export function NotificationBell() {
   const { token } = useStockStore();
+  const navigate = useNavigate();
   const { alerts, unreadCount, markAllRead } = useNotificationStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -58,6 +60,7 @@ export function NotificationBell() {
   function handleToggle() {
     if (!open) {
       markAllRead();
+      stockApi.patch('/api/stock/alerts/read', token!).catch(() => {});
     }
     setOpen(!open);
   }
@@ -94,7 +97,10 @@ export function NotificationBell() {
               <div className="notif-empty">Tidak ada notifikasi</div>
             ) : (
               displayAlerts.map((alert) => (
-                <div key={alert.id} role="menuitem" className="notif-item">
+                <div key={alert.id} role="menuitem" className="notif-item" style={{ cursor: 'pointer' }}
+                  onClick={() => { close(); navigate('/stock/products'); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { close(); navigate('/stock/products'); } }}
+                  tabIndex={0}>
                   <div className={`notif-type ${alert.alert_type === 'out_of_stock' ? 'notif-danger' : 'notif-warning'}`}>
                     {alert.alert_type === 'out_of_stock' ? 'Stok Habis' : 'Stok Menipis'}
                   </div>

@@ -290,6 +290,23 @@ export function StockOverview() {
         showSearch={false}
       />
 
+      {!showAiPopup && overview && (
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={() => {
+            sessionStorage.removeItem('tbs_ai_popup_shown');
+            setShowAiPopup(true);
+          }}
+          style={{
+            alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            borderRadius: 12, padding: '0.5rem 1rem',
+          }}
+        >
+          <Bot size={16} />
+          Lihat Analisis
+        </button>
+      )}
+
       {/* Bento Grid Layout (Saldo, Stats) */}
       <div className="bento-grid">
         <div className="bento-card bento-saldo" style={{ transition: 'opacity 0.3s' }}>

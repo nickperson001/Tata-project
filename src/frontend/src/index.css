@@ -512,7 +512,6 @@ tr:hover .row-actions { opacity: 1; }
 }
 .topbar-left { display: flex; align-items: center; gap: 0.5rem; }
 .topbar-brand { font-weight: 800; font-size: 1.15rem; white-space: nowrap; color: #fff; }
-.topbar-store { font-size: 0.75rem; color: rgba(255,255,255,0.6); display: none; }
 .stock-topbar .btn-ghost { color: rgba(255,255,255,0.7); }
 .stock-topbar .btn-ghost:hover { background: rgba(255,255,255,0.1); color: #fff; }
 .topbar-right { display: flex; gap: 0.25rem; align-items: center; }
@@ -902,7 +901,6 @@ tr:hover .row-actions { opacity: 1; }
 /* ── Mobile responsive ── */
 @media (max-width: 900px) {
   .stock-content { padding-bottom: 5rem; }
-  .topbar-store { display: inline; }
 }
 
 @media (max-width: 768px) {

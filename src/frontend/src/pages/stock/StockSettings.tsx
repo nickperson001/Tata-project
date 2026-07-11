@@ -124,7 +124,7 @@ export function StockSettings() {
   const statusBadge: Record<string, string> = { demo: 'var(--warning)', pro: 'var(--primary)', unlimited: 'var(--secondary)' };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: 680 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Pengaturan</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Informasi akun dan pengaturan aplikasi</p>

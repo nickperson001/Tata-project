@@ -92,6 +92,12 @@ export const stockApi = {
       method: 'DELETE',
     });
   },
+  patch<T>(url: string, token: string, body?: unknown): Promise<T> {
+    return stockRequest<T>(url, token, {
+      method: 'PATCH',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  },
 };
 
 // ── BOM / Material API helpers ──

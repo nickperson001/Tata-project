@@ -381,7 +381,12 @@ async function createStockAlert(
 
     const io = getIO();
     if (io) {
-      io.to(userId).emit('stock_alert', { userId, productId, alertType, stockLevel });
+      try {
+        const { data: prod } = await supabase.from('products').select('name').eq('id', productId).single();
+        io.to(userId).emit('stock_alert', { userId, productId, alertType, stockLevel, products: prod || null });
+      } catch {
+        io.to(userId).emit('stock_alert', { userId, productId, alertType, stockLevel });
+      }
     }
   } catch (err: any) {
     addLog('error', '[STOCK] createStockAlert error: ' + err.message);
