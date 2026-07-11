@@ -101,6 +101,8 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 24 | PWA beforeinstallprompt | StockLayout.tsx listener simpan ke `window.__tbsDeferredPrompt` (StockSettings.tsx sudah punya listener sendiri) | StockLayout.tsx ada `beforeinstallprompt` effect |
 | 25 | `Database is not defined` — regresi | `StockLayout.tsx` pakai icon `Database` di nav `/stock/batch` tapi tidak di-import dari `lucide-react`. Fix: tambah `Database` ke import. | `StockLayout.tsx:8-11` ada `Database` di import |
 | 26 | Tab Keuangan teks hilang saat aktif | Inline `background: 'none'` override `.sn-item.active` (`background: var(--primary)`). Fix: hapus `background: 'none'` dari keempat button tab. | `StockFinance.tsx:73-94` tidak ada `background: 'none'` di inline style |
+| 27 | StockHutang.tsx spam-click Simpan | Tidak punya `saving` state → spam-klik bikin duplikat. Fix: tambah `saving` guard + `finally` + `disabled` button | `StockHutang.tsx` ada `saving` state, guard, `finally`, `disabled` |
+| 28 | ProductsPage.tsx spam-click Simpan + default_channel null | Sama seperti #27, ditambah `default_channel: ''` dikirim sebagai string kosong bukan `undefined`/`null`. Backend `stockManager.ts:96` & `api.ts:997` juga ganti `null` jadi `''`. | `ProductsPage.tsx` ada `saving` state + `default_channel: ''`; `stockManager.ts:96` & `api.ts:997` pakai `''` bukan `null` |
 
 Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
 
