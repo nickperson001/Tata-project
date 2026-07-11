@@ -928,7 +928,7 @@ router.post('/api/stock/products', stockAuth, requireBody('name'), validate(prod
       description: notes,
     });
     if (!result.success) {
-      apiError(res, result.error!);
+      apiError(res, sanitizeError(result.error!));
       return;
     }
     const newProduct = result.product as any;
@@ -1011,7 +1011,7 @@ router.delete('/api/stock/products/:productId', stockAuth, async (req: StockRequ
   try {
     const result = await stockManager.deleteProduct(userId, String(req.params.productId));
     if (!result.success) {
-      apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400);
+      apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.VALIDATION, 400);
       return;
     }
     cacheInvalidate(userId);
@@ -1027,7 +1027,7 @@ router.get('/api/stock/materials', stockAuth, async (req: StockRequest, res: Res
   const userId = req.stockUser!.id;
   try {
     const result = await stockManager.listMaterials(userId);
-    if (!result.success) { apiError(res, result.error || 'Gagal', ErrorCode.INTERNAL, 500); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.INTERNAL, 500); return; }
     apiSuccess(res, { materials: result.materials || [] });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
@@ -1045,7 +1045,7 @@ router.post('/api/stock/materials', stockAuth, requireBody('name'), validate(mat
       stockMin: stock_min,
       costPerUnit: cost_per_unit,
     });
-    if (!result.success) { apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.VALIDATION, 400); return; }
     apiSuccess(res, { material: result.material });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
@@ -1062,7 +1062,7 @@ router.put('/api/stock/materials/:materialId', stockAuth, async (req: StockReque
       stockMin: req.body.stock_min !== undefined ? Number(req.body.stock_min) : undefined,
       costPerUnit: req.body.cost_per_unit !== undefined ? Number(req.body.cost_per_unit) : undefined,
     });
-    if (!result.success) { apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.VALIDATION, 400); return; }
     apiSuccess(res, { material: result.material });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
@@ -1073,7 +1073,7 @@ router.delete('/api/stock/materials/:materialId', stockAuth, async (req: StockRe
   const userId = req.stockUser!.id;
   try {
     const result = await stockManager.deleteMaterial(userId, String(req.params.materialId));
-    if (!result.success) { apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.VALIDATION, 400); return; }
     apiSuccess(res, { success: true });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
@@ -1089,7 +1089,7 @@ router.get('/api/stock/materials/recipes', stockAuth, async (req: StockRequest, 
     const result = productId
       ? await stockManager.getRecipes(userId, productId)
       : await stockManager.listRecipes(userId);
-    if (!result.success) { apiError(res, result.error || 'Gagal', ErrorCode.INTERNAL, 500); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.INTERNAL, 500); return; }
     apiSuccess(res, { recipes: result.recipes || [] });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
@@ -1101,7 +1101,7 @@ router.post('/api/stock/materials/recipes', stockAuth, requireBody('material_id'
   const { material_id, product_id, quantity_per_order } = req.body;
   try {
     const result = await stockManager.setRecipe(userId, material_id, quantity_per_order, product_id || null);
-    if (!result.success) { apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.VALIDATION, 400); return; }
     apiSuccess(res, { recipe: result.recipe });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
@@ -1112,7 +1112,7 @@ router.delete('/api/stock/materials/recipes/:recipeId', stockAuth, async (req: S
   const userId = req.stockUser!.id;
   try {
     const result = await stockManager.deleteRecipe(userId, String(req.params.recipeId));
-    if (!result.success) { apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.VALIDATION, 400); return; }
     apiSuccess(res, { success: true });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
@@ -1126,7 +1126,7 @@ router.get('/api/stock/materials/logs', stockAuth, async (req: StockRequest, res
   const limit = Math.min(parseInt(String(req.query.limit)) || 50, 200);
   try {
     const result = await stockManager.getDeductionLogs(userId, limit);
-    if (!result.success) { apiError(res, result.error || 'Gagal', ErrorCode.INTERNAL, 500); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.INTERNAL, 500); return; }
     apiSuccess(res, { logs: result.logs || [] });
   } catch (e: any) {
     apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
@@ -1261,7 +1261,7 @@ router.post('/api/stock/movement', stockAuth, validate(movementSchema), async (r
       recordTransaction: type === 'out',
     });
     if (!result.success) {
-      apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400);
+      apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.VALIDATION, 400);
       return;
     }
 
@@ -2177,7 +2177,7 @@ router.post('/api/stock/pembukuan', stockAuth, validate(pembukuanSchema), async 
       channel,
     });
     if (!result.success) {
-      apiError(res, result.error!);
+      apiError(res, sanitizeError(result.error!));
       return;
     }
     cacheInvalidate(userId);
@@ -2251,7 +2251,7 @@ router.post('/api/stock/hutang', stockAuth, validate(hutangSchema), async (req: 
       customerName: nama_supplier,
     });
     if (!result.success) {
-      apiError(res, result.error || 'Gagal', ErrorCode.VALIDATION, 400);
+      apiError(res, sanitizeError(result.error) || 'Gagal', ErrorCode.VALIDATION, 400);
       return;
     }
     if (jatuh_tempo) {
@@ -2327,7 +2327,7 @@ router.post('/api/stock/hutang/:id/bayar', stockAuth, async (req: StockRequest, 
       userId, payableId: String(req.params.id), amount,
       description: String(req.body.description || ''),
     });
-    if (!result.success) { apiError(res, result.error!, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error!), 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
   } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
@@ -2342,7 +2342,7 @@ router.post('/api/stock/piutang/:id/terima', stockAuth, async (req: StockRequest
       userId, debtId: String(req.params.id), amount,
       description: String(req.body.description || ''),
     });
-    if (!result.success) { apiError(res, result.error!, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error!), 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
   } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
@@ -2353,7 +2353,7 @@ router.post('/api/stock/return/sales', stockAuth, validate(salesReturnSchema), a
   const userId = req.stockUser!.id;
   try {
     const result = await transactionRecorder.recordSalesReturn({ ...req.body, userId });
-    if (!result.success) { apiError(res, result.error!, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error!), 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
   } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
@@ -2363,7 +2363,7 @@ router.post('/api/stock/return/purchase', stockAuth, validate(purchaseReturnSche
   const userId = req.stockUser!.id;
   try {
     const result = await transactionRecorder.recordPurchaseReturn({ ...req.body, userId });
-    if (!result.success) { apiError(res, result.error!, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error!), 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
   } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }
@@ -2477,7 +2477,7 @@ router.post('/api/stock/opname/:id/complete', stockAuth, async (req: StockReques
     const result = await transactionRecorder.recordInventoryAdjustment({
       userId, opnameId: String(opnameId), items, notes: `Opname ${opname.warehouse}`,
     });
-    if (!result.success) { apiError(res, result.error!, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error!), 400); return; }
 
     await supabase.from('stock_opnames').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', opnameId);
     cacheInvalidate(userId);
@@ -2492,7 +2492,7 @@ router.post('/api/stock/adjustment', stockAuth, async (req: StockRequest, res: R
   if (!items || !Array.isArray(items) || items.length === 0) { apiError(res, 'items required'); return; }
   try {
     const result = await transactionRecorder.recordInventoryAdjustment({ userId, items, notes });
-    if (!result.success) { apiError(res, result.error!, 400); return; }
+    if (!result.success) { apiError(res, sanitizeError(result.error!), 400); return; }
     cacheInvalidate(userId);
     apiSuccess(res, result.data);
   } catch (e: any) { apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500); }

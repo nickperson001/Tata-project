@@ -3,6 +3,7 @@ import { addLog } from '../config/state';
 import accountingEngine from './accountingEngine';
 import { withTransaction } from './db';
 import { syncInventory } from './inventory';
+import { sanitizeError } from './errors';
 
 interface RecordOpts {
   userId: string;
@@ -340,7 +341,7 @@ async function recordSale(opts: RecordSaleOpts): Promise<RecordResult> {
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordSale failed: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -383,7 +384,7 @@ async function recordExpense(opts: ExpenseOpts): Promise<RecordResult> {
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordExpense failed: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -445,7 +446,7 @@ async function recordDamagedGoods(opts: DamagedGoodsOpts): Promise<RecordResult>
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordDamagedGoods failed: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -684,7 +685,7 @@ async function recordTransactionWithJournal(
       return { success: true, data: { id: trxId } };
     });
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -840,7 +841,7 @@ async function recordStockAdjustment(opts: {
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordStockAdjustment failed: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -905,7 +906,7 @@ async function recordPayPayable(opts: PayPayableOpts): Promise<RecordResult> {
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordPayPayable failed: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -953,7 +954,7 @@ async function recordReceiveReceivable(opts: ReceiveReceivableOpts): Promise<Rec
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordReceiveReceivable failed: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -1061,7 +1062,7 @@ async function recordSalesReturn(opts: SalesReturnOpts): Promise<RecordResult> {
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordSalesReturn failed: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -1156,7 +1157,7 @@ async function recordPurchaseReturn(opts: PurchaseReturnOpts): Promise<RecordRes
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordPurchaseReturn failed: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -1226,7 +1227,7 @@ async function recordInventoryAdjustment(opts: InventoryAdjustmentOpts): Promise
     });
   } catch (err: any) {
     addLog('error', '[TRX-RECORDER] recordInventoryAdjustment failed: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 

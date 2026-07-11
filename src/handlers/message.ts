@@ -1281,6 +1281,8 @@ async function handleMessage(msg: any, client: any): Promise<any> {
 `• *Masuk [produk] [jumlah]* ➡️ Restok barang\n` +
 `• *Keluar [produk] [jumlah]* ➡️ Catat penjualan\n\n` +
         `📋 *LAINNYA*\n` +
+        `• *Dashboard* — Akses dashboard web\n` +
+        `• *Token baru* — Reset link dashboard jika bocor\n` +
         `• *Laporan* — Rekap transaksi hari ini\n` +
         `• *Status* — Info & status akun\n` +
         `• *Paket* — Opsi upgrade & langganan\n\n` +
@@ -1384,6 +1386,8 @@ async function handleMessage(msg: any, client: any): Promise<any> {
 `• *Masuk [produk] [jumlah]* ➡️ Restok barang\n` +
 `• *Keluar [produk] [jumlah]* ➡️ Catat penjualan\n\n` +
         `📋 *LAINNYA*\n` +
+        `• *Dashboard* — Akses dashboard web\n` +
+        `• *Token baru* — Reset link dashboard jika bocor\n` +
         `• *Laporan* — Rekap transaksi hari ini\n` +
         `• *Status* — Info & status akun\n` +
         `• *Paket* — Opsi upgrade & langganan\n\n` +

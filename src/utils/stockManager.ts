@@ -1,5 +1,6 @@
 import supabase, { pgPool } from '../config/supabase';
 import { addLog, getIO } from '../config/state';
+import { sanitizeError } from './errors';
 import { recordSale } from './transactionRecorder';
 import { withTransaction } from './db';
 import { syncInventory } from './inventory';
@@ -114,7 +115,7 @@ async function addProduct(
       return { success: false, error: `SKU "${effectiveSku}" sudah digunakan. Gunakan SKU lain.` };
     }
     addLog('error', '[STOCK] addProduct error: ' + (err.message || err));
-    return { success: false, error: err.message || err };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -142,7 +143,7 @@ async function updateProduct(
     if (error) throw error;
     return { success: true, product: data, error: undefined };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -156,7 +157,7 @@ async function deleteProduct(userId: string, productId: string): Promise<{ succe
     if (error) throw error;
     return { success: true, error: undefined };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -175,7 +176,7 @@ async function getProduct(
     if (error) throw error;
     return { success: true, product: data, error: undefined };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -193,7 +194,7 @@ async function listProducts(
     if (error) throw error;
     return { success: true, products: data || [], error: undefined };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -220,7 +221,7 @@ async function searchProductByName(
     return { success: true, products: data || [], error: undefined };
   } catch (err: any) {
     addLog('error', '[STOCK] searchProductByName error: ' + err.message);
-    return { success: false, products: [], error: err.message };
+    return { success: false, products: [], error: sanitizeError(err) };
   }
 }
 
@@ -265,7 +266,7 @@ async function executeSale(
       channel,
     });
     if (!result.success) {
-      return { success: false, error: result.error };
+      return { success: false, error: sanitizeError(result.error) };
     }
     const saleData = result.data as any;
     let bomData: { deducted: any[]; warnings: string[] } = { deducted: [], warnings: [] };
@@ -298,7 +299,7 @@ async function executeSale(
     };
   } catch (err: any) {
     addLog('error', '[STOCK] executeSale error: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -347,7 +348,7 @@ async function getStockHistory(
     if (error) throw error;
     return { success: true, movements: data || [], error: undefined };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -421,7 +422,7 @@ async function getPendingAlerts(userId: string): Promise<{ success: boolean; ale
   } catch (err: any) {
     try {
       const pool = pgPool;
-      if (!pool) return { success: false, error: err.message };
+      if (!pool) return { success: false, error: sanitizeError(err) };
       const { rows } = await pool.query(
         `SELECT sa.id, sa.product_id, sa.alert_type, sa.stock_level, sa.alerted_at, sa.resolved_at,
                 row_to_json(p.*) AS products
@@ -439,7 +440,7 @@ async function getPendingAlerts(userId: string): Promise<{ success: boolean; ale
       return { success: true, alerts, error: undefined };
     } catch (pgErr: any) {
       addLog('error', '[STOCK] getPendingAlerts pgPool fallback error: ' + pgErr.message);
-      return { success: false, error: err.message };
+      return { success: false, error: sanitizeError(err) };
     }
   }
 }
@@ -470,7 +471,7 @@ async function generateStockReport(userId: string): Promise<Result> {
     });
     return { success: true, totalProducts: products.length, totalValue, byCategory, products, error: undefined };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -499,7 +500,7 @@ async function addMaterial(
     if (error) throw error;
     return { success: true, material, error: undefined };
   } catch (err: any) {
-    if (!pgPool) return { success: false, error: err.message };
+    if (!pgPool) return { success: false, error: sanitizeError(err) };
     try {
       const result = await pgPool.query(
         `INSERT INTO bom_materials (user_id, name, unit, stock_current, stock_min, cost_per_unit) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
@@ -508,7 +509,7 @@ async function addMaterial(
       return { success: true, material: result.rows[0], error: undefined };
     } catch (pgErr: any) {
       addLog('error', '[BOM] addMaterial pgPool fallback error: ' + pgErr.message);
-      return { success: false, error: pgErr.message };
+      return { success: false, error: sanitizeError(pgErr) };
     }
   }
 }
@@ -524,7 +525,7 @@ async function listMaterials(userId: string): Promise<{ success: boolean; materi
     if (error) throw error;
     return { success: true, materials: data || [], error: undefined };
   } catch (err: any) {
-    if (!pgPool) return { success: false, error: err.message };
+    if (!pgPool) return { success: false, error: sanitizeError(err) };
     try {
       const result = await pgPool.query(
         `SELECT * FROM bom_materials WHERE user_id = $1 AND is_active = true ORDER BY name ASC`,
@@ -532,7 +533,7 @@ async function listMaterials(userId: string): Promise<{ success: boolean; materi
       );
       return { success: true, materials: result.rows || [], error: undefined };
     } catch (pgErr: any) {
-      return { success: false, error: pgErr.message };
+      return { success: false, error: sanitizeError(pgErr) };
     }
   }
 }
@@ -562,7 +563,7 @@ async function updateMaterial(
     return { success: true, material: result.rows[0], error: undefined };
   } catch (err: any) {
     addLog('error', '[BOM] updateMaterial error: ' + err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -576,7 +577,7 @@ async function deleteMaterial(userId: string, materialId: string): Promise<{ suc
     if (error) throw error;
     return { success: true, error: undefined };
   } catch (err: any) {
-    if (!pgPool) return { success: false, error: err.message };
+    if (!pgPool) return { success: false, error: sanitizeError(err) };
     try {
       await pgPool.query(
         `UPDATE bom_materials SET is_active = false, updated_at = now() WHERE id = $1 AND user_id = $2`,
@@ -584,7 +585,7 @@ async function deleteMaterial(userId: string, materialId: string): Promise<{ suc
       );
       return { success: true, error: undefined };
     } catch (pgErr: any) {
-      return { success: false, error: pgErr.message };
+      return { success: false, error: sanitizeError(pgErr) };
     }
   }
 }
@@ -630,7 +631,7 @@ async function setRecipe(
     if (error) throw error;
     return { success: true, recipe, error: undefined };
   } catch (err: any) {
-    if (!pgPool) return { success: false, error: err.message };
+    if (!pgPool) return { success: false, error: sanitizeError(err) };
     try {
       const existing = await pgPool.query(
         `SELECT id FROM bom_recipes WHERE user_id = $1 AND material_id = $2 AND (product_id = $3 OR (product_id IS NULL AND $3 IS NULL))`,
@@ -653,7 +654,7 @@ async function setRecipe(
       return { success: true, recipe, error: undefined };
     } catch (pgErr: any) {
       addLog('error', '[BOM] setRecipe pgPool fallback error: ' + pgErr.message);
-      return { success: false, error: pgErr.message };
+      return { success: false, error: sanitizeError(pgErr) };
     }
   }
 }
@@ -674,7 +675,7 @@ async function getRecipes(
     if (error) throw error;
     return { success: true, recipes: data || [], error: undefined };
   } catch (err: any) {
-    if (!pgPool) return { success: false, recipes: [], error: err.message };
+    if (!pgPool) return { success: false, recipes: [], error: sanitizeError(err) };
     try {
       let sql = `SELECT r.*, row_to_json(m.*) as bom_materials FROM bom_recipes r JOIN bom_materials m ON m.id = r.material_id WHERE r.user_id = $1 AND r.auto_deduct = true`;
       const params: any[] = [userId];
@@ -692,7 +693,7 @@ async function getRecipes(
       });
       return { success: true, recipes, error: undefined };
     } catch (pgErr: any) {
-      return { success: false, recipes: [], error: pgErr.message };
+      return { success: false, recipes: [], error: sanitizeError(pgErr) };
     }
   }
 }
@@ -707,7 +708,7 @@ async function listRecipes(userId: string): Promise<{ success: boolean; recipes:
     if (error) throw error;
     return { success: true, recipes: data || [], error: undefined };
   } catch (err: any) {
-    if (!pgPool) return { success: false, recipes: [], error: err.message };
+    if (!pgPool) return { success: false, recipes: [], error: sanitizeError(err) };
     try {
       const result = await pgPool.query(
         `SELECT r.*, row_to_json(m.*) as bom_materials FROM bom_recipes r JOIN bom_materials m ON m.id = r.material_id WHERE r.user_id = $1 ORDER BY r.created_at ASC`,
@@ -715,7 +716,7 @@ async function listRecipes(userId: string): Promise<{ success: boolean; recipes:
       );
       return { success: true, recipes: result.rows.map((r: any) => { if (typeof r.bom_materials === 'string') r.bom_materials = JSON.parse(r.bom_materials); return r; }), error: undefined };
     } catch (pgErr: any) {
-      return { success: false, recipes: [], error: pgErr.message };
+      return { success: false, recipes: [], error: sanitizeError(pgErr) };
     }
   }
 }
@@ -726,12 +727,12 @@ async function deleteRecipe(userId: string, recipeId: string): Promise<{ success
     if (error) throw error;
     return { success: true, error: undefined };
   } catch (err: any) {
-    if (!pgPool) return { success: false, error: err.message };
+    if (!pgPool) return { success: false, error: sanitizeError(err) };
     try {
       await pgPool.query(`DELETE FROM bom_recipes WHERE id = $1 AND user_id = $2`, [recipeId, userId]);
       return { success: true, error: undefined };
     } catch (pgErr: any) {
-      return { success: false, error: pgErr.message };
+      return { success: false, error: sanitizeError(pgErr) };
     }
   }
 }
@@ -750,7 +751,7 @@ async function getDeductionLogs(
     if (error) throw error;
     return { success: true, logs: data || [], error: undefined };
   } catch (err: any) {
-    if (!pgPool) return { success: false, logs: [], error: err.message };
+    if (!pgPool) return { success: false, logs: [], error: sanitizeError(err) };
     try {
       const result = await pgPool.query(
         `SELECT l.*, row_to_json(m.*) as bom_materials FROM bom_deduction_logs l JOIN bom_materials m ON m.id = l.material_id WHERE l.user_id = $1 ORDER BY l.created_at DESC LIMIT $2`,
@@ -759,7 +760,7 @@ async function getDeductionLogs(
       const logs = result.rows.map((r: any) => { if (typeof r.bom_materials === 'string') r.bom_materials = JSON.parse(r.bom_materials); return r; });
       return { success: true, logs, error: undefined };
     } catch (pgErr: any) {
-      return { success: false, logs: [], error: pgErr.message };
+      return { success: false, logs: [], error: sanitizeError(pgErr) };
     }
   }
 }
@@ -836,7 +837,7 @@ async function deductPackaging(
     return { success: true, deducted, warnings, error: undefined };
   } catch (err: any) {
     addLog('error', '[BOM] deductPackaging error: ' + err.message);
-    return { success: false, deducted, warnings, error: err.message };
+    return { success: false, deducted, warnings, error: sanitizeError(err) };
   }
 }
 

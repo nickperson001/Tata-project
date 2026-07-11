@@ -1,5 +1,6 @@
 import supabase, { pgPool } from '../config/supabase';
 import { addLog } from '../config/state';
+import { sanitizeError } from './errors';
 import type { PoolClient } from 'pg';
 import { formatRupiah } from './helpers';
 
@@ -247,7 +248,7 @@ class AccountingEngine {
       if (error) throw error;
       return { success: true, data };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: sanitizeError(err) };
     }
   }
 
@@ -435,7 +436,7 @@ class AccountingEngine {
         },
       };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: sanitizeError(err) };
     }
   }
 
@@ -451,7 +452,7 @@ class AccountingEngine {
       if (error) throw error;
       return { success: true, data };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: sanitizeError(err) };
     }
   }
 
@@ -581,7 +582,7 @@ class AccountingEngine {
         },
       };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: sanitizeError(err) };
     }
   }
 
@@ -605,7 +606,7 @@ class AccountingEngine {
       }));
       return { success: true, data: { rows } };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: sanitizeError(err) };
     }
   }
 }

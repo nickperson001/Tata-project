@@ -152,8 +152,8 @@ export const materialUpdateSchema = z.object({
 });
 
 export const recipeUpsertSchema = z.object({
-  material_id: z.string().min(1, 'Material wajib dipilih'),
-  product_id: z.string().nullable().optional().default(null),
+  material_id: z.coerce.number().positive('Material wajib dipilih'),
+  product_id: z.coerce.number().nullable().optional().default(null),
   quantity_per_order: z.coerce.number().positive('Jumlah per order harus lebih dari 0'),
   auto_deduct: z.boolean().optional().default(true),
 });
