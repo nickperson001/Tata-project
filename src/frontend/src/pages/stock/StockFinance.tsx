@@ -68,30 +68,26 @@ export function StockFinance() {
 
       <div className="stock-subnav" style={{ display: 'flex', gap: '0.35rem', overflow: 'visible' }}>
         <button
-          className={`sn-item ${tab === 'transactions' ? 'active' : ''}`}
+          className={`finance-tab ${tab === 'transactions' ? 'finance-tab--active' : ''}`}
           onClick={() => setTab('transactions')}
-          style={{ whiteSpace: 'nowrap', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <Package size={15} /> Transaksi
         </button>
         <button
-          className={`sn-item ${tab === 'summary' ? 'active' : ''}`}
+          className={`finance-tab ${tab === 'summary' ? 'finance-tab--active' : ''}`}
           onClick={() => setTab('summary')}
-          style={{ whiteSpace: 'nowrap', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <TrendingUp size={15} /> Ringkasan
         </button>
         <button
-          className={`sn-item ${tab === 'hutang' ? 'active' : ''}`}
+          className={`finance-tab ${tab === 'hutang' ? 'finance-tab--active' : ''}`}
           onClick={() => setTab('hutang')}
-          style={{ whiteSpace: 'nowrap', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <CreditCard size={15} /> Hutang
         </button>
         <button
-          className={`sn-item ${tab === 'piutang' ? 'active' : ''}`}
+          className={`finance-tab ${tab === 'piutang' ? 'finance-tab--active' : ''}`}
           onClick={() => setTab('piutang')}
-          style={{ whiteSpace: 'nowrap', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <DollarSign size={15} /> Piutang
         </button>
@@ -570,14 +566,11 @@ function SummaryTab() {
                             {info.count} produk · {fmtRp(info.value)}
                           </span>
                         </div>
-                        <div style={{ background: 'var(--bg)', borderRadius: 6, height: 8, overflow: 'hidden' }}>
-                          <div style={{
-                            width: `${(info.value / maxVal) * 100}%`,
-                            height: '100%',
-                            background: 'var(--primary)',
-                            borderRadius: 6,
-                            transition: 'width 0.5s ease',
-                          }} />
+                        <div className="progress-bar">
+                          <div
+                            className="progress-bar-fill"
+                            style={{ width: `${(info.value / maxVal) * 100}%` }}
+                          />
                         </div>
                       </div>
                     ))}

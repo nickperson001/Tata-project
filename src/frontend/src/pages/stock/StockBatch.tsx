@@ -6,7 +6,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { toast } from '../../components/Toast';
 import { Badge } from '../../components/Badge';
 import { fmtRp, fmtQty, fmtDateTime } from '../../lib/utils';
-import { Database, Package, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Database, Package, DollarSign, AlertTriangle, AlertCircle, TrendingUp } from 'lucide-react';
 import type { BatchData, BatchProduct, BatchMovement } from '../../types';
 
 export function StockBatch() {
@@ -60,22 +60,34 @@ export function StockBatch() {
       {/* Summary cards */}
       <div className="grid grid-4" style={{ gap: '1rem' }}>
         <div className="card card-p">
-          <div className="stat-value">{summary.total}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Package size={20} style={{ opacity: 0.5 }} />
+            <div className="stat-value">{summary.total}</div>
+          </div>
           <div className="stat-label">Total Produk</div>
         </div>
         <div className="card card-p">
-          <div className="stat-value" style={{ color: 'var(--primary)' }}>{fmtRp(summary.totalValue)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <DollarSign size={20} style={{ opacity: 0.5, color: 'var(--primary)' }} />
+            <div className="stat-value" style={{ color: 'var(--primary)' }}>{fmtRp(summary.totalValue)}</div>
+          </div>
           <div className="stat-label">Nilai Inventori</div>
         </div>
         <div className="card card-p">
-          <div className="stat-value" style={{ color: summary.lowStock > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
-            {summary.lowStock}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertTriangle size={20} style={{ opacity: 0.5, color: summary.lowStock > 0 ? 'var(--warning)' : 'var(--text-muted)' }} />
+            <div className="stat-value" style={{ color: summary.lowStock > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
+              {summary.lowStock}
+            </div>
           </div>
           <div className="stat-label">Stok Menipis</div>
         </div>
         <div className="card card-p">
-          <div className="stat-value" style={{ color: summary.outStock > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>
-            {summary.outStock}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertCircle size={20} style={{ opacity: 0.5, color: summary.outStock > 0 ? 'var(--danger)' : 'var(--text-muted)' }} />
+            <div className="stat-value" style={{ color: summary.outStock > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>
+              {summary.outStock}
+            </div>
           </div>
           <div className="stat-label">Stok Habis</div>
         </div>
@@ -90,7 +102,7 @@ export function StockBatch() {
           </h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
             {Object.entries(summary.byCategory).map(([cat, info]) => (
-              <div key={cat} className="card" style={{ padding: '0.5rem 1rem', flex: '1 0 140px' }}>
+              <div key={cat} className="category-chip" style={{ flex: '1 0 140px' }}>
                 <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{cat}</div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   {info.count} produk · {fmtRp(info.value)}
@@ -103,7 +115,7 @@ export function StockBatch() {
 
       {/* Alerts */}
       {summary.alerts.length > 0 && (
-        <div className="card card-p" style={{ borderLeft: '3px solid var(--warning)' }}>
+        <div className="card card-p card--warning">
           <h3 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.5rem' }}>
             <AlertTriangle size={16} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
             Peringatan Stok

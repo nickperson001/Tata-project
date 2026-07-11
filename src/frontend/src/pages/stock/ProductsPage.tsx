@@ -197,28 +197,24 @@ export function ProductsPage() {
           <DownloadButton url="/api/stock/export/produk" filename="ProdukStok.xlsx" />
         </div>
         {isDemo && (
-          <div style={{
-            width: '100%', fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 600,
-            background: 'rgba(245,158,11,0.08)', borderRadius: 8, padding: '0.5rem 0.75rem',
-          }}>
-            🔒 Demo: maksimal 3 produk. {products.length}/3 digunakan.
+          <div className="demo-banner" style={{ width: '100%' }}>
+            <span className="demo-banner__text">🔒 Demo: maksimal 3 produk. {products.length}/3 digunakan.</span>
             <a href="https://wa.me/6283121376756?text=Halo%20saya%20ingin%20upgrade%20Tata%20Business%20Suite%20ke%20PRO"
                target="_blank" rel="noopener noreferrer"
-               style={{ marginLeft: '0.5rem', fontWeight: 700, color: 'var(--warning)' }}>
+               style={{ marginLeft: '0.5rem', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>
                Upgrade →
             </a>
           </div>
         )}
       </div>
 
-      <div style={{ position: 'relative', maxWidth: 300 }}>
-        <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+      <div className="input-icon-wrap" style={{ maxWidth: 300 }}>
+        <Search size={16} />
         <input
           className="input input-sm"
           placeholder="Cari nama/SKU..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ paddingLeft: '2rem' }}
         />
       </div>
 
@@ -263,7 +259,7 @@ export function ProductsPage() {
                   <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{p.category || '-'}</td>
                   <td style={{ fontSize: '0.8rem' }}>
                     {p.default_channel ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', background: 'rgba(34,197,94,0.1)', color: 'var(--success)', borderRadius: 4, padding: '0.15rem 0.4rem' }}>
+                      <span className="badge badge-green" style={{ alignItems: 'center', gap: '0.25rem' }}>
                         <Globe size={12} /> {p.default_channel}
                       </span>
                     ) : (

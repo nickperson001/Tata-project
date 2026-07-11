@@ -6,10 +6,12 @@ import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { Pagination } from '../../components/Pagination';
 import { Badge } from '../../components/Badge';
 import { ConfirmModal } from '../../components/ConfirmModal';
+import { PageHeader } from '../../components/layout/PageHeader';
+import { EmptyState } from '../../components/EmptyState';
 import { toast } from '../../components/Toast';
 import { fmtRp, fmtQty, fmtDateTime } from '../../lib/utils';
 import type { StockMovement, PaginationMeta } from '../../types';
-import { Search, Trash2 } from 'lucide-react';
+import { Search, Trash2, History } from 'lucide-react';
 
 export function StockHistory() {
   const { token } = useStockStore();
@@ -64,10 +66,7 @@ export function StockHistory() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Riwayat Stok</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Log pergerakan stok</p>
-      </div>
+      <PageHeader title="Riwayat Stok" subtitle="Daftar pergerakan stok masuk, keluar, dan penyesuaian" />
 
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <select className="input input-sm" style={{ width: 'auto' }} value={filterType} onChange={(e) => { setFilterType(e.target.value); setPage(1); }}>
@@ -88,9 +87,7 @@ export function StockHistory() {
       {loading ? (
         <TableSkeleton rows={8} cols={5} />
       ) : movements.length === 0 ? (
-        <div className="card card-p" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-          Belum ada riwayat pergerakan stok
-        </div>
+        <EmptyState icon={<History size={48} />} title="Belum ada riwayat" text="Riwayat pergerakan stok akan muncul di sini" />
       ) : (
         <>
           <div className="tbl-wrap">

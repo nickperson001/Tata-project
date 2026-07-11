@@ -4,8 +4,10 @@ import { useStockStore } from '../../store/stockStore';
 import { stockApi } from '../../services/api';
 import { Skeleton } from '../../components/LoadingSkeleton';
 import { Badge } from '../../components/Badge';
+import { PageHeader } from '../../components/layout/PageHeader';
+import { EmptyState } from '../../components/EmptyState';
 import { fmtRp, fmtQty } from '../../lib/utils';
-import { TrendingUp, Package, ShoppingCart } from 'lucide-react';
+import { TrendingUp, Package, ShoppingCart, BarChart3 } from 'lucide-react';
 import { toast } from '../../components/Toast';
 import type { ReportData } from '../../types/api';
 
@@ -24,17 +26,13 @@ export function StockReport() {
 
   return (
     <div className="data-enter" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Laporan Evaluasi</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Analisa pergerakan stok</p>
-      </div>
+      <PageHeader title="Laporan Stok" subtitle="Ringkasan pergerakan stok dan penjualan per kategori" />
 
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Periode:</span>
+      <div className="period-bar">
         {[7, 30, 90].map((d) => (
           <button
             key={d}
-            className={`btn btn-sm ${days === d ? 'btn-primary' : 'btn-secondary'}`}
+            className={`period-btn${days === d ? ' active' : ''}`}
             onClick={() => setDays(d)}
           >
             {d} hari
@@ -50,9 +48,7 @@ export function StockReport() {
           <div className="card card-p"><Skeleton width="200px" height="1rem" />{Array.from({ length: 5 }).map((_, i) => <div key={i} style={{ marginTop: '0.75rem' }}><Skeleton width="100%" height="0.8rem" /><Skeleton width="80%" height="0.4rem" style={{ marginTop: 4 }} /></div>)}</div>
         </>
       ) : !data ? (
-        <div className="card card-p" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-          Belum ada data
-        </div>
+        <EmptyState icon={<BarChart3 size={48} />} title="Belum ada data" text="Data laporan akan muncul setelah ada transaksi" />
       ) : (
         <>
           <div className="grid grid-4" style={{ gap: '1rem' }}>

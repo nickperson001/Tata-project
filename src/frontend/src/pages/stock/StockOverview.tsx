@@ -13,7 +13,7 @@ import { ExpenseChart } from './ExpenseChart';
 import { toast } from '../../components/Toast';
 import { TopProductsChart } from './TopProductsChart';
 import type { SaldoData, OverviewData, ChannelProfit } from '../../types';
-import { TrendingUp, AlertTriangle, Wallet, Users, Package, Percent, PieChart, BarChart, Bot, Globe, DollarSign, X } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Wallet, Users, Package, Percent, PieChart, BarChart, BarChart2, Bot, Globe, DollarSign, X } from 'lucide-react';
 
 interface AlertItem {
   id: string;
@@ -97,91 +97,34 @@ function AiWelcomePopup({ overview, storeName, preset, onClose }: { overview: Ov
   }, [onClose]);
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: Z.AI_POPUP,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
-      animation: 'fadeIn 0.3s ease-out',
-    }}>
-      <div style={{
-        width: 'min(520px, 92vw)',
-        maxHeight: '80vh',
-        background: 'var(--bg-card)',
-        borderRadius: 24,
-        boxShadow: '0 24px 80px rgba(0,0,0,0.25)',
-        overflow: 'hidden',
-        animation: 'scaleIn 0.3s ease-out',
-        display: 'flex', flexDirection: 'column',
-      }}>
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.03) 100%)',
-          borderBottom: '1px solid rgba(16,185,129,0.15)',
-          padding: '1.5rem 1.75rem 1rem',
-          position: 'relative',
-        }}>
-          <button
-            onClick={onClose}
-            className="ai-popup-close"
-            style={{
-              position: 'absolute', right: 14, top: 14,
-              width: 32, height: 32, borderRadius: '50%',
-              border: 'none', background: 'rgba(0,0,0,0.06)',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-muted)', transition: 'all 0.2s',
-            }}
-          >
+    <div className="ai-popup-overlay" style={{ zIndex: Z.AI_POPUP }}>
+      <div className="ai-popup-card">
+        <div className="ai-popup-header">
+          <button onClick={onClose} className="ai-popup-close">
             <X size={16} />
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div className="ai-sparkle-icon" style={{
-              width: 48, height: 48, borderRadius: 16,
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 6px 16px rgba(16,185,129,0.35)',
-              flexShrink: 0,
-            }}>
+          <div className="ai-popup-badge-row">
+            <div className="ai-popup-icon">
               <Bot size={26} color="#fff" />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--primary-dark)' }}>
-                Halo {storeName}! ✨
-              </div>
-              <div style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 500, marginTop: 2 }}>
-                Analisis AI • {periodLabel(preset)}
-              </div>
+            <div className="ai-popup-text">
+              <div className="ai-popup-title">Halo {storeName}! ✨</div>
+              <div className="ai-popup-subtitle">Analisis AI • {periodLabel(preset)}</div>
             </div>
-            <span style={{
-              fontSize: '0.75rem', fontWeight: 700, padding: '0.3rem 0.7rem',
-              borderRadius: 10, whiteSpace: 'nowrap',
-              background: overview.laba_bersih >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.1)',
-              color: overview.laba_bersih >= 0 ? '#059669' : '#dc2626',
-            }}>
+            <span className={`ai-popup-status ${overview.laba_bersih >= 0 ? 'ai-popup-status--healthy' : 'ai-popup-status--warning'}`}>
               {overview.laba_bersih >= 0 ? 'Bisnis Sehat' : 'Perlu Evaluasi'}
             </span>
           </div>
         </div>
-        <div style={{ padding: '1.25rem 1.75rem 1.75rem', overflowY: 'auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+        <div className="ai-popup-body">
+          <div className="ai-popup-lines">
             {lines.map((line, i) => (
-              <div key={i} style={{
-                fontSize: '0.9rem', lineHeight: 1.55, color: 'var(--text)',
-                opacity: i < visibleLines ? 1 : 0,
-                transform: i < visibleLines ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'all 0.45s ease-out',
-                padding: '0.35rem 0.75rem',
-                borderRadius: 10,
-                background: i < visibleLines ? 'rgba(16,185,129,0.04)' : 'transparent',
-              }}>
+              <div key={i} className={`ai-popup-line ${i < visibleLines ? 'ai-popup-line--visible' : 'ai-popup-line--hidden'}`}>
                 {line}
               </div>
             ))}
           </div>
-          <div style={{
-            marginTop: '1.25rem', padding: '0.75rem 1rem',
-            background: 'rgba(16,185,129,0.06)',
-            borderRadius: 12, border: '1px solid rgba(16,185,129,0.15)',
-            fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center',
-          }}>
+          <div className="ai-popup-footer">
             💡 Data diperbarui otomatis setiap 30 detik
           </div>
         </div>
@@ -547,7 +490,7 @@ export function StockOverview() {
       {!loading && !saldo && !overview && (
         saldoQuery.isError || overviewQuery.isError ? (
           <div className="card card-p ov-empty data-enter" style={{ borderColor: 'var(--danger)', borderWidth: 2 }}>
-            <div className="ov-empty-icon" style={{ fontSize: '2.5rem' }}>⚠️</div>
+            <div className="ov-empty-icon" style={{ fontSize: '2.5rem' }}><AlertTriangle size={48} /></div>
             <div className="ov-empty-title">Gagal Memuat Data</div>
             <p className="ov-empty-desc" style={{ maxWidth: 400, margin: '0 auto' }}>
               Server penyimpanan data (Supabase) sedang tidak dapat dijangkau. 
@@ -566,7 +509,7 @@ export function StockOverview() {
           </div>
         ) : (
           <div className="card card-p ov-empty data-enter">
-            <div className="ov-empty-icon">📊</div>
+            <div className="ov-empty-icon"><BarChart2 size={48} /></div>
             <div className="ov-empty-title">Selamat Datang di Dashboard</div>
             <p className="ov-empty-desc">Mulai dengan menambahkan produk dan mencatat transaksi pertama Anda.</p>
           </div>

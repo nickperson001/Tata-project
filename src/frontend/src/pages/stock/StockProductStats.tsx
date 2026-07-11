@@ -117,15 +117,15 @@ export function StockProductStats() {
         </h2>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem' }}>
+      <div className="tab-nav">
         <button
-          className={`btn btn-sm ${tab === 'riil' ? 'btn-primary' : 'btn-ghost'}`}
+          className={`tab-item${tab === 'riil' ? ' active' : ''}`}
           onClick={() => setTab('riil')}
         >
           <ShoppingCart size={14} /> Riil
         </button>
         <button
-          className={`btn btn-sm ${tab === 'teoritis' ? 'btn-primary' : 'btn-ghost'}`}
+          className={`tab-item${tab === 'teoritis' ? ' active' : ''}`}
           onClick={() => setTab('teoritis')}
         >
           <TrendingUp size={14} /> Teoritis
@@ -216,11 +216,11 @@ export function StockProductStats() {
             Data penjualan riil berdasarkan transaksi kasir dan stok keluar
           </p>
 
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div className="period-bar">
             {[7, 30, 90, 365].map(d => (
               <button
                 key={d}
-                className={`btn btn-sm ${days === d ? 'btn-primary' : 'btn-ghost'}`}
+                className={`period-btn${days === d ? ' active' : ''}`}
                 onClick={() => setDays(d)}
               >
                 {d === 365 ? '1 Thn' : `${d}H`}
