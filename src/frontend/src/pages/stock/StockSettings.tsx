@@ -234,7 +234,7 @@ export function StockSettings() {
                       min="0"
                       max="100"
                       step="0.1"
-                      value={feeRaw[ch.name] ?? String(getChannelFee(ch.name))}
+                      value={feeRaw[ch.name] ?? (channelFees[ch.name] !== undefined ? String(channelFees[ch.name]) : '')}
                       onChange={(e) => { setFeeRaw(prev => ({ ...prev, [ch.name]: e.target.value })); }}
                       onBlur={() => {
                         const raw = feeRaw[ch.name];
