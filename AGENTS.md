@@ -96,6 +96,9 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 19 | Chatbot dihapus total | Frontend (ChatbotWidget.tsx + CSS + zIndex) + backend (route /api/stock/chat + chatbot.ts) dihapus karena tidak terpakai. Tombol Bantuan/Settings di topbar juga dihapus (sudah ada di dropdown UserMenu); topbar diperbesar + shadow | ChatbotWidget.tsx & chatbot.ts tidak ada; StockLayout.tsx tidak import/ render ChatbotWidget; api.ts tidak ada route chat |
 | 20 | Topbar — shadow + gedein | `.stock-topbar` padding 0.625→0.75rem, `box-shadow` ditambah, `--topbar-height: 56px`, logo 22→28px, brand 1rem→1.15rem | `.stock-topbar` di index.css punya `box-shadow` |
 | 21 | Regresi — `Settings is not defined` | Hapus `Settings` dari import padahal masih dipakai di `BOTTOM_NAV_DEMO` baris 41. Fix: tambah `Settings` kembali ke import. | `grep "Settings" StockLayout.tsx` harus ada di import + di `BOTTOM_NAV_DEMO` |
+| 22 | Produk terlaris duplikat — `api.ts:2704` | Query `transactions.description` 4-kata-pertama → `product_id` + `products!inner(name)`, GROUP BY `products.name` | `api.ts:2707-2715` pake `product_id` & `products.name` |
+| 23 | UNIQUE `users.store_name` | WA register (`message.ts:549`) cek duplikasi + rename append random. Auto-migration `uq_users_store_name` di `src/index.ts` | `message.ts:551-555` ada check + rename |
+| 24 | PWA beforeinstallprompt | StockLayout.tsx listener simpan ke `window.__tbsDeferredPrompt` (StockSettings.tsx sudah punya listener sendiri) | StockLayout.tsx ada `beforeinstallprompt` effect |
 
 Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
 
