@@ -70,28 +70,28 @@ export function StockFinance() {
         <button
           className={`sn-item ${tab === 'transactions' ? 'active' : ''}`}
           onClick={() => setTab('transactions')}
-          style={{ whiteSpace: 'nowrap', border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+          style={{ whiteSpace: 'nowrap', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <Package size={15} /> Transaksi
         </button>
         <button
           className={`sn-item ${tab === 'summary' ? 'active' : ''}`}
           onClick={() => setTab('summary')}
-          style={{ whiteSpace: 'nowrap', border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+          style={{ whiteSpace: 'nowrap', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <TrendingUp size={15} /> Ringkasan
         </button>
         <button
           className={`sn-item ${tab === 'hutang' ? 'active' : ''}`}
           onClick={() => setTab('hutang')}
-          style={{ whiteSpace: 'nowrap', border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+          style={{ whiteSpace: 'nowrap', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <CreditCard size={15} /> Hutang
         </button>
         <button
           className={`sn-item ${tab === 'piutang' ? 'active' : ''}`}
           onClick={() => setTab('piutang')}
-          style={{ whiteSpace: 'nowrap', border: 'none', background: 'none', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+          style={{ whiteSpace: 'nowrap', cursor: 'pointer', padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
         >
           <DollarSign size={15} /> Piutang
         </button>
