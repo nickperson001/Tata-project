@@ -39,6 +39,7 @@ export function StockSettings() {
   // Sales channels state
   const [activeChannels, setActiveChannels] = useState<string[]>(['offline', 'whatsapp']);
   const [channelFees, setChannelFees] = useState<Record<string, number>>({});
+  const [feeRaw, setFeeRaw] = useState<Record<string, string>>({});
   const [customChannelName, setCustomChannelName] = useState('');
   const [savingChannels, setSavingChannels] = useState(false);
 
@@ -51,6 +52,11 @@ export function StockSettings() {
       setInstallPrompt(e as BeforeInstallPromptEvent);
     };
     window.addEventListener('beforeinstallprompt', handler);
+    if ((window as any).__tbsDeferredPrompt) {
+      clearTimeout(timeout);
+      setInstallChecked(true);
+      setInstallPrompt((window as any).__tbsDeferredPrompt as BeforeInstallPromptEvent);
+    }
     const onAppInstalled = () => { setInstalled(true); setInstallPrompt(null); };
     window.addEventListener('appinstalled', onAppInstalled);
     if ((window.navigator as any).standalone === true) setInstalled(true);
@@ -228,8 +234,15 @@ export function StockSettings() {
                       min="0"
                       max="100"
                       step="0.1"
-                      value={getChannelFee(ch.name)}
-                      onChange={(e) => setChannelFee(ch.name, Number(e.target.value))}
+                      value={feeRaw[ch.name] ?? String(getChannelFee(ch.name))}
+                      onChange={(e) => { setFeeRaw(prev => ({ ...prev, [ch.name]: e.target.value })); }}
+                      onBlur={() => {
+                        const raw = feeRaw[ch.name];
+                        if (raw !== undefined) {
+                          setChannelFee(ch.name, raw === '' ? 0 : Math.min(100, Math.max(0, Number(raw) || 0)));
+                          setFeeRaw(prev => { const next = { ...prev }; delete next[ch.name]; return next; });
+                        }
+                      }}
                       onClick={(e) => e.stopPropagation()}
                       style={{
                         width: '100%', padding: '0.2rem 0.4rem', borderRadius: 4, border: '1px solid var(--border)',
