@@ -954,6 +954,28 @@ async function handleMessage(msg: any, client: any): Promise<any> {
     if (KW_DASHBOARD.some((k: string) => body === k || body.includes(k))) return handleDashboardRequest(msg, sender, user);
     if (body === 'token baru' || body === 'reset token' || body === 'link baru') return handleNewToken(msg, sender, user);
 
+    // Stock list / daftar produk
+    if (/^(?:stock|stok|daftar)\s+(?:list|produk|barang|stok)/i.test(body) || /^(?:list|daftar)\s+(?:produk|barang|stok|stock)/i.test(body)) {
+      await handleStockList(msg, user);
+      return;
+    }
+
+    // Stock info [SKU] / info stok [SKU]
+    if (/^(?:stock|stok|info)\s+(?:info|detail)\s+/i.test(body) || /^info\s+(?:stok|stock|produk|barang)\s+/i.test(body)) {
+      await handleStockInfo(msg, user, rawBody);
+      return;
+    }
+
+    // Stock report / laporan stok
+    if (/^(?:stock|laporan|report)\s+(?:stok|stock|report)\s*$/i.test(body) || body === 'laporan stok' || body === 'stock report') {
+      if (!['pro', 'unlimited'].includes(effectiveStatus)) {
+        await safeReply(msg, `🔒 *Laporan Stok*\n\nTersedia untuk paket *PRO* & *UNLIMITED*.\n\nKetik *Paket* untuk upgrade.`);
+        return;
+      }
+      await handleStockReport(msg, user);
+      return;
+    }
+
     if (KW_STOCK.some((k: string) => body.includes(k)) || KW_DASHBOARD.some((k: string) => body === k || body.includes(k))) {
       if (['pro', 'unlimited'].includes(effectiveStatus)) {
         const parts = body.split(/\s+/);
