@@ -107,8 +107,8 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 30 | Partial saving guard — 10 file kurang `|| saving` | StockReturn, StockPurchaseReturn, StockMovement, StockOpname, StockSettings, StockLogin, ReturnModal, PurchaseReturnModal, MovementModal, OpnameModal — guard hanya `if (!token)` tanpa `\|\| saving`. Fix: tambah `\|\| saving`/`\|\| savingChannels`/`\|\| submitting`. | Masing-masing file punya `if (... \|\| saving) return` di save function |
 | 31 | 24 endpoint API bocor error message mentah | `src/routes/api.ts` — 20 catch + 3 if(error) + 1 if(error) alert pakai `e.message`/`error.message` langsung. Fix: ganti semua dengan `sanitizeError(e)`/`sanitizeError(error)`. | `grep "apiError.*\.message" src/routes/api.ts` harus 0 hasil |
 | 32 | recipeUpsertSchema type mismatch (string→bigint) → 400 + sanitasi massal | `schemas.ts` material_id/product_id pakai `z.string()` tapi kolom DB `bigint`. Fix: ganti `z.coerce.number()`. Ditambah sanitasi `err.message` di stockManager.ts (39), transactionRecorder.ts (10), accountingEngine.ts (5), api.ts (24 if(!result.success)). Juga tambah menu Dashboard & Token baru di bantuan WA. | `grep "error: (err\|e\|pgErr)\.message" src/utils/` hanya mediaProcessor (log, aman); menu bantuan mention Dashboard & Token baru |
-
-Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
+| 33 | Input fee channel 0 tidak bisa dihapus | `StockSettings.tsx:232` — controlled input `value={getChannelFee(ch.name)}` return 0, `Number('')` = 0, user tak bisa hapus. Fix: track raw string di `feeRaw` state, parse di `onBlur`. | `StockSettings.tsx` ada `feeRaw` state + `onBlur` handler |
+| 34 | Tombol Install PWA tidak muncul (race condition) | `StockSettings.tsx:45-62` — `beforeinstallprompt` cuma fire sekali. StockLayout simpan ke `window.__tbsDeferredPrompt` tapi Settings tidak baca. Fix: tambah pengecekan `__tbsDeferredPrompt` di mount. | `StockSettings.tsx` useEffect cek `window.__tbsDeferredPrompt` |
 
 Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini.
 
