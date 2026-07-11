@@ -36,7 +36,7 @@ export function ReturnModal({ open, onClose, onSuccess }: Props) {
   }
 
   async function save() {
-    if (!token) return;
+    if (!token || saving) return;
     setSaving(true);
     try {
       await stockApi.post('/api/stock/return/sales', token, {

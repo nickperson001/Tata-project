@@ -150,7 +150,7 @@ export function OpnameModal({ open, onClose, onSuccess }: Props) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!token) return;
+    if (!token || saving) return;
     setSaving(true);
     try {
       let count = 0;

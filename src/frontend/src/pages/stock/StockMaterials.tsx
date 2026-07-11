@@ -19,6 +19,8 @@ export function StockMaterials() {
   const [editMat, setEditMat] = useState<BomMaterial | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', unit: 'pcs', stock_current: '', stock_min: '', cost_per_unit: '' });
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const materialsQuery = useQuery({
     queryKey: ['materials', token],
@@ -56,7 +58,8 @@ export function StockMaterials() {
   }
 
   async function save() {
-    if (!token) return;
+    if (!token || saving) return;
+    setSaving(true);
     try {
       if (editMat) {
         await bomApi.updateMaterial(token, editMat.id, {
@@ -81,16 +84,22 @@ export function StockMaterials() {
       materialsQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal simpan material');
+    } finally {
+      setSaving(false);
     }
   }
 
   async function confirmDelete(id: string) {
+    if (!token || deleting) return;
+    setDeleting(true);
     try {
       await bomApi.deleteMaterial(token!, id);
       toast('Material dihapus');
       materialsQuery.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal hapus material');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -204,7 +213,7 @@ export function StockMaterials() {
         footer={
           <>
             <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>
-            <button className="btn btn-primary" onClick={save}>Simpan</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
           </>
         }
       >
@@ -242,6 +251,7 @@ export function StockMaterials() {
         message="Yakin ingin menghapus material ini? Material akan dinonaktifkan, data resep tetap tersimpan."
         confirmLabel="Hapus"
         danger
+        loading={deleting}
         onConfirm={() => {
           if (deleteId) confirmDelete(deleteId);
           setDeleteId(null);

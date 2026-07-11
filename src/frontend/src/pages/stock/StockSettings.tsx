@@ -107,7 +107,7 @@ export function StockSettings() {
   }
 
   async function saveChannels() {
-    if (!token) return;
+    if (!token || savingChannels) return;
     setSavingChannels(true);
     try {
       const channel_fees = Object.entries(channelFees).map(([name, admin_fee_pct]) => ({ name, admin_fee_pct }));

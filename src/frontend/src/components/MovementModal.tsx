@@ -89,7 +89,7 @@ export function MovementModal({ open, onClose, onSuccess, initialType, productId
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!token || !form.product_id || !form.quantity) {
+    if (!token || saving || !form.product_id || !form.quantity) {
       toast.error('Lengkapi form');
       return;
     }

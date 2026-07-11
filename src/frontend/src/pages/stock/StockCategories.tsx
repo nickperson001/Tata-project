@@ -22,6 +22,8 @@ export function StockCategories() {
   const [name, setName] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteName, setDeleteName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const query = useQuery({
     queryKey: ['categories', token],
@@ -45,7 +47,8 @@ export function StockCategories() {
   }
 
   async function save() {
-    if (!token || !name.trim()) return;
+    if (!token || saving || !name.trim()) return;
+    setSaving(true);
     try {
       if (editCat) {
         await stockApi.put(`/api/stock/categories/${editCat.id}`, token, { name: name.trim() });
@@ -58,11 +61,14 @@ export function StockCategories() {
       query.refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gagal simpan kategori');
+    } finally {
+      setSaving(false);
     }
   }
 
   async function confirmDelete() {
-    if (!token || !deleteId) return;
+    if (!token || deleting || !deleteId) return;
+    setDeleting(true);
     try {
       await stockApi.del(`/api/stock/categories/${deleteId}`, token);
       toast('Kategori dihapus');
@@ -71,6 +77,7 @@ export function StockCategories() {
       toast.error(err instanceof Error ? err.message : 'Gagal hapus kategori');
     } finally {
       setDeleteId(null);
+      setDeleting(false);
     }
   }
 
@@ -134,7 +141,7 @@ export function StockCategories() {
         footer={
           <>
             <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>
-            <button className="btn btn-primary" onClick={save} disabled={!name.trim()}>Simpan</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving || !name.trim()}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
           </>
         }
       >
@@ -150,6 +157,7 @@ export function StockCategories() {
         message={`Yakin ingin menghapus kategori "${deleteName}"? Produk dengan kategori ini akan direset.`}
         confirmLabel="Hapus"
         danger
+        loading={deleting}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteId(null)}
       />

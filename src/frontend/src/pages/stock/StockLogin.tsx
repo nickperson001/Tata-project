@@ -11,7 +11,7 @@ export function StockLogin() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!wa.trim()) return;
+    if (!wa.trim() || submitting) return;
     setError('');
     setErrorCode('');
     setSubmitting(true);
@@ -38,6 +38,7 @@ export function StockLogin() {
   }
 
   async function handleDemo() {
+    if (submitting) return;
     setError('');
     setErrorCode('');
     setSubmitting(true);
