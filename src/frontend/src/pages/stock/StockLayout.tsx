@@ -7,7 +7,7 @@ import { NotificationBell } from '../../components/NotificationBell';
 import { UserMenu } from '../../components/UserMenu';
 import {
   LayoutDashboard, BookOpen, Package, BarChart3,
-  History, Box, TrendingUp, Settings,
+  History, Box, TrendingUp, Settings, Database,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { StockLogin } from './StockLogin';
