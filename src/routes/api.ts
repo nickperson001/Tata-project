@@ -1021,6 +1021,51 @@ router.delete('/api/stock/products/:productId', stockAuth, async (req: StockRequ
   }
 });
 
+// ── Product Image ──
+router.post('/api/stock/products/:productId/image', stockAuth, async (req: StockRequest, res: Response) => {
+  const userId = req.stockUser!.id;
+  const productId = String(req.params.productId);
+  const { image_base64 } = req.body;
+  try {
+    if (!image_base64) {
+      // Remove image
+      const { data: prod } = await supabase.from('products').select('image_url').eq('id', productId).eq('user_id', userId).maybeSingle() as any;
+      if (prod?.image_url) {
+        const oldPath = prod.image_url.split('/public/')[1] || '';
+        if (oldPath) await supabase.storage.from('product-images').remove([oldPath]);
+      }
+      await supabase.from('products').update({ image_url: null }).eq('id', productId).eq('user_id', userId) as any;
+      apiSuccess(res, { image_url: null });
+      return;
+    }
+    // Decode base64 → buffer
+    const matches = image_base64.match(/^data:image\/([\w]+);base64,(.+)$/);
+    if (!matches) { apiError(res, 'Format gambar tidak valid'); return; }
+    const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+    const buffer = Buffer.from(matches[2], 'base64');
+    if (buffer.length > 2 * 1024 * 1024) { apiError(res, 'Gambar maksimal 2MB'); return; }
+    // Upload to Supabase Storage
+    const filePath = `${userId}/${productId}.${ext}`;
+    // Remove old file first
+    const { data: oldProd } = await supabase.from('products').select('image_url').eq('id', productId).eq('user_id', userId).maybeSingle() as any;
+    if (oldProd?.image_url) {
+      const oldPath = oldProd.image_url.split('/public/')[1] || '';
+      if (oldPath) await supabase.storage.from('product-images').remove([oldPath]).catch(() => {});
+    }
+    const { error: uploadErr } = await supabase.storage.from('product-images').upload(filePath, buffer, {
+      contentType: `image/${ext}`,
+      upsert: true,
+    }) as any;
+    if (uploadErr) { apiError(res, `Gagal upload: ${sanitizeError(uploadErr)}`); return; }
+    const { data: pubUrl } = supabase.storage.from('product-images').getPublicUrl(filePath) as any;
+    const imageUrl = pubUrl?.publicUrl || `${process.env.SUPABASE_URL}/storage/v1/object/public/product-images/${filePath}`;
+    await supabase.from('products').update({ image_url: imageUrl }).eq('id', productId).eq('user_id', userId) as any;
+    apiSuccess(res, { image_url: imageUrl });
+  } catch (e: any) {
+    apiError(res, sanitizeError(e), ErrorCode.INTERNAL, 500);
+  }
+});
+
 // ── BOM / Materials ──
 
 router.get('/api/stock/materials', stockAuth, async (req: StockRequest, res: Response) => {

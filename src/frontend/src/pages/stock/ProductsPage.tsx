@@ -12,7 +12,7 @@ import { fmtRp, fmtQty } from '../../lib/utils';
 import type { Product, BomMaterial, BomRecipe } from '../../types';
 import {
   Plus, Edit2, Trash2, Search, Globe, AlertTriangle,
-  RefreshCw, Package, X, ChevronLeft, ChevronRight, Check
+  RefreshCw, Package, X, ChevronLeft, ChevronRight, Check, Image
 } from 'lucide-react';
 import { DownloadButton } from '../../components/DownloadButton';
 
@@ -45,6 +45,9 @@ export function ProductsPage() {
   const [form, setForm] = useState({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '' });
   const [saving, setSaving] = useState(false);
   const [categoryTouched, setCategoryTouched] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [productImage, setProductImage] = useState<string | null>(null);
+  const [imageChanged, setImageChanged] = useState(false);
 
   // wizard state (create only)
   const [wizardStep, setWizardStep] = useState(1);
@@ -112,11 +115,50 @@ export function ProductsPage() {
     }
   }, [form.name]);
 
+  const IMAGE_MAX_WIDTH = 800;
+  const IMAGE_QUALITY = 0.7;
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Hanya file gambar'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error('File maksimal 10MB'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > IMAGE_MAX_WIDTH) {
+          height = (height * IMAGE_MAX_WIDTH) / width;
+          width = IMAGE_MAX_WIDTH;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', IMAGE_QUALITY);
+        setProductImage(compressed);
+        setImageChanged(true);
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleRemoveImage() {
+    setProductImage(null);
+    setImageChanged(true);
+  }
+
   function resetWizard() {
     setWizardStep(1);
     setStockInitial('');
     setBomRows([]);
     setCategoryTouched(false);
+    setProductImage(null);
+    setImageChanged(false);
+    setFieldErrors({});
   }
 
   function openCreate() {
@@ -139,18 +181,23 @@ export function ProductsPage() {
       default_channel: p.default_channel || '',
     });
     resetWizard();
+    setProductImage(p.image_url || null);
+    setImageChanged(false);
     setShowModal(true);
   }
 
-  function isStep1Valid(): boolean {
-    return form.name.trim().length > 0 && form.sku.trim().length > 0 && form.price_sell.trim().length > 0;
+  function validateBase(): boolean {
+    const errs: Record<string, string> = {};
+    if (!form.name.trim()) errs.name = 'Nama produk harus diisi';
+    if (!form.sku.trim()) errs.sku = 'SKU harus diisi';
+    if (!form.price_sell.trim()) errs.price_sell = 'Harga jual harus diisi';
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
   }
 
   function nextStep() {
-    if (wizardStep === 1 && !isStep1Valid()) {
-      toast.error('Lengkapi nama, SKU, dan harga jual');
-      return;
-    }
+    if (wizardStep === 1 && !validateBase()) return;
+    setFieldErrors({});
     setWizardStep(s => Math.min(s + 1, 3));
   }
 
@@ -160,10 +207,14 @@ export function ProductsPage() {
 
   async function handleSave() {
     if (!token || saving) return;
+    if (!validateBase()) return;
     setSaving(true);
     try {
       if (editProduct) {
-        // ── Edit: update product only ──
+        // ── Edit: image → product ──
+        if (imageChanged) {
+          await stockApi.post(`/api/stock/products/${editProduct.id}/image`, token, { image_base64: productImage });
+        }
         await stockApi.put(`/api/stock/products/${editProduct.id}`, token, {
           sku: form.sku,
           name: form.name,
@@ -180,7 +231,7 @@ export function ProductsPage() {
         return;
       }
 
-      // ── Create: product → BOM → initial stock ──
+      // ── Create: product → image → BOM ──
       const body: Record<string, unknown> = {
         sku: form.sku,
         name: form.name,
@@ -194,6 +245,11 @@ export function ProductsPage() {
       };
       const result = await stockApi.post<{ product: Product }>('/api/stock/products', token, body);
       const newProduct = result.product;
+
+      // Image upload
+      if (productImage) {
+        await stockApi.post(`/api/stock/products/${newProduct.id}/image`, token, { image_base64: productImage });
+      }
 
       // BOM recipes
       const validRows = bomRows.filter(r => r.material_id && r.quantity);
@@ -338,6 +394,7 @@ export function ProductsPage() {
           <table>
             <thead>
               <tr>
+                <th style={{ width: 48 }}>Gambar</th>
                 <th>SKU</th>
                 <th>Nama</th>
                 <th>Kategori</th>
@@ -352,6 +409,18 @@ export function ProductsPage() {
             <tbody>
               {filtered.map((p) => (
                 <tr key={p.id}>
+                  <td>
+                    {p.image_url ? (
+                      <img src={p.image_url} alt={p.name}
+                        style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div style={{ width: 40, height: 40, borderRadius: 4, background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                        -
+                      </div>
+                    )}
+                  </td>
                   <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.sku}</td>
                   <td style={{ fontWeight: 600 }}>{p.name}</td>
                   <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{p.category || '-'}</td>
@@ -465,12 +534,14 @@ export function ProductsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">SKU</label>
-                <input className="input" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required />
+                <label className="form-label">SKU *</label>
+                <input className="input" value={form.sku} onChange={(e) => { setForm({ ...form, sku: e.target.value }); setFieldErrors(prev => ({ ...prev, sku: '' })); }} />
+                {fieldErrors.sku && <span style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>{fieldErrors.sku}</span>}
               </div>
               <div className="form-group">
-                <label className="form-label">Nama Produk</label>
-                <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                <label className="form-label">Nama Produk *</label>
+                <input className="input" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setFieldErrors(prev => ({ ...prev, name: '' })); }} />
+                {fieldErrors.name && <span style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>{fieldErrors.name}</span>}
               </div>
             </div>
             <div className="form-group">
@@ -499,8 +570,9 @@ export function ProductsPage() {
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Harga Jual</label>
-                <RupiahInput value={form.price_sell} onChange={(v) => setForm({ ...form, price_sell: v })} required />
+                <label className="form-label">Harga Jual *</label>
+                <RupiahInput value={form.price_sell} onChange={(v) => { setForm({ ...form, price_sell: v }); setFieldErrors(prev => ({ ...prev, price_sell: '' })); }} />
+                {fieldErrors.price_sell && <span style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>{fieldErrors.price_sell}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Channel Default</label>
@@ -515,6 +587,55 @@ export function ProductsPage() {
             <div className="form-group">
               <label className="form-label">Stok Minimal</label>
               <input className="input" type="number" value={form.stock_min} onChange={(e) => setForm({ ...form, stock_min: e.target.value })} placeholder="Untuk peringatan stok menipis" />
+            </div>
+
+            {/* Gambar Produk */}
+            <div className="form-group">
+              <label className="form-label">Gambar Produk</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                {productImage ? (
+                  <div style={{ position: 'relative' }}>
+                    <img src={productImage} alt="Preview"
+                      style={{ width: 80, height: 80, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }}
+                    />
+                    <button
+                      onClick={handleRemoveImage}
+                      style={{
+                        position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%',
+                        border: 'none', background: 'var(--danger)', color: '#fff', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem',
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => document.getElementById('product-image-input')?.click()}
+                    style={{
+                      width: 80, height: 80, borderRadius: 8, border: '2px dashed var(--border)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.7rem', gap: '0.25rem',
+                      transition: 'border-color 0.2s',
+                    }}
+                    onMouseEnter={(e) => { (e.target as HTMLElement).style.borderColor = 'var(--primary)'; }}
+                    onMouseLeave={(e) => { (e.target as HTMLElement).style.borderColor = 'var(--border)'; }}
+                  >
+                    <Image size={20} />
+                    Upload
+                  </div>
+                )}
+              </div>
+              <input
+                id="product-image-input"
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleImageSelect}
+              />
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
+                JPEG/PNG, maks 10MB. 1 gambar per produk.
+              </span>
             </div>
 
             {/* BOM management inline for edit mode */}

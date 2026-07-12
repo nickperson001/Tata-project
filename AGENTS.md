@@ -110,8 +110,10 @@ Pola kegagalan berulang: agent memperbaiki bug A, menyentuh kode sekitar tanpa s
 | 33 | Input fee channel 0 tidak bisa dihapus | `StockSettings.tsx:232` — controlled input `value={getChannelFee(ch.name)}` return 0, `Number('')` = 0, user tak bisa hapus. Fix: track raw string di `feeRaw` state, parse di `onBlur`. | `StockSettings.tsx` ada `feeRaw` state + `onBlur` handler |
 | 34 | Tombol Install PWA tidak muncul (race condition) | `StockSettings.tsx:45-62` — `beforeinstallprompt` cuma fire sekali. StockLayout simpan ke `window.__tbsDeferredPrompt` tapi Settings tidak baca. Fix: tambah pengecekan `__tbsDeferredPrompt` di mount. | `StockSettings.tsx` useEffect cek `window.__tbsDeferredPrompt` |
 | 35 | Hapus Kategori (redesign wizard 3-step) | Hapus `StockCategories.tsx`, route CRUD categories di api.ts, seeding product_categories di demoSetup.ts, nav & bantuan. Rewrite `ProductsPage.tsx` → auto-category via `CATEGORY_KEYWORDS`, wizard 3-step (Informasi → Stok Awal → BOM), multi-material BOM saat create, stock_initial. | `StockCategories.tsx` tidak ada; `api.ts` tidak ada route `/api/stock/categories`; `ProductsPage.tsx` pakai wizard + `detectCategory()` |
+| 36 | Typo tolerance + menu "1" misinterpreted | `fuzzyMatchKeywords()` di `helpers.ts` — Levenshtein distance untuk semua keyword list. Reorder menu angka `1`-`4` SEBELUM `handleTransaction()` biar "1" tidak terdeteksi sebagai nominal Rp 1. Fuzzy fallback di `shouldBypassDialogs`, `wordBoundaryInSet`, KW_DASHBOARD/STATUS/LAPORAN/BANTUAN/UPGRADE/BATAL/BAHAN. | `fuzzyMatchKeywords` di-import & digunakan di message.ts; menu angka cek `if (/^[1-4]$/)` sebelum `handleTransaction` |
+| 37 | Gambar produk client-side compress + upload | Client-side: canvas max 800px JPEG q70. Backend: base64 decode → Supabase Storage bucket `product-images`. Inline validation: field errors per-field + asterisk merah. | `ProductsPage.tsx` ada `handleImageSelect` + `validateBase()`; `api.ts` ada `POST /api/stock/products/:id/image`; `index.ts` auto-migration `image_url` + bucket setup |
  
-Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini. Bug #29 (StockCategories saving state) sudah obsolete karena file dihapus.
+ Setelah perbaiki bug baru, **tambahkan baris ke tabel ini** di file ini. Bug #29 (StockCategories saving state) sudah obsolete karena file dihapus.
 
 ---
 

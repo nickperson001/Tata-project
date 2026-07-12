@@ -121,6 +121,23 @@ server.listen(PORT, async () => {
     } catch (err: any) {
       addLog('warn', `[DB] Add uq_users_store_name (non-fatal): ${err.message}`);
     }
+    try {
+      await pgPool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url text`);
+      addLog('info', '[DB] Column products.image_url added (if missing)');
+    } catch (err: any) {
+      addLog('warn', `[DB] Add image_url (non-fatal): ${err.message}`);
+    }
+  }
+
+  // Best-effort: create product-images bucket at startup
+  try {
+    const { data: buckets } = await supabase.storage.listBuckets();
+    if (!buckets?.some((b: any) => b.name === 'product-images')) {
+      await supabase.storage.createBucket('product-images', { public: true });
+      addLog('info', '[STORAGE] Bucket product-images created');
+    }
+  } catch (err: any) {
+    addLog('warn', `[STORAGE] Bucket product-images setup (non-fatal): ${err.message}. Buat manual di Supabase dashboard jika perlu.`);
   }
 
   resetBootStatus();

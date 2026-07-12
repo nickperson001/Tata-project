@@ -78,6 +78,7 @@ export interface Product {
   stock_min: number | null;
   default_channel: string | null;
   description: string | null;
+  image_url: string | null;
   user_id: string;
   created_at: string;
 }
