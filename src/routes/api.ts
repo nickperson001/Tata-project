@@ -2008,8 +2008,7 @@ router.get('/api/stock/saldo', stockAuth, async (req: StockRequest, res: Respons
       apiError(res, 'Database tidak tersedia', ErrorCode.DB_ERROR, 500);
       return;
     }
-    const [coaResult, jlResult] = await Promise.all([
-      supabase.from('chart_of_accounts').select('balance').eq('user_id', userId).eq('code', '1101').single(),
+    const [jlResult] = await Promise.all([
       pgPool.query(
         `SELECT
           COALESCE(SUM(jl.debit), 0) as total_masuk,
@@ -2020,7 +2019,21 @@ router.get('/api/stock/saldo', stockAuth, async (req: StockRequest, res: Respons
         [userId],
       ),
     ]);
-    const saldo = (coaResult as any).data ? Number((coaResult as any).data.balance) : 0;
+    // Ambil saldo dari Supabase, fallback ke pgPool jika gagal
+    let saldo = 0;
+    try {
+      const { data: coa, error: coaErr } = await supabase
+        .from('chart_of_accounts').select('balance').eq('user_id', userId).eq('code', '1101').maybeSingle() as any;
+      if (coa && !coaErr) saldo = Number(coa.balance) || 0;
+      else throw coaErr || new Error('No data');
+    } catch {
+      try {
+        const pgSaldo = await pgPool.query(
+          `SELECT balance FROM chart_of_accounts WHERE user_id = $1 AND code = '1101'`, [userId]
+        );
+        if (pgSaldo.rows.length > 0) saldo = Number(pgSaldo.rows[0].balance) || 0;
+      } catch { /* saldo tetap 0 */ }
+    }
     const { total_masuk, total_keluar } = jlResult.rows[0];
     apiSuccess(res, { saldo, totalMasuk: Number(total_masuk), totalKeluar: Number(total_keluar) });
   } catch (e: any) {
