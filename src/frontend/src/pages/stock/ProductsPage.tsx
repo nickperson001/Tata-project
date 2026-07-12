@@ -125,7 +125,7 @@ export function ProductsPage() {
     if (file.size > 10 * 1024 * 1024) { toast.error('File maksimal 10MB'); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const img = new Image();
+      const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
         let { width, height } = img;
