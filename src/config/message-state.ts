@@ -44,9 +44,17 @@ export async function markMessageProcessed(messageId: string, userId: string): P
 // ── Per-Sender Lock ──
 const senderLocks = new Map<string, Promise<void>>();
 
-export async function withSenderLock<T>(sender: string, fn: () => Promise<T>): Promise<T> {
+const SENDER_LOCK_TIMEOUT = 30_000;
+
+export function withSenderLock<T>(sender: string, fn: () => Promise<T>): Promise<T> {
   const prev = senderLocks.get(sender) || Promise.resolve() as Promise<unknown>;
-  const next = prev.then(fn, fn).finally(() => {
+  const timedFn = () => Promise.race([
+    fn(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`[SENDER-LOCK] Timeout ${SENDER_LOCK_TIMEOUT}ms for ${sender}`)), SENDER_LOCK_TIMEOUT)
+    ),
+  ]);
+  const next = prev.then(timedFn, timedFn).finally(() => {
     if (senderLocks.get(sender) === cleanupPromise) senderLocks.delete(sender);
   });
   const cleanupPromise = next.then(() => {}, () => {});
@@ -82,8 +90,8 @@ export async function safeReply(msg: Message, text: string): Promise<void> {
         addLog('error', `[SAFE-REPLY] markMessageProcessed gagal: ${e?.message || e}`);
       });
     }
-  } catch {
-    // non-critical
+  } catch (err: unknown) {
+    addLog('error', `[SAFE-REPLY] Gagal kirim balasan: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

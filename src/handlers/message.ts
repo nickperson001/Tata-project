@@ -594,11 +594,11 @@ function buildVirtualUser(sender: string, rawBody: string): any {
 }
 
 async function handleMessage(msg: any, client: any): Promise<any> {
-  if (!msg) return;
-  if (msg.from === 'status@broadcast') return;
-  if (msg.from.includes('@g.us')) return;
-  if (msg.from.includes('-')) return;
-  if (msg.fromMe) return;
+  if (!msg) { addLog('debug', '[MSG] Skip — null msg'); return; }
+  if (msg.from === 'status@broadcast') { addLog('debug', '[MSG] Skip — status broadcast'); return; }
+  if (msg.from.includes('@g.us')) { addLog('debug', `[MSG] Skip — group msg from ${msg.from}`); return; }
+  if (msg.from.includes('-')) { addLog('debug', '[MSG] Skip — broadcast list'); return; }
+  if (msg.fromMe) { addLog('debug', '[MSG] Skip — fromMe'); return; }
 
   const sender: string = msg.from;
 

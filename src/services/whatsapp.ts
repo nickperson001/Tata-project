@@ -174,7 +174,7 @@ async function initWhatsApp(): Promise<void> {
       try {
         const { handleMessage } = require('../handlers/message');
         await handleMessage(msg, client);
-      } catch (err: any) { addLog('error', `[WA] handleMessage error: ${err.message}`); }
+      } catch (err: any) { addLog('error', `[WA] handleMessage error: ${err.stack || err.message}`); }
     });
 
     client.on('disconnected', async (reason: string) => {
