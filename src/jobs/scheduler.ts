@@ -134,6 +134,7 @@ async function sendReport(client: any, userId: string, storeName: string, period
 
 async function sendUpgradeNotification(client: any, userId: string, storeName: string, status: string, expiresAt?: string): Promise<boolean> {
   if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip sendUpgradeNotification'); return false; } }
+  if (!state.clientReady) { logWarn('[SCHEDULER] WA client not ready, skip sendUpgradeNotification'); return false; }
   try {
     let msg = '';
     if (status === 'unlimited') {
@@ -145,11 +146,12 @@ async function sendUpgradeNotification(client: any, userId: string, storeName: s
     await client.sendMessage(userId, msg);
     logInfo(`[NOTIF] Upgrade notification → ${storeName} (${userId}) [${status}]`);
     return true;
-  } catch (err: any) { logError(`[ERROR] sendUpgradeNotification [${userId}]: ${err.message}`); return false; }
+  } catch (err: any) { logError(`[ERROR] sendUpgradeNotification [${userId}]: ${err.stack || err.message}`); return false; }
 }
 
 async function checkAndNotifyUpgrades(client: any): Promise<void> {
   if (!client) { client = state.waClient; if (!client) { logWarn('[SCHEDULER] WA client null, skip checkAndNotifyUpgrades'); return; } }
+  if (!state.clientReady) { logWarn('[SCHEDULER] WA client not ready, skip checkAndNotifyUpgrades'); return; }
   try {
     const { data: users, error } = await supabase
       .from('users').select('id, store_name, status, subscription_expires_at')
