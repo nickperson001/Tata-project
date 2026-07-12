@@ -1296,6 +1296,11 @@ tr:hover .row-actions { opacity: 1; }
   color: var(--text-muted);
   margin-top: 2px;
 }
+.notif-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
 
 /* ── Reusable Utility Classes ── */
 .btn-outline {

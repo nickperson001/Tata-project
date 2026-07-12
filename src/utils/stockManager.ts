@@ -30,6 +30,7 @@ interface AddProductData {
   supplier?: string;
   location?: string;
   defaultChannel?: string;
+  channels?: string[];
 }
 
 interface UpdateProductData {
@@ -70,7 +71,7 @@ async function addProduct(
   userId: string,
   data: AddProductData,
 ): Promise<{ success: boolean; product?: unknown; error?: string }> {
-  const { sku, name, category, unit, priceBuy, priceSell, stockInitial, stockMin, description, supplier, location, defaultChannel } = data;
+  const { sku, name, category, unit, priceBuy, priceSell, stockInitial, stockMin, description, supplier, location, defaultChannel, channels } = data;
   if (!name) {
     return { success: false, error: 'Nama produk wajib diisi.' };
   }
@@ -78,8 +79,8 @@ async function addProduct(
   try {
     return await withTransaction(async (client) => {
       const prod = await client.query(
-        `INSERT INTO products (user_id, sku, name, category, unit, price_buy, price_sell, stock_current, stock_min, description, supplier, location, default_channel)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `INSERT INTO products (user_id, sku, name, category, unit, price_buy, price_sell, stock_current, stock_min, description, supplier, location, default_channel, channels)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          RETURNING *`,
         [
           userId,
@@ -95,6 +96,7 @@ async function addProduct(
           supplier || null,
           location || null,
           defaultChannel || '',
+          channels || [],
         ],
       );
       const product = prod.rows[0];

@@ -908,6 +908,7 @@ router.post('/api/stock/products', stockAuth, requireBody('name'), validate(prod
   const location = sanitizeString(req.body.location, 100);
   const notes = sanitizeString(req.body.notes, 500);
   const defaultChannel = sanitizeString(req.body.default_channel, 30);
+  const channels: string[] = Array.isArray(req.body.channels) ? req.body.channels.map((c: string) => sanitizeString(c, 30)).filter(Boolean) : [];
   const priceBuy = req.body.price_buy ?? req.body.priceBuy;
   const priceSell = req.body.price_sell ?? req.body.priceSell;
   const stockInitial = req.body.stock_initial ?? req.body.stockInitial;
@@ -921,6 +922,7 @@ router.post('/api/stock/products', stockAuth, requireBody('name'), validate(prod
       supplier,
       location,
       defaultChannel,
+      channels,
       priceBuy: parseFloat(priceBuy) || 0,
       priceSell: parseFloat(priceSell) || 0,
       stockInitial: parseFloat(stockInitial) || 0,
@@ -980,6 +982,7 @@ router.put('/api/stock/products/:productId', stockAuth, async (req: StockRequest
   const location = sanitizeString(req.body.location, 100);
   const notes = sanitizeString(req.body.notes, 500);
   const defaultChannel = sanitizeString(req.body.default_channel, 30);
+  const channels: string[] = Array.isArray(req.body.channels) ? req.body.channels.map((c: string) => sanitizeString(c, 30)).filter(Boolean) : [];
   const { price_buy, price_sell, stock_min } = req.body;
   try {
     const { error } = (await supabase
@@ -995,6 +998,7 @@ router.put('/api/stock/products/:productId', stockAuth, async (req: StockRequest
         location,
         notes,
         default_channel: defaultChannel || '',
+        channels,
       })
       .eq('id', productId)
       .eq('user_id', userId)) as any;

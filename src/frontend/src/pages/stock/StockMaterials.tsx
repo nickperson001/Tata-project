@@ -8,7 +8,7 @@ import { RupiahInput } from '../../components/RupiahInput';
 import { Badge } from '../../components/Badge';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { toast } from '../../components/Toast';
-import { fmtRp, fmtQty } from '../../lib/utils';
+import { fmtRp, fmtQty, UNIT_OPTIONS } from '../../lib/utils';
 import type { BomMaterial } from '../../types';
 import { Plus, Edit2, Trash2, Search, AlertTriangle, RefreshCw, Package } from 'lucide-react';
 
@@ -225,7 +225,11 @@ export function StockMaterials() {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Satuan</label>
-              <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="meter, rol, pcs..." />
+              <select className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>
+                <option value="">— Pilih satuan —</option>
+                {form.unit && !UNIT_OPTIONS.includes(form.unit as any) && <option value={form.unit}>{form.unit} (kustom)</option>}
+                {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
             </div>
             <div className="form-group">
               <label className="form-label">Biaya per Satuan</label>

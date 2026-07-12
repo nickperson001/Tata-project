@@ -8,7 +8,7 @@ import { RupiahInput } from '../../components/RupiahInput';
 import { Badge } from '../../components/Badge';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { toast } from '../../components/Toast';
-import { fmtRp, fmtQty } from '../../lib/utils';
+import { fmtRp, fmtQty, UNIT_OPTIONS } from '../../lib/utils';
 import type { Product, BomMaterial, BomRecipe } from '../../types';
 import {
   Plus, Edit2, Trash2, Search, Globe, AlertTriangle,
@@ -17,12 +17,21 @@ import {
 import { DownloadButton } from '../../components/DownloadButton';
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  'Makanan & Minuman': ['makanan', 'minuman', 'kopi', 'teh', 'susu', 'roti', 'kue', 'snack', 'cemilan', 'sembako', 'beras', 'gula', 'minyak', 'bumbu', 'mie', 'sarden', 'saos', 'kecap'],
-  'Pakaian & Aksesoris': ['baju', 'kemeja', 'kaos', 'celana', 'rok', 'dress', 'jaket', 'sepatu', 'sandal', 'tas', 'topi', 'sarung', 'hijab', 'jilbab'],
-  'Elektronik': ['elektronik', 'lampu', 'kabel', 'charger', 'baterai', 'adaptor', 'kipas', 'setrika', 'rice cooker', 'blender'],
-  'Rumah Tangga': ['sapu', 'pel', 'ember', 'panci', 'wajan', 'piring', 'gelas', 'sendok', 'garpu', 'taplak', 'keset'],
-  'Kesehatan & Kecantikan': ['sabun', 'shampoo', 'pasta gigi', 'sikat gigi', 'lotion', 'parfum', 'masker', 'vitamin', 'obat', 'kosmetik', 'bedak'],
-  'ATK & Kantor': ['buku', 'pulpen', 'pensil', 'penghapus', 'kertas', 'stapler', 'amplop', 'map', 'lem', 'gunting', 'penggaris'],
+  'Makanan & Minuman': ['makanan', 'minuman', 'kopi', 'teh', 'susu', 'roti', 'kue', 'snack', 'cemilan', 'sembako', 'beras', 'gula', 'minyak', 'bumbu', 'mie', 'sarden', 'saos', 'kecap', 'kripik', 'keripik', 'coklat', 'permen', 'biskuit', 'wafer', 'selai', 'madu', 'saos', 'kecap', 'sambal', 'bawang', 'telur', 'tepung', 'kornet', 'daging', 'ayam', 'ikan', 'tahu', 'tempe'],
+  'Pakaian & Aksesoris': ['baju', 'kemeja', 'kaos', 'celana', 'rok', 'dress', 'jaket', 'sepatu', 'sandal', 'tas', 'topi', 'sarung', 'hijab', 'jilbab', 'kerudung', 'kaos kaki', 'kacamata', 'jam tangan', 'ikat pinggang', 'dompet', 'ransel'],
+  'Elektronik': ['lampu', 'kabel', 'charger', 'baterai', 'adaptor', 'kipas', 'setrika', 'rice cooker', 'blender', 'tv', 'televisi', 'radio', 'speaker', 'earphone', 'headset', 'mouse', 'keyboard', 'flashdisk', 'memory', 'hardisk', 'monitor', 'laptop', 'komputer', 'hp', 'handphone', 'ponsel', 'sim card', 'pulsa', 'listrik', 'saklar', 'stop kontak'],
+  'Rumah Tangga': ['sapu', 'pel', 'ember', 'panci', 'wajan', 'piring', 'gelas', 'sendok', 'garpu', 'taplak', 'keset', 'gayung', 'baskom', 'talenan', 'pisau dapur', 'serbet', 'lap', 'tempat sampah', 'gantungan', 'hanger'],
+  'Kesehatan & Kecantikan': ['sabun', 'shampoo', 'pasta gigi', 'sikat gigi', 'lotion', 'parfum', 'masker', 'vitamin', 'obat', 'kosmetik', 'bedak', 'lipstik', 'eyeliner', 'sunscreen', 'deodoran', 'pembalut', 'popok', 'tisu basah', 'minyak kayu putih', 'minyak angin', 'betadine', 'plester', 'perban', 'hand sanitizer'],
+  'ATK & Kantor': ['buku', 'pulpen', 'pensil', 'penghapus', 'kertas', 'stapler', 'amplop', 'map', 'lem', 'gunting', 'penggaris', 'spidol', 'crayon', 'cat air', 'stabilo', 'klip', 'paper clip', 'lakban', 'selotip', 'binder', 'ordner', 'rak', 'meja', 'kursi kantor'],
+  'Otomotif': ['oli', 'ban', 'bearing', 'kampas', 'busi', 'aki', 'lampu mobil', 'wiper', 'filter', 'knalpot', 'helm', 'spion', 'stang', 'velg', 'ban dalam', 'tambal', 'kunci', 'kunci pas', 'obeng', 'tang'],
+  'Olahraga': ['bola', 'raket', 'matras', 'dumbbell', 'sepeda', 'sepatu olahraga', 'kaos olahraga', 'raket', 'shuttlecock', 'net', 'pelampung', 'kacamata renang', 'treadmill', 'yoga', 'jogging', 'lari'],
+  'Mainan & Hobi': ['boneka', 'lego', 'puzzle', 'kartu', 'lilin', 'playdoh', 'mobil mobilan', 'remote control', 'drone', 'yoyo', 'kelereng', 'congklak', 'rubik', 'slime'],
+  'Perlengkapan Bayi': ['popok', 'susu formula', 'botol dot', 'stroller', 'baby walker', 'guling', 'bantal bayi', 'selimut bayi', 'bedong', 'gurita', 'minyak telon', 'baby oil', 'bedak bayi', 'shampoo bayi'],
+  'Bahan Bangunan': ['semen', 'pasir', 'bata', 'cat', 'paku', 'triplek', 'besi', 'baja ringan', 'keramik', 'granit', 'pipa', 'paralon', 'seng', 'asbes', 'gypsum', 'kayu', 'kusen', 'jendela', 'pintu', 'engsel', 'gembok'],
+  'Pertanian & Peternakan': ['pupuk', 'benih', 'pestisida', 'polybag', 'pot', 'tanah', 'kompos', 'sekop', 'cangkul', 'selang', 'pakan ternak', 'obat ternak', 'kandang', 'pakan ikan'],
+  'Alat Musik': ['gitar', 'keyboard', 'drum', 'senar', 'mikrofon', 'amplifier', 'pianika', 'seruling', 'angklung', 'rebana', 'gendang'],
+  'Buku & Media': ['buku tulis', 'novel', 'komik', 'majalah', 'koran', 'buku bacaan', 'buku pelajaran', 'buku agama', 'buku resep', 'kalender', 'poster'],
+  'Perlengkapan Hewan': ['kandang', 'pakan', 'pasir kucing', 'mainan kucing', 'kalung anjing', 'tali', 'mangkok', 'grooming', 'shampoo hewan'],
   'Lainnya': [],
 };
 
@@ -42,7 +51,7 @@ export function ProductsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [form, setForm] = useState({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '' });
+  const [form, setForm] = useState({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '', channels: [] as string[] });
   const [saving, setSaving] = useState(false);
   const [categoryTouched, setCategoryTouched] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -163,7 +172,7 @@ export function ProductsPage() {
 
   function openCreate() {
     setEditProduct(null);
-    setForm({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '' });
+    setForm({ sku: '', name: '', category: '', unit: '', price_buy: '', price_sell: '', stock_min: '', default_channel: '', channels: [] });
     resetWizard();
     setShowModal(true);
   }
@@ -179,6 +188,7 @@ export function ProductsPage() {
       price_sell: p.price_sell.toString(),
       stock_min: p.stock_min?.toString() || '',
       default_channel: p.default_channel || '',
+      channels: p.channels || [],
     });
     resetWizard();
     setProductImage(p.image_url || null);
@@ -224,6 +234,7 @@ export function ProductsPage() {
           price_sell: Number(form.price_sell),
           stock_min: form.stock_min ? Number(form.stock_min) : undefined,
           default_channel: form.default_channel || '',
+          channels: form.channels,
         });
         toast('Produk diupdate');
         setShowModal(false);
@@ -241,6 +252,7 @@ export function ProductsPage() {
         price_sell: Number(form.price_sell),
         stock_min: form.stock_min ? Number(form.stock_min) : undefined,
         default_channel: form.default_channel || '',
+        channels: form.channels,
         stock_initial: Number(stockInitial) || 0,
       };
       const result = await stockApi.post<{ product: Product }>('/api/stock/products', token, body);
@@ -425,13 +437,15 @@ export function ProductsPage() {
                   <td style={{ fontWeight: 600 }}>{p.name}</td>
                   <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{p.category || '-'}</td>
                   <td style={{ fontSize: '0.8rem' }}>
-                    {p.default_channel ? (
-                      <span className="badge badge-green" style={{ alignItems: 'center', gap: '0.25rem' }}>
-                        <Globe size={12} /> {p.default_channel}
-                      </span>
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)' }}>Semua</span>
-                    )}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                      {p.channels && p.channels.length > 0 ? p.channels.map(ch => (
+                        <span key={ch} className="badge badge-green" style={{ alignItems: 'center', gap: '0.2rem', fontSize: '0.7rem' }}>
+                          <Globe size={10} /> {ch}
+                        </span>
+                      )) : (
+                        <span style={{ color: 'var(--text-muted)' }}>Semua</span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ fontWeight: 600, color: (p.price_buy ?? 0) === 0 ? 'var(--danger)' : 'var(--text)', fontSize: '0.8rem' }}>
                     {fmtRp(p.price_buy ?? 0)}
@@ -561,7 +575,11 @@ export function ProductsPage() {
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Satuan</label>
-                <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="pcs, kg, dll" />
+                <select className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>
+                  <option value="">— Pilih satuan —</option>
+                  {form.unit && !UNIT_OPTIONS.includes(form.unit as any) && <option value={form.unit}>{form.unit} (kustom)</option>}
+                  {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Harga Beli</label>
@@ -575,13 +593,32 @@ export function ProductsPage() {
                 {fieldErrors.price_sell && <span style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>{fieldErrors.price_sell}</span>}
               </div>
               <div className="form-group">
-                <label className="form-label">Channel Default</label>
-                <select className="input" value={form.default_channel} onChange={(e) => setForm({ ...form, default_channel: e.target.value })}>
-                  <option value="">— Semua channel —</option>
-                  {activeChannels.map((ch) => (
-                    <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>
-                  ))}
-                </select>
+                <label className="form-label">Channel Tersedia</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', padding: '0.4rem 0' }}>
+                  {activeChannels.map((ch) => {
+                    const selected = form.channels.includes(ch);
+                    return (
+                      <div
+                        key={ch}
+                        onClick={() => setForm(prev => ({
+                          ...prev,
+                          channels: selected ? prev.channels.filter(c => c !== ch) : [...prev.channels, ch],
+                        }))}
+                        style={{
+                          padding: '0.3rem 0.6rem', borderRadius: 6, cursor: 'pointer',
+                          fontSize: '0.8rem', fontWeight: 500,
+                          background: selected ? 'var(--primary)' : 'var(--border)',
+                          color: selected ? '#fff' : 'var(--text)',
+                          border: selected ? '1px solid var(--primary)' : '1px solid transparent',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {ch.charAt(0).toUpperCase() + ch.slice(1)}
+                      </div>
+                    );
+                  })}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Klik untuk memilih channel penjualan produk ini</span>
               </div>
             </div>
             <div className="form-group">

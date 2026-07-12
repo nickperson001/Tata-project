@@ -94,6 +94,7 @@ export const productCreateSchema = z.object({
   supplier: z.string().max(100).optional(),
   location: z.string().max(100).optional(),
   default_channel: z.string().max(30).optional(),
+  channels: z.array(z.string().max(30)).optional(),
 });
 
 export const hutangSchema = z.object({

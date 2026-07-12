@@ -15,14 +15,6 @@ import { TopProductsChart } from './TopProductsChart';
 import type { SaldoData, OverviewData, ChannelProfit } from '../../types';
 import { TrendingUp, AlertTriangle, Wallet, Users, Package, Percent, PieChart, BarChart, BarChart2, Bot, Globe, DollarSign, X } from 'lucide-react';
 
-interface AlertItem {
-  id: string;
-  nama: string;
-  type: 'stok_habis' | 'stok_menipis' | 'hutang_jatuh_tempo';
-  detail: string;
-  link?: string;
-}
-
 function ShimmerVal({ loading, width = '120px', height = '1.2rem', children, className }: { loading: boolean; width?: string; height?: string; children: React.ReactNode; className?: string }) {
   if (loading) return <Skeleton width={width} height={height} />;
   return <span {...(className ? { className } : {})}>{children}</span>;
@@ -136,7 +128,6 @@ function AiWelcomePopup({ overview, storeName, preset, onClose }: { overview: Ov
 export function StockOverview() {
   const { token, user } = useStockStore();
   const navigate = useNavigate();
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [chartDays, setChartDays] = useState(30);
   const [filterChannel, setFilterChannel] = useState('');
   const [activeChannels, setActiveChannels] = useState<string[]>([]);
@@ -153,7 +144,6 @@ export function StockOverview() {
 
   const saldoQuery = useQuery({ queryKey: ['saldo', token], queryFn: () => stockApi.get<SaldoData>('/api/stock/saldo', token!), ...sharedOpts });
   const overviewQuery = useQuery({ queryKey: ['overview', token, overviewUrl], queryFn: () => stockApi.get<OverviewData>(overviewUrl, token!), ...sharedOpts });
-  const hutangQuery = useQuery({ queryKey: ['hutang-unpaid', token], queryFn: () => stockApi.get<{ list: { nama_supplier: string; jatuh_tempo: string | null; nominal_hutang: number; jumlah_dibayar: number }[] }>('/api/stock/hutang?status=unpaid', token!), ...sharedOpts });
   const chartQuery = useQuery({ queryKey: ['dashboard-charts', token, chartDays], queryFn: () => stockApi.get<any>(`/api/stock/dashboard/charts?days=${chartDays}`, token!), ...sharedOpts });
   const channelProfitQuery = useQuery({ queryKey: ['channel-profitability', token], queryFn: () => stockApi.get<ChannelProfit[]>('/api/stock/channel-profitability', token!), ...sharedOpts });
   const settingsQuery = useQuery({ queryKey: ['settings', token], queryFn: () => stockApi.get<{ settings: any }>('/api/stock/settings', token!), enabled: !!token, staleTime: 60_000 });
@@ -162,33 +152,11 @@ export function StockOverview() {
     if (settingsQuery.data?.settings?.active_channels) setActiveChannels(settingsQuery.data.settings.active_channels);
   }, [settingsQuery.data]);
 
-  const loading = saldoQuery.isPending || overviewQuery.isPending || hutangQuery.isPending || chartQuery.isPending || channelProfitQuery.isPending;
+  const loading = saldoQuery.isPending || overviewQuery.isPending || chartQuery.isPending || channelProfitQuery.isPending;
   const saldo = saldoQuery.data ?? null;
   const overview = overviewQuery.data ?? null;
   const chartData = chartQuery.data ?? null;
   const channelProfit = channelProfitQuery.data ?? [];
-
-  useEffect(() => {
-    const o = overviewQuery.data;
-    const h = hutangQuery.data;
-    if (!o) return;
-    const a: AlertItem[] = [];
-    if (o.stok_habis > 0) a.push({ id: 'out', nama: 'Stok Habis', type: 'stok_habis', detail: `${o.stok_habis} produk habis`, link: '/stock/products' });
-    if (o.stok_menipis > 0) a.push({ id: 'low', nama: 'Stok Menipis', type: 'stok_menipis', detail: `${o.stok_menipis} produk menipis`, link: '/stock/products' });
-    if (h) {
-      const overdueHutang = h.list.filter(item => item.jatuh_tempo && new Date(item.jatuh_tempo) < new Date());
-      overdueHutang.forEach(item => {
-        a.push({
-          id: `hutang_${item.nama_supplier}`,
-          nama: item.nama_supplier,
-          type: 'hutang_jatuh_tempo',
-          detail: `Hutang ${fmtRp(item.nominal_hutang - item.jumlah_dibayar)} sudah jatuh tempo`,
-          link: '/stock/hutang',
-        });
-      });
-    }
-    setAlerts(a);
-  }, [overviewQuery.data, hutangQuery.data]);
 
   const hppRatio = overview && overview.total_omzet > 0 ? (overview.total_hpp / overview.total_omzet * 100) : 0;
   const expenseRatio = overview && overview.total_omzet > 0 ? (overview.total_pengeluaran / overview.total_omzet * 100) : 0;
@@ -467,22 +435,6 @@ export function StockOverview() {
               <TopProductsChart products={chartData.topProducts} />
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Alerts */}
-      {alerts.length > 0 && (
-        <div>
-          <div className="ov-section-title" style={{ marginBottom: '0.5rem' }}>Perlu Perhatian</div>
-          {alerts.map((alert, i) => (
-            <div key={alert.id} className={`ov-alert-item ${alert.type} data-enter`} style={{ animationDelay: `${i * 0.1}s` }} onClick={() => alert.link && navigate(alert.link)}>
-              <AlertTriangle size={16} className="ov-alert-icon" />
-              <div>
-                <div className="ov-alert-name">{alert.nama}</div>
-                <div className="ov-alert-detail">{alert.detail}</div>
-              </div>
-            </div>
-          ))}
         </div>
       )}
 

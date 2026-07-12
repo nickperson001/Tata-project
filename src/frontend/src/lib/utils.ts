@@ -67,6 +67,16 @@ export function escapeHTML(str: string): string {
   return div.innerHTML;
 }
 
+export const UNIT_OPTIONS = [
+  'pcs', 'kg', 'gram', 'liter', 'ml', 'meter', 'cm', 'inch',
+  'box', 'pack', 'dus', 'karton', 'botol', 'sachet', 'kaleng', 'toples',
+  'biji', 'buah', 'pasang', 'lusin', 'rim', 'rol', 'ikat',
+  'batang', 'lembar', 'helai', 'ton', 'kuintal', 'ons', 'ekor',
+  'porsi', 'gelas', 'cangkir', 'sendok', 'bungkus',
+] as const;
+
+export type UnitOption = (typeof UNIT_OPTIONS)[number];
+
 export function debounce<T extends (...args: unknown[]) => void>(
   fn: T,
   wait: number,

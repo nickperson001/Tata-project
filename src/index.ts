@@ -127,6 +127,12 @@ server.listen(PORT, async () => {
     } catch (err: any) {
       addLog('warn', `[DB] Add image_url (non-fatal): ${err.message}`);
     }
+    try {
+      await pgPool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS channels text[] DEFAULT '{}'`);
+      addLog('info', '[DB] Column products.channels added (if missing)');
+    } catch (err: any) {
+      addLog('warn', `[DB] Add channels (non-fatal): ${err.message}`);
+    }
   }
 
   // Best-effort: create product-images bucket at startup
