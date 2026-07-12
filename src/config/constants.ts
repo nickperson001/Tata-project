@@ -11,7 +11,7 @@ export const MINUTE_MS = 60 * 1000;
 
 // WA retry
 export const WA_MAX_RETRIES = 8;
-export const WA_BASE_DELAY = 5_000;
+export const WA_BASE_DELAY = 30_000;
 export const WA_MAX_DELAY = 300_000;
 
 // Circuit breaker

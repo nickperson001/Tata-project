@@ -55,9 +55,12 @@ function killChromeProcesses(): void {
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let sessionBackupTimer: ReturnType<typeof setInterval> | null = null;
 let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+let watchdogExtendedCount = 0;
 let lastDisconnectAt = 0;
 let lastDisconnectAlert = 0;
 const WA_ALERT_COOLDOWN = 300_000;
+const WA_WATCHDOG_TIMEOUT = 180_000;
+const WA_WATCHDOG_EXTEND_LIMIT = 2;
 
 function scheduleRetry(delayMs: number): void {
   if (retryTimer) { addLog('info', '[WA] Retry already scheduled — skipping duplicate'); return; }
@@ -131,6 +134,7 @@ async function initWhatsApp(): Promise<void> {
 
     client.on('ready', async () => {
       if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; }
+      watchdogExtendedCount = 0;
       state.clientReady = true;
       state.waClient = client;
       state.botStatus = 'Ready';
@@ -168,6 +172,27 @@ async function initWhatsApp(): Promise<void> {
         saveSessionDirToDB('default').catch(() => {});
       }, 300_000); // every 5 minutes
       state.isInitializing = false;
+
+      // Monitor Puppeteer page for crashes → set clientReady false agar scheduler skip jobs
+      const pupPage = (client as any).pupPage;
+      if (pupPage) {
+        pupPage.on('error', (err: Error) => {
+          addLog('error', `[WA] Puppeteer page error: ${err.message}`);
+          state.clientReady = false;
+        });
+        pupPage.on('pageerror', (err: Error) => {
+          addLog('error', `[WA] Puppeteer page runtime error: ${err.message}`);
+          state.clientReady = false;
+        });
+        pupPage.on('crash', () => {
+          addLog('error', '[WA] Puppeteer page crashed!');
+          state.clientReady = false;
+        });
+        pupPage.on('close', () => {
+          addLog('warn', '[WA] Puppeteer page closed');
+          state.clientReady = false;
+        });
+      }
     });
 
     client.on('message', async (msg: any) => {
@@ -200,10 +225,16 @@ async function initWhatsApp(): Promise<void> {
     state.waClient = client;
     addLog('info', '[WA] Client initialization started...');
 
-    if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; }
-    watchdogTimer = setTimeout(() => {
+    function watchdogCheck() {
       if (!state.clientReady) {
-        addLog('warn', '[WA] Watchdog timeout — client not ready after 60s');
+        if (watchdogExtendedCount < WA_WATCHDOG_EXTEND_LIMIT) {
+          watchdogExtendedCount++;
+          addLog('warn', `[WA] Watchdog — client not ready after ${WA_WATCHDOG_TIMEOUT * (watchdogExtendedCount) / 1000}s total, extending (${watchdogExtendedCount}/${WA_WATCHDOG_EXTEND_LIMIT}) — browser tetap hidup`);
+          watchdogTimer = setTimeout(watchdogCheck, WA_WATCHDOG_TIMEOUT);
+          return;
+        }
+        addLog('warn', `[WA] Watchdog — client not ready after ${WA_WATCHDOG_TIMEOUT * (WA_WATCHDOG_EXTEND_LIMIT + 1) / 1000}s, restarting browser`);
+        watchdogExtendedCount = 0;
         state.isInitializing = false;
         safeDestroyClient().then(() => {
           if (state.waRetryCount <= WA_MAX_RETRIES) {
@@ -219,7 +250,8 @@ async function initWhatsApp(): Promise<void> {
           }
         });
       }
-    }, 60_000);
+    }
+    watchdogTimer = setTimeout(watchdogCheck, WA_WATCHDOG_TIMEOUT);
 
     client.initialize().catch((err: Error) => {
       state.isInitializing = false;
