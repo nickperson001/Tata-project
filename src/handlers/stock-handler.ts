@@ -161,6 +161,39 @@ async function handleBahanMasuk(msg: Message, user: any, materialQuery: string, 
   return true;
 }
 
+async function handleBahanKeluar(msg: Message, user: any, materialQuery: string, qtyStr: string): Promise<boolean> {
+  const qty = parseFloat(qtyStr.replace(',', '.'));
+  if (isNaN(qty) || qty <= 0) {
+    await safeReply(msg, `⚠️ Jumlah tidak valid: *${qtyStr}*. Contoh: *Bahan keluar kain 10*`);
+    return true;
+  }
+  const list = await stockManager.listMaterials(user.id);
+  if (!list.success || !list.materials || list.materials.length === 0) {
+    await safeReply(msg, `⚠️ Belum ada material terdaftar. Tambah via dashboard.`);
+    return true;
+  }
+  const match = (list.materials as any[]).find((m: any) => m.name.toLowerCase().includes(materialQuery.toLowerCase()));
+  if (!match) {
+    await safeReply(msg, `⚠️ Material "${materialQuery}" tidak ditemukan.\nKetik *Bahan list* untuk lihat daftar.`);
+    return true;
+  }
+  const stockBefore = parseFloat(match.stock_current) || 0;
+  if (stockBefore < qty) {
+    await safeReply(msg, `⚠️ Stok ${match.name} tidak cukup. Tersedia: ${stockManager.formatQty(stockBefore, match.unit)} ${match.unit}`);
+    return true;
+  }
+  const stockAfter = stockBefore - qty;
+  const result = await stockManager.updateMaterial(user.id, match.id, {
+    stockCurrent: stockAfter,
+  } as any);
+  if (!result.success) {
+    await safeReply(msg, `❌ Gagal update stok: ${result.error}`);
+    return true;
+  }
+  await safeReply(msg, `✅ *${match.name}*: ${stockManager.formatQty(stockBefore, match.unit)} → ${stockManager.formatQty(stockAfter, match.unit)} ${match.unit}`);
+  return true;
+}
+
 async function handleResep(msg: Message, user: any, productQuery: string): Promise<boolean> {
   const prodResult = await stockManager.searchProductByName(user.id, productQuery);
   if (!prodResult.success || !prodResult.products || prodResult.products.length === 0) {
@@ -191,4 +224,4 @@ async function handleResep(msg: Message, user: any, productQuery: string): Promi
   return true;
 }
 
-export { handleStockList, handleStockInfo, handleStockReport, handleBahanList, handleBahanMasuk, handleResep };
+export { handleStockList, handleStockInfo, handleStockReport, handleBahanList, handleBahanMasuk, handleBahanKeluar, handleResep };

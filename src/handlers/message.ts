@@ -16,7 +16,7 @@ import { circuitIsOpen, circuitRecordSuccess, circuitRecordFailure } from '../se
 import { sanitizeError, isMessageProcessed, markMessageProcessed, onboardingStates, graduatedVirtualUsers, safeReply, getMaintenanceMode, invalidateMaintenanceCache, withSenderLock } from '../config/message-state';
 import { setDialog, getDialog, hasDialog, removeDialog, clearAllDialogs, getNextDialog, getExpiredDialogTypes, sortedDialogs } from '../services/dialog-state.service';
 import { generateUniqueSlug } from '../utils/slug';
-import { handleStockList, handleStockInfo, handleStockReport, handleBahanList, handleBahanMasuk, handleResep } from './stock-handler';
+import { handleStockList, handleStockInfo, handleStockReport, handleBahanList, handleBahanMasuk, handleBahanKeluar, handleResep } from './stock-handler';
 import { handleInvoiceCommand, handleSetBankCommand, generateInvoiceNumber, normalizeWaNumber, getBankCache, setBankCache, generateInvoicePDF } from './invoice-handler';
 import { handleOnboardingStep } from './onboarding';
 
@@ -32,10 +32,10 @@ async function handleStockInOutCommand(msg: any, user: any, productQuery: string
     return true;
   }
   const product = searchRes.products[0] as any;
-  const note = type === 'in' ? 'Restock via WA' : 'Terjual via WA';
+  const note = type === 'in' ? 'Restok via WA' : 'Penjualan via WA';
   const res = await transactionRecorder.recordStockAdjustment({
     userId: user.id, productId: product.id, type, quantity: qty,
-    note,
+    note, recordTransaction: type === 'out',
   });
   if (!res.success) {
     await safeReply(msg, `❌ *Gagal*\n\n${res.error}`);
@@ -65,71 +65,6 @@ async function handleStockInOutCommand(msg: any, user: any, productQuery: string
     `✅ *${label}* ${product.name}\n\n` +
     `${stockManager.formatQty(d.stockBefore, d.product.unit)} ${d.product.unit} → ` +
     `${stockManager.formatQty(d.stockAfter, d.product.unit)} ${d.product.unit}${bomText}`
-  );
-  return true;
-}
-
-async function handleSaleCommand(msg: any, sender: string, user: any, productQuery: string, quantityStr: string, unitStr: string | null, channelName = 'Offline'): Promise<boolean> {
-  const qty = parseFloat(quantityStr.replace(',', '.'));
-  if (isNaN(qty) || qty <= 0) {
-    await safeReply(msg, `⚠️ Jumlah tidak valid: *${quantityStr}*.\nContoh yang benar: *jual kopi 2* atau *jual galon 3*`);
-    return true;
-  }
-
-  const searchRes = await stockManager.searchProductByName(user.id, productQuery);
-  if (!searchRes.success) {
-    await safeReply(msg, `❌ Gagal mencari produk: ${searchRes.error}`);
-    return true;
-  }
-
-  const matches = searchRes.products!;
-
-  if (matches.length === 0) {
-    await safeReply(msg, `⚠️ Produk "*${productQuery}*" tidak ditemukan di database Anda.\n\nKetik *Stock list* untuk melihat daftar produk yang tersedia.`);
-    return true;
-  }
-
-  if (matches.length === 1) return processSaleExecution(msg, sender, user, matches[0], qty, channelName);
-
-  setDialog(sender, 'sale_selection', { products: matches, qty, query: productQuery, channel: channelName });
-
-  let text = `🤔 *Banyak Produk Cocok*\n\nAda beberapa produk yang cocok dengan pencarian "*${productQuery}*":\n\n`;
-  matches.forEach((p: any, i: number) => { text += `${i + 1}. *${p.name}* (Sisa: ${stockManager.formatQty(p.stock_current, p.unit)} ${p.unit})\n`; });
-  text += `\nKetik *angka* pilihan Anda (1-${matches.length}).\nKetik *Batal* untuk membatalkan.`;
-
-  await safeReply(msg, text);
-  return true;
-}
-
-async function processSaleExecution(msg: any, sender: string, user: any, product: any, qty: number, channelName = 'Offline'): Promise<boolean> {
-  const res = await stockManager.executeSale(user.id, product.id, qty);
-  if (!res.success) { await safeReply(msg, `❌ *Gagal Mencatat Penjualan*\n\n${res.error}`); return true; }
-
-  const d = res.data!;
-  const channelTag = channelName !== 'Offline' ? ` (${channelName})` : '';
-  const friendlyClose = [
-    `Sip bos! Uang masuk ${formatRupiah(d.totalOmzet)} udah Tata catet ya. Laris manis! 🔥`,
-    `Mantap bos! ${formatRupiah(d.totalOmzet)} masuk kas. Rejeki terus ya! 💰`,
-    `Oke bos! ${formatRupiah(d.totalOmzet)} tercatat. Semoga makin cuan! 🚀`,
-  ];
-  const closingLine = friendlyClose[Math.floor(Math.random() * friendlyClose.length)];
-
-  let bomText = '';
-  const bomInfo = (d as any).bom;
-  if (bomInfo?.deducted?.length > 0) {
-    bomText = '\n📦 *Bahan terpakai*:\n' + bomInfo.deducted.map((b: any) =>
-      `• ${b.name}: -${stockManager.formatQty(b.deducted, b.unit)} ${b.unit}`
-    ).join('\n');
-  }
-  if (bomInfo?.warnings?.length > 0) {
-    bomText += '\n⚠️ ' + bomInfo.warnings.join('\n⚠️ ');
-  }
-
-  await safeReply(msg,
-    `✅ *Sip bos! Transaksi tercatat ya!*\n\n` +
-    `💰 *Uang Masuk*: ${formatRupiah(d.totalOmzet)}${channelTag}\n` +
-    `📦 *${product.name}*: -${stockManager.formatQty(qty, product.unit)} ${product.unit} (sisa: ${stockManager.formatQty(d.stockAfter, product.unit)})` +
-    bomText + `\n\n_${closingLine}_\n_Ketik *Batal* dalam 1 menit kalau ada yang keliru._`
   );
   return true;
 }
@@ -366,7 +301,7 @@ async function handleTransaction(msg: any, sender: string, user: any, effectiveS
   }
 
   if (type && !amount) {
-    const ex = type === 'keluar' ? '*beli stok sembako 200rb*' : '*jual nasi goreng 25rb*';
+    const ex = type === 'keluar' ? '*beli stok sembako 200rb*' : '*Jualan 25rb*';
     await safeReply(msg, `❌ *Nominalnya belum ada Bos.*\n\nContoh yang benar: ${ex}\n\nFormat angka yang didukung:\n• 20rb  • 50k  • 1.5jt  • 20.000  • 1000000`);
     return true;
   }
@@ -839,6 +774,21 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         return;
       }
 
+      if (d.type === 'undo_confirmation') {
+        const ud = d.data;
+        const isYes = ['ya', 'iya', 'oke', 'ok', 'yes', 'y', '1'].includes(body);
+        if (isYes) {
+          removeDialog(sender, 'undo_confirmation');
+          const result = await transactionRecorder.reverseTransaction(sender, ud.transactionId);
+          if (!result.success) throw new Error(`Gagal undo: ${result.error}`);
+          const dt = result.data as any;
+          await safeReply(msg, `✅ *Transaksi Berhasil Dibatalkan!*\n\n📄 ${dt.description || 'Transaksi dibatalkan'}\n💵 ${formatRupiah(ud.amount)}\n📦 ${ud.productName}\n\nStok dikembalikan.`);
+          return;
+        }
+        await safeReply(msg, '⚠️ Balas *Ya* untuk membatalkan transaksi atau *Batal* untuk membatalkan.');
+        return;
+      }
+
       if (d.type === 'product_selection') {
         const sel = d.data;
         const choiceIdx = parseInt(body) - 1;
@@ -873,21 +823,6 @@ async function handleMessage(msg: any, client: any): Promise<any> {
           return;
         }
         await safeReply(msg, `\u26a0\ufe0f Pilihan tidak valid. Balas *angka 1-${sel.products.length}* untuk memilih produk, atau *Batal* untuk membatalkan.`);
-        return;
-      }
-
-      if (d.type === 'sale_selection') {
-        const dialog = d.data;
-        const choiceIndex = parseInt(body) - 1;
-        if (!isNaN(choiceIndex) && choiceIndex >= 0 && choiceIndex < dialog.products.length) {
-          const product = dialog.products[choiceIndex];
-          const qty = dialog.qty;
-          const channel = dialog.channel || 'Offline';
-          removeDialog(sender, 'sale_selection');
-          await processSaleExecution(msg, sender, user, product, qty, channel);
-          return;
-        }
-        await safeReply(msg, `\u26a0\ufe0f Pilihan tidak valid. Silakan balas dengan *angka 1-${dialog.products.length}* atau ketik *Batal*.`);
         return;
       }
 
@@ -1216,6 +1151,80 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
+    // ── Cek Piutang ──
+    if (body === 'piutang' || body === 'cek piutang') {
+      try {
+        if (!['pro', 'unlimited'].includes(effectiveStatus)) {
+          await safeReply(msg, `🔒 *Fitur Piutang*\n\nTersedia untuk paket *PRO* & *UNLIMITED*.\n\nKetik *Paket* untuk upgrade.`);
+          return;
+        }
+        const { data: list } = await supabase
+          .from('receivables').select('*').eq('user_id', sender)
+          .eq('status_lunas', false).order('jatuh_tempo', { ascending: true }) as any;
+        if (!list || list.length === 0) {
+          await safeReply(msg, `✅ *Piutang — ${user.store_name}*\n\nTidak ada piutang dari pelanggan saat ini.`);
+          return;
+        }
+        const now = new Date();
+        const total = list.reduce((s: number, r: any) => s + Number(r.nominal_piutang), 0);
+        let text =
+          `💳 *Piutang dari Pelanggan — ${user.store_name}*\n` +
+          `${'─'.repeat(24)}\n`;
+        list.slice(0, 10).forEach((r: any) => {
+          const overdue = r.jatuh_tempo && new Date(r.jatuh_tempo) < now ? ' ⏰' : '';
+          text += `\n• *${r.nama_pelanggan}*${overdue}\n  Piutang: ${formatRupiah(Number(r.nominal_piutang))}`;
+          if (r.jatuh_tempo) text += `\n  Jatuh tempo: ${new Date(r.jatuh_tempo).toLocaleDateString('id-ID')}`;
+        });
+        if (list.length > 10) text += `\n\n...dan ${list.length - 10} piutang lainnya`;
+        text += `\n\n${'─'.repeat(24)}\nTotal: *${formatRupiah(Math.max(0, total))}*\n\nKetik *Dashboard* untuk kelola piutang via web.`;
+        await safeReply(msg, text);
+      } catch (e: any) {
+        addLog('error', `[PIUTANG] Error: ${e.message}`);
+        await safeReply(msg, `❌ Gagal cek piutang. Coba lagi nanti Bos.`);
+      }
+      return;
+    }
+
+    // ── Laporan Laba Rugi ──
+    if (body === 'laba rugi' || body === 'laba' || body === 'profit loss' || body === 'laba bersih') {
+      try {
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        const { data: trans } = await supabase
+          .from('transactions')
+          .select('type, amount, quantity, price_buy, reference_type')
+          .eq('user_id', sender)
+          .gte('created_at', todayStart.toISOString()) as any;
+        if (!trans || trans.length === 0) {
+          await safeReply(msg, `📊 *Laba Rugi Hari Ini — ${user.store_name}*\n\nBelum ada transaksi hari ini.`);
+          return;
+        }
+        let omzet = 0, hpp = 0, beban = 0;
+        trans.forEach((t: any) => {
+          const v = Number(t.amount) || 0;
+          if (t.type === 'masuk' && t.reference_type !== 'modal') omzet += v;
+          else if (t.type === 'keluar') beban += v;
+          if ((t.reference_type === 'stock_out' || t.reference_type === 'cashier') && t.quantity && t.price_buy) {
+            hpp += Number(t.quantity) * Number(t.price_buy);
+          }
+        });
+        const laba = omzet - hpp - beban;
+        await safeReply(msg,
+          `📊 *Laba Rugi Hari Ini — ${user.store_name}*\n` +
+          `${'─'.repeat(24)}\n\n` +
+          `📈 Omzet:\t${formatRupiah(omzet)}\n` +
+          `📉 HPP:\t${formatRupiah(hpp)}\n` +
+          `📤 Beban:\t${formatRupiah(beban)}\n\n` +
+          `${'─'.repeat(24)}\n` +
+          `${laba >= 0 ? `✅ *Laba Bersih: ${formatRupiah(laba)}*` : `🔴 *Rugi: -${formatRupiah(Math.abs(laba))}*`}\n\n` +
+          `Ketik *Laporan* untuk detail transaksi.`
+        );
+      } catch (e: any) {
+        addLog('error', `[LABARUGI] Error: ${e.message}`);
+        await safeReply(msg, `❌ Gagal memuat laba rugi. Coba lagi nanti.`);
+      }
+      return;
+    }
+
     if (KW_STATUS.some((k: string) => body === k) || fuzzyMatchKeywords(body, KW_STATUS)) {
       let statusBlock = '';
       if (effectiveStatus === 'demo') {
@@ -1247,7 +1256,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
           `Belum ada transaksi tercatat untuk hari ini, Bos.\n\n` +
           `💡 *Tips:*\n` +
           `Mulai catat transaksi dengan mengetik langsung:\n` +
-          `Contoh: *Jual Barang 1.5jt*`
+          `Contoh: *Keluar Barang 10*`
         );
         return;
       }
@@ -1263,13 +1272,12 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         `Halo! 👋 Ini buku saku asisten digitalmu. Mau catat apa hari ini?\n\n` +
         `${statusNote}\n\n` +
         `💰 *CATAT UANG & JUALAN*\n` +
-        `• Jualan di toko fisik? Ketik:\n` +
-        `  *Jual [barang] [jumlah]*\n` +
-        `  Contoh: *Jual vitamin 2*\n` +
-        `• Jualan dari online? Tambahin nama aplikasinya:\n` +
-        `  *Jual Tokped [barang] [jumlah]*\n` +
-        `  (Bisa pakai: *Tokped*, *TikTok*, *Lazada*, *Shopee*)\n` +
-        `  Contoh: *Jual Tokped serum 3*\n` +
+        `• Catat penjualan (kurangi stok):\n` +
+        `  *Keluar [barang] [jumlah]*\n` +
+        `  Contoh: *Keluar vitamin 2*\n` +
+        `• Catat pemasukan uang tanpa stok:\n` +
+        `  *[keterangan] [nominal]*\n` +
+        `  Contoh: *Jualan 25rb*\n` +
         `• Catat pengeluaran toko? Ketik:\n` +
         `  *Beli [keterangan] [nominal]*\n` +
         `  Contoh: *Beli lakban 30rb*\n\n` +
@@ -1279,11 +1287,13 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         `📦 *CEK GUDANG*\n` +
         `• *Stock list* ➡️ Lihat sisa semua barang\n` +
 `• *Masuk [produk] [jumlah]* ➡️ Restok barang\n` +
-`• *Keluar [produk] [jumlah]* ➡️ Catat penjualan\n\n` +
+`• *Keluar [produk] [jumlah]* ➡️ Catat penjualan (kurangi stok)\n\n` +
         `📋 *LAINNYA*\n` +
         `• *Dashboard* — Akses dashboard web\n` +
         `• *Token baru* — Reset link dashboard jika bocor\n` +
         `• *Laporan* — Rekap transaksi hari ini\n` +
+        `• *Piutang* — Cek daftar piutang\n` +
+        `• *Laba rugi* — Lihat laba rugi\n` +
         `• *Status* — Info & status akun\n` +
         `• *Paket* — Opsi upgrade & langganan\n\n` +
         `💡 *TIPS:* Angka bisa diketik bebas, contoh: *20rb*, *1.5jt*, *20000*.`
@@ -1309,19 +1319,6 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
-    const saleMatch = rawBody.match(/^(?:jual|laku|terjual|sold)\s+(?:(tokped|tiktok(?:\s*shop)?|lazada|shopee)\s+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s*(pcs|kg|gram|liter|buah|bungkus|pack|box|dus|karton|sak|meter|cm|mm)?$/i);
-    if (saleMatch) {
-      const channelRaw = saleMatch[1] || null;
-      const ch = channelRaw ? channelRaw.trim().replace(/\s+/g, '').toLowerCase() : 'offline';
-      const channelMap: Record<string, string> = { tokped: 'Tokopedia', tiktokshop: 'TikTok Shop', tiktok: 'TikTok Shop', lazada: 'Lazada', shopee: 'Shopee', offline: 'Offline' };
-      const channelName = channelMap[ch] || 'Offline';
-      const productQuery = saleMatch[2].trim();
-      const quantityStr = saleMatch[3] || '1';
-      const unitStr = saleMatch[4] || null;
-      await handleSaleCommand(msg, sender, user, productQuery, quantityStr, unitStr, channelName);
-      return;
-    }
-
     const bahanListIntent = KW_BAHAN.some(k => body === k || body === k + ' list' || body === 'daftar ' + k) || fuzzyMatchKeywords(body, KW_BAHAN);
     if (bahanListIntent && body !== 'bahan masuk' && body !== 'bahan keluar') {
       await handleBahanList(msg, user);
@@ -1334,9 +1331,64 @@ async function handleMessage(msg: any, client: any): Promise<any> {
       return;
     }
 
+    const bahanKeluarMatch = rawBody.match(/^(?:bahan|material)\s+(?:keluar|terpakai)\s+(.+?)\s+(\d+(?:[.,]\d+)?)/i);
+    if (bahanKeluarMatch) {
+      await handleBahanKeluar(msg, user, bahanKeluarMatch[1].trim(), bahanKeluarMatch[2]);
+      return;
+    }
+
     const resepMatch = rawBody.match(/^(?:resep|bom|komposisi)\s+(.+)/i);
     if (resepMatch) {
       await handleResep(msg, user, resepMatch[1].trim());
+      return;
+    }
+
+    // ── Undo Transaksi ──
+    if (body === 'undo' || body === 'undo transaksi' || body === 'batalkan transaksi' || body === 'rollback') {
+      try {
+        const { data: lastTx } = await supabase
+          .from('transactions')
+          .select('id, type, amount, product_id, quantity, price_sell, price_buy, created_at, description')
+          .eq('user_id', sender)
+          .order('created_at', { ascending: false })
+          .limit(1) as any;
+        if (!lastTx || lastTx.length === 0) {
+          await safeReply(msg, `⚠️ Tidak ada transaksi yang bisa dibatalkan.`);
+          return;
+        }
+        const tx = lastTx[0];
+        const createdAt = new Date(tx.created_at).getTime();
+        if (Date.now() - createdAt > 5 * 60 * 1000) {
+          await safeReply(msg, `⏰ *Transaksi sudah lebih dari 5 menit.*\n\nUndo hanya bisa untuk transaksi < 5 menit yang lalu.\nHapus manual via Dashboard web.`);
+          return;
+        }
+        const { data: product } = await supabase
+          .from('products').select('name').eq('id', tx.product_id).single() as any;
+        const productName = product?.name || `Produk #${tx.product_id}`;
+        setDialog(sender, 'undo_confirmation', {
+          transactionId: String(tx.id),
+          type: tx.type,
+          amount: tx.amount,
+          productId: String(tx.product_id),
+          productName,
+          quantity: tx.quantity,
+          priceSell: tx.price_sell,
+          priceBuy: tx.price_buy,
+          description: tx.description,
+        });
+        await safeReply(msg,
+          `📋 *Konfirmasi Batalkan Transaksi*\n\n` +
+          `📄 Transaksi terakhir:\n` +
+          `${tx.type === 'masuk' ? '📥 MASUK' : '📤 KELUAR'} ${productName}\n` +
+          `💵 Jumlah: ${formatRupiah(tx.amount)}\n` +
+          `📝 Ket: ${tx.description || '-'}\n\n` +
+          `Balas *Ya* untuk membatalkan transaksi.\n` +
+          `Balas *Batal* untuk membatalkan.`
+        );
+      } catch (e: any) {
+        addLog('error', `[UNDO] Error: ${e.message}`);
+        await safeReply(msg, `❌ Gagal memproses undo. Coba lagi nanti.`);
+      }
       return;
     }
 
@@ -1346,8 +1398,9 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         await safeReply(msg,
           `💰 *Catat Transaksi — ${user.store_name}*\n\n` +
           `Ketik langsung, contoh:\n\n` +
-          `📥 Pemasukan: *jual nasi goreng 25rb*\n` +
-          `📤 Pengeluaran: *beli stok kopi 500rb*\n\n` +
+          `📥 Pemasukan: *Jualan 25rb*\n` +
+          `📤 Pengeluaran: *beli stok kopi 500rb*\n` +
+          `📦 Penjualan (kurangi stok): *Keluar barang 10*\n\n` +
           `🧾 Tagihan: *tagih 150rb ke 08123456*\n\n` +
           `Ketik *Bantuan* untuk panduan lengkap.`
         );
@@ -1359,7 +1412,7 @@ async function handleMessage(msg: any, client: any): Promise<any> {
         if (!sent) {
           await safeReply(msg,
             `📊 Belum ada transaksi hari ini, Bos.\n\n` +
-            `Mulai catat: *jual nasi goreng 25rb*`
+            `Mulai catat: *Keluar barang 10*`
           );
           return;
         }
@@ -1375,19 +1428,21 @@ async function handleMessage(msg: any, client: any): Promise<any> {
           `Halo! 👋 Ini buku saku asisten digitalmu. Mau catat apa hari ini?\n\n` +
           `${statusNote}\n\n` +
           `💰 *CATAT UANG & JUALAN*\n` +
-          `• Jualan di toko fisik? Ketik:\n  *Jual [barang] [jumlah]*\n  Contoh: *Jual vitamin 2*\n` +
-          `• Jualan dari online? Tambahin nama aplikasinya:\n  *Jual Tokped [barang] [jumlah]*\n  (Bisa pakai: *Tokped*, *TikTok*, *Lazada*, *Shopee*)\n  Contoh: *Jual Tokped serum 3*\n` +
+          `• Catat penjualan (kurangi stok):\n  *Keluar [barang] [jumlah]*\n  Contoh: *Keluar vitamin 2*\n` +
+          `• Catat pemasukan uang tanpa stok:\n  *[keterangan] [nominal]*\n  Contoh: *Jualan 25rb*\n` +
           `• Catat pengeluaran toko? Ketik:\n  *Beli [keterangan] [nominal]*\n  Contoh: *Beli lakban 30rb*\n\n` +
           `🧾 *KIRIM TAGIHAN (INVOICE)*\n` +
           `• Ketik: *Tagih [nominal] ke [nomor WA]*\n  Contoh: *Tagih 150rb ke 08123456789*\n\n` +
           `📦 *CEK GUDANG*\n` +
           `• *Stock list* ➡️ Lihat sisa semua barang\n` +
 `• *Masuk [produk] [jumlah]* ➡️ Restok barang\n` +
-`• *Keluar [produk] [jumlah]* ➡️ Catat penjualan\n\n` +
+`• *Keluar [produk] [jumlah]* ➡️ Catat penjualan (kurangi stok)\n\n` +
           `📋 *LAINNYA*\n` +
           `• *Dashboard* — Akses dashboard web\n` +
           `• *Token baru* — Reset link dashboard jika bocor\n` +
           `• *Laporan* — Rekap transaksi hari ini\n` +
+          `• *Piutang* — Cek daftar piutang\n` +
+          `• *Laba rugi* — Lihat laba rugi\n` +
           `• *Status* — Info & status akun\n` +
           `• *Paket* — Opsi upgrade & langganan\n\n` +
           `💡 *TIPS:* Angka bisa diketik bebas, contoh: *20rb*, *1.5jt*, *20000*.`
@@ -1402,9 +1457,9 @@ async function handleMessage(msg: any, client: any): Promise<any> {
     await safeReply(msg,
       `Waduh, Tata agak bingung nih sama ketikannya 😅\n\n` +
       `Coba pakai cara simpel aja ya bos:\n\n` +
-      `🟢 *Jual kopi 15rb* — ada yang beli\n` +
+      `🟢 *Jualan 25rb* — ada pemasukan\n` +
       `🔴 *Beli gula 20rb* — bos belanja\n` +
-      `🧾 *Tagih 50rb ke 0812345...* — mau nagih\n\n` +
+      `📦 *Keluar barang 10* — catat penjualan (kurangi stok)\n\n` +
       `Atau ketik *Bantuan* untuk contekan lengkapnya.`
     );
       return;

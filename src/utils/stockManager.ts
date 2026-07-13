@@ -1,7 +1,7 @@
 import supabase, { pgPool } from '../config/supabase';
 import { addLog, getIO } from '../config/state';
 import { sanitizeError } from './errors';
-import { recordSale } from './transactionRecorder';
+
 import { withTransaction } from './db';
 import { syncInventory } from './inventory';
 import type { PoolClient } from 'pg';
@@ -224,84 +224,6 @@ async function searchProductByName(
   } catch (err: any) {
     addLog('error', '[STOCK] searchProductByName error: ' + err.message);
     return { success: false, products: [], error: sanitizeError(err) };
-  }
-}
-
-// ── Execute Sale ──
-
-async function executeSale(
-  userId: string,
-  productId: string,
-  quantity: number,
-  channel = 'Offline',
-): Promise<{ success: boolean; data?: any; error?: string }> {
-  try {
-    const { data: product, error: prodErr } = (await supabase
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single()) as any;
-    if (prodErr || !product) {
-      return { success: false, error: 'Produk tidak ditemukan atau tidak aktif.' };
-    }
-    const qty = parseFloat(String(quantity));
-    const priceSell = parseFloat(product.price_sell) || 0;
-    const priceBuy = parseFloat(product.price_buy) || 0;
-    if (qty <= 0) {
-      return { success: false, error: 'Jumlah harus lebih dari 0.' };
-    }
-    const totalOmzet = qty * priceSell;
-    const totalModal = qty * priceBuy;
-    const profit = totalOmzet - totalModal;
-    const description = `Penjualan ${product.name} (${formatQty(qty, product.unit)} ${product.unit})`;
-    const result = await recordSale({
-      userId,
-      productId,
-      quantity: qty,
-      priceSell,
-      priceBuy,
-      totalOmzet,
-      description,
-      referenceType: 'cashier',
-      channel,
-    });
-    if (!result.success) {
-      return { success: false, error: sanitizeError(result.error) };
-    }
-    const saleData = result.data as any;
-    let bomData: { deducted: any[]; warnings: string[] } = { deducted: [], warnings: [] };
-    try {
-      const bomResult = await deductPackaging(userId, qty, description, productId);
-      bomData = { deducted: bomResult.deducted || [], warnings: bomResult.warnings || [] };
-      if (bomResult.warnings && bomResult.warnings.length > 0) {
-        addLog('info', '[BOM] Packaging deducted for ' + userId + ': ' + bomResult.warnings.join(', '));
-      }
-    } catch (bomErr: any) {
-      addLog('error', '[BOM] deductPackaging failed (non-blocking): ' + (bomErr.message || bomErr));
-    }
-    return {
-      success: true,
-      data: {
-        product,
-        qty,
-        unit: product.unit,
-        priceSell,
-        priceBuy,
-        totalOmzet: saleData.totalOmzet,
-        totalModal: saleData.totalModal,
-        profit: saleData.profit,
-        stockBefore: saleData.stockBefore,
-        stockAfter: saleData.stockAfter,
-        description,
-        bom: bomData,
-      },
-      error: undefined,
-    };
-  } catch (err: any) {
-    addLog('error', '[STOCK] executeSale error: ' + err.message);
-    return { success: false, error: sanitizeError(err) };
   }
 }
 
@@ -850,7 +772,6 @@ export {
   getProduct,
   listProducts,
   searchProductByName,
-  executeSale,
   getStockHistory,
   getPendingAlerts,
   resolveStockAlerts,

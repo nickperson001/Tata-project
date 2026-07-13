@@ -2,11 +2,11 @@ export type DialogType =
   | 'tx_confirmation'
   | 'classification'
   | 'product_selection'
-  | 'sale_selection'
   | 'pay_hutang'
   | 'receive_piutang'
   | 'retur_jual'
-  | 'retur_beli';
+  | 'retur_beli'
+  | 'undo_confirmation';
 
 export interface DialogState {
   type: DialogType;
@@ -111,8 +111,8 @@ const PRIORITY_ORDER: DialogType[] = [
   'receive_piutang',
   'retur_jual',
   'retur_beli',
+  'undo_confirmation',
   'product_selection',
-  'sale_selection',
   'classification',
 ];
 

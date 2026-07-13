@@ -1161,6 +1161,99 @@ async function recordPurchaseReturn(opts: PurchaseReturnOpts): Promise<RecordRes
   }
 }
 
+// ===== REVERSE TRANSACTION (Undo) =====
+async function reverseTransaction(userId: string, transactionId: string): Promise<RecordResult> {
+  if (!userId) return { success: false, error: 'userId is required' };
+  if (!transactionId) return { success: false, error: 'transactionId is required' };
+
+  try {
+    return await withTransaction(async (client) => {
+      // 1. Find original transaction
+      const txRows = await client.query(
+        `SELECT id, type, amount, product_id, quantity, price_sell, price_buy, description, reference_type, channel, customer_name, status_bayar
+         FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [transactionId, userId],
+      );
+      if (txRows.rows.length === 0) throw new Error('Transaksi tidak ditemukan');
+      const tx = txRows.rows[0];
+
+      // 2. Lock product and reverse stock
+      const prod = await client.query(
+        `SELECT stock_current, name FROM products WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [tx.product_id, userId],
+      );
+      if (prod.rows.length === 0) throw new Error('Produk tidak ditemukan');
+      const p = prod.rows[0];
+      const stockBefore = parseFloat(p.stock_current) || 0;
+
+      // For 'masuk' type (sale/income): add stock back
+      // For 'keluar' type (expense): subtract stock back
+      const qty = parseFloat(tx.quantity) || 0;
+      const isIncomeReverse = tx.reference_type === 'stock_out' || tx.reference_type === 'cashier';
+      const stockAfter = isIncomeReverse ? stockBefore + qty : stockBefore - qty;
+      if (stockAfter < 0) throw new Error(`Stok tidak cukup. Stok saat ini: ${stockBefore} ${p.unit || ''}`);
+
+      await client.query(`UPDATE products SET stock_current = $1 WHERE id = $2 AND user_id = $3`, [
+        stockAfter, tx.product_id, userId,
+      ]);
+      await syncInventory(userId, String(tx.product_id), stockAfter, 'Utama', client);
+
+      // 3. Insert reversal stock_movements
+      const revType = isIncomeReverse ? 'in' : 'out';
+      await client.query(
+        `INSERT INTO stock_movements (user_id, product_id, type, quantity, stock_before, stock_after, reference_type, note, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, 'undo', 'Pembatalan transaksi #${transactionId}', 'system')`,
+        [userId, tx.product_id, revType, qty, stockBefore, stockAfter],
+      );
+
+      // 4. Create reversal transaction entry
+      const revAmt = parseFloat(tx.amount) || 0;
+      const revTrx = await client.query(
+        `INSERT INTO transactions (user_id, type, status_bayar, amount, description, reference_type, product_id, quantity, price_sell, price_buy, customer_name, original_transaction_id)
+         VALUES ($1, 'sales_return', $2, $3, $4, 'undo', $5, $6, $7, $8, $9, $10)
+         RETURNING id`,
+        [
+          userId,
+          tx.status_bayar || 'tunai',
+          revAmt,
+          `Pembatalan: ${tx.description || 'Transaksi dibatalkan'}`,
+          tx.product_id,
+          qty,
+          tx.price_sell || 0,
+          tx.price_buy || 0,
+          tx.customer_name || null,
+          transactionId,
+        ],
+      );
+      const revTrxId = revTrx.rows[0].id;
+
+      // 5. Reverse journal entries
+      await accountingEngine.insertJournalViaClient(client, userId, {
+        referenceType: 'undo',
+        referenceId: String(revTrxId),
+        description: `Pembatalan transaksi #${transactionId}: ${tx.description || ''}`,
+        lines: [
+          { accountCode: '4102', debit: revAmt, credit: 0, description: 'Pembatalan transaksi' },
+          { accountCode: '1101', debit: 0, credit: revAmt, description: 'Pengembalian dana' },
+        ],
+      });
+
+      return {
+        success: true,
+        data: {
+          description: tx.description,
+          stockBefore,
+          stockAfter,
+          amount: revAmt,
+        },
+      };
+    });
+  } catch (err: any) {
+    addLog('error', '[TRX-RECORDER] reverseTransaction failed: ' + err.message);
+    return { success: false, error: sanitizeError(err) };
+  }
+}
+
 // ===== INVENTORY ADJUSTMENT (Opname) =====
 async function recordInventoryAdjustment(opts: InventoryAdjustmentOpts): Promise<RecordResult> {
   const { userId, opnameId, items, notes } = opts;
@@ -1234,7 +1327,6 @@ async function recordInventoryAdjustment(opts: InventoryAdjustmentOpts): Promise
 export {
   recordTransaction,
   recordTransactionWithJournal,
-  recordSale,
   recordExpense,
   recordDamagedGoods,
   recordPembukuan,
@@ -1243,6 +1335,7 @@ export {
   recordReceiveReceivable,
   recordSalesReturn,
   recordPurchaseReturn,
+  reverseTransaction,
   recordInventoryAdjustment,
 
   PEMBUKUAN_COA_MAP,

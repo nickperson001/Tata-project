@@ -131,7 +131,6 @@ export const KW_KELUAR: readonly string[] = [
 ];
 
 export const KW_MASUK: readonly string[] = [
-  'jual',
   'jualan',
   'dagang',
   'laku',

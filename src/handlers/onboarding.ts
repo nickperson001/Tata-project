@@ -14,7 +14,7 @@ function getBiteSizedMenu(storeName: string): string {
     `3️⃣ Cek Status Akun\n` +
     `4️⃣ Bantuan & Panduan\n\n` +
     `💡 *Tips:* Ketik langsung juga bisa!\n` +
-    `Contoh: *jual nasi goreng 25rb* atau *beli stok kopi 500rb*`;
+    `Contoh: *Keluar nasi goreng 1* atau *beli stok kopi 500rb*`;
 }
 
 async function handleOnboardingStep(msg: Message, sender: string, user: any, body: string, client: any): Promise<boolean> {
@@ -69,10 +69,10 @@ async function handleOnboardingStep(msg: Message, sender: string, user: any, bod
   if (state.step === 1) {
     if (body === '1') {
       await safeReply(msg,
-        `🎯 *Simulasi Pemasukan*\n\n` +
-        `Anggap Bos baru saja menjual nasi goreng seharga 25 ribu.\n\n` +
+        `🎯 *Simulasi Penjualan*\n\n` +
+        `Anggap Bos baru saja menjual 1 porsi nasi goreng.\n\n` +
         `👇 *Ketik persis di bawah ini:*\n\n` +
-        `*jual nasi goreng 25rb*`
+        `*Keluar nasi goreng 1*`
       );
       onboardingStates.set(sender, { step: 2, timestamp: Date.now() });
     } else {
@@ -82,16 +82,12 @@ async function handleOnboardingStep(msg: Message, sender: string, user: any, bod
   }
 
   if (state.step === 2) {
-    const saleMatch = body.match(/^(?:jual|laku|terjual|sold)\s+/i);
-    if (saleMatch) {
-      const amountMatch = rawBodyMatch(body);
-      const amount = amountMatch ? parseCurrency(amountMatch) : 15000;
-      const amountStr = amount ? formatRupiah(amount) : 'Rp 15.000';
+    const keluarMatch = body.match(/^(?:keluar|kurang\s+stok)\s+/i);
+    if (keluarMatch) {
       await safeReply(msg,
-        `✅ *Hebat! Pemasukan Tercatat!*\n\n` +
-        `📥 MASUK\n` +
-        `💵 Jumlah: ${amountStr}\n` +
-        `📝 Ket: Simulasi pemasukan\n\n` +
+        `✅ *Hebat! Penjualan Tercatat!*\n\n` +
+        `📦 Stok nasi goreng berkurang 1 pcs\n` +
+        `💰 Omzet tercatat Rp 25.000\n\n` +
         `_(Ini hanya contoh, tidak tercatat di data asli)_\n\n` +
         `👇 Sekarang coba catat pengeluaran.\n` +
         `Ketik persis di bawah ini:\n\n` +
@@ -101,8 +97,8 @@ async function handleOnboardingStep(msg: Message, sender: string, user: any, bod
     } else {
       await safeReply(msg,
         `🤔 Hampir benar Bos!\n\n` +
-        `Pastikan diawali kata *jual* ya.\n\n` +
-        `👇 Coba ketik: *jual nasi goreng 25rb*`
+        `Pastikan diawali kata *Keluar* ya.\n\n` +
+        `👇 Coba ketik: *Keluar nasi goreng 1*`
       );
     }
     return true;
